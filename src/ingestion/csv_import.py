@@ -9,8 +9,8 @@ from typing import Optional
 
 from sqlmodel import select
 
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection
+from src.database.engine import get_session
+from src.database.models import Connection
 
 
 @dataclass

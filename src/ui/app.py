@@ -2,11 +2,11 @@
 
 import streamlit as st
 
-from reconnect.database.engine import get_session, init_db
-from reconnect.database.models import Connection, UserProfile
-from reconnect.ui.components.actions import render_action_buttons, render_drafts_sidebar
-from reconnect.ui.components.detail import render_connection_detail
-from reconnect.ui.components.search import render_search_filters, search_connections
+from src.database.engine import get_session, init_db
+from src.database.models import Connection, UserProfile
+from src.ui.components.actions import render_action_buttons, render_drafts_sidebar
+from src.ui.components.detail import render_connection_detail
+from src.ui.components.search import render_search_filters, search_connections
 
 # Page config
 st.set_page_config(
@@ -14,6 +14,22 @@ st.set_page_config(
     page_icon="🤝",
     layout="wide",
 )
+
+# PWA support - inject manifest and service worker registration
+st.markdown("""
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#1f77b4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Reconnect">
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/service-worker.js')
+        .then(reg => console.log('SW registered'))
+        .catch(err => console.log('SW registration failed:', err));
+}
+</script>
+""", unsafe_allow_html=True)
 
 # Initialize database
 init_db()
@@ -138,8 +154,8 @@ def render_main_page():
             st.warning("Set your goals in Settings to enable scoring!")
 
         if st.button("🚀 Enrich & Score Next Batch", use_container_width=True):
-            from reconnect.ingestion.apify_client import update_connection_activity
-            from reconnect.llm.scoring import score_connection
+            from src.ingestion.apify_client import update_connection_activity
+            from src.llm.scoring import score_connection
 
             # Get un-enriched contacts
             with get_session() as session:
@@ -208,6 +224,14 @@ def render_main_page():
         st.divider()
 
         # Navigation
+        if st.button("📋 Review Queue", use_container_width=True, type="primary"):
+            st.session_state.page = "review"
+            st.rerun()
+
+        if st.button("🔄 Pipeline", use_container_width=True):
+            st.session_state.page = "pipeline"
+            st.rerun()
+
         if st.button("⚙️ Settings", use_container_width=True):
             st.session_state.page = "settings"
             st.rerun()
@@ -227,7 +251,7 @@ def render_main_page():
                 import tempfile
                 from pathlib import Path
 
-                from reconnect.ingestion.csv_import import import_linkedin_csv
+                from src.ingestion.csv_import import import_linkedin_csv
 
                 # Save uploaded file temporarily
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
@@ -321,10 +345,108 @@ def show_connection_dialog(connection_id: str):
     render_connection_detail(connection_id)
 
 
+def render_pipeline_page():
+    """Render the pipeline management page."""
+    st.title("Pipeline")
+    st.caption("Run the daily pipeline to process contacts")
+
+    from pathlib import Path
+    from src.pipeline.daily_pipeline import run_daily_pipeline
+    from src.pipeline.queue_generator import get_queue_stats
+
+    # Current stats
+    st.subheader("Current Status")
+    stats = get_queue_stats()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Pending Review", stats.get("pending_review", 0))
+    with col2:
+        st.metric("Approved", stats.get("approved", 0))
+    with col3:
+        st.metric("Sent", stats.get("sent", 0))
+    with col4:
+        st.metric("Skipped", stats.get("skipped", 0))
+
+    st.divider()
+
+    # Run pipeline
+    st.subheader("Run Pipeline")
+
+    # Optional LinkedIn dump
+    uploaded_file = st.file_uploader(
+        "LinkedIn Data Export (optional)",
+        type=["zip"],
+        help="Upload your LinkedIn data export ZIP file",
+    )
+
+    col_run, col_opts = st.columns([1, 1])
+
+    with col_opts:
+        skip_enrich = st.checkbox("Skip Apify enrichment", help="Use pre-scores only")
+        skip_queue = st.checkbox("Skip queue generation", help="Don't add to outreach queue")
+
+    with col_run:
+        if st.button("🚀 Run Pipeline", use_container_width=True, type="primary"):
+            # Save uploaded file if provided
+            dump_path = None
+            if uploaded_file:
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    dump_path = Path(tmp.name)
+
+            with st.spinner("Running pipeline..."):
+                result = run_daily_pipeline(
+                    linkedin_dump_path=dump_path,
+                    skip_enrichment=skip_enrich,
+                    skip_queue_generation=skip_queue,
+                )
+
+            # Show results
+            st.success("Pipeline completed!")
+
+            if result.get("import"):
+                imp = result["import"]
+                st.write(f"**Import:** {imp.get('imported', 0)} new, {imp.get('updated', 0)} updated")
+
+            if result.get("prescore"):
+                ps = result["prescore"]
+                st.write(f"**Pre-scored:** {ps.get('scored', 0)} contacts")
+
+            if result.get("enrich"):
+                en = result["enrich"]
+                st.write(f"**Enriched:** {en.get('success', 0)} contacts")
+
+            if result.get("queue"):
+                q = result["queue"]
+                st.write(f"**Queue:** {q.get('added', 0)} added")
+
+            # Clean up temp file
+            if dump_path and dump_path.exists():
+                dump_path.unlink()
+
+    st.divider()
+
+    if st.button("← Back to Main"):
+        st.session_state.page = "main"
+        st.rerun()
+
+
 def main():
     """Main application entry point."""
+    # Handle URL parameters for deep linking
+    query_params = st.query_params
+    if "page" in query_params:
+        st.session_state.page = query_params["page"]
+
+    # Route to appropriate page
     if st.session_state.page == "settings":
         render_settings_page()
+    elif st.session_state.page == "review":
+        from src.ui.pages.review import render_review_page
+        render_review_page()
+    elif st.session_state.page == "pipeline":
+        render_pipeline_page()
     else:
         render_main_page()
 

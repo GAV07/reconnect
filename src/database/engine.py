@@ -6,7 +6,7 @@ from typing import Generator
 
 from sqlmodel import Session, SQLModel, create_engine
 
-from reconnect.config import settings
+from src.config import settings
 
 
 def get_database_url() -> str:
@@ -36,7 +36,7 @@ engine = get_engine()
 def init_db():
     """Create all tables."""
     # Import models to ensure they're registered
-    from reconnect.database import models  # noqa: F401
+    from src.database import models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

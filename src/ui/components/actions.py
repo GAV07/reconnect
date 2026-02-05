@@ -6,12 +6,12 @@ from datetime import datetime
 
 import streamlit as st
 
-from reconnect.config import settings
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection
-from reconnect.ingestion.apify_client import update_connection_activity
-from reconnect.llm.prose import ProseResult, get_or_generate_prose
-from reconnect.llm.scoring import score_connection
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection
+from src.ingestion.apify_client import update_connection_activity
+from src.llm.prose import ProseResult, get_or_generate_prose
+from src.llm.scoring import score_connection
 
 
 def get_drafts_cache() -> dict:
@@ -103,7 +103,7 @@ def render_action_buttons(connection_id: str):
 
     # Check if user has goals set (needed for scoring)
     with get_session() as session:
-        from reconnect.database.models import UserProfile
+        from src.database.models import UserProfile
         user_profile = session.get(UserProfile, 1)
         has_goals = user_profile and user_profile.goals
 

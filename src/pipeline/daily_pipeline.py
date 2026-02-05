@@ -1,0 +1,276 @@
+"""Daily pipeline for Reconnect.
+
+Orchestrates the full daily workflow:
+1. Import LinkedIn dump (if provided)
+2. Auto-update UserProfile from LinkedIn data
+3. Diff connections, mark new ones
+4. Parse messages, update conversation status
+5. Pre-score un-scored contacts
+6. Enrich top N from tier 1 (budgeted)
+7. Full-score enriched contacts
+8. Generate outreach queue
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+from sqlmodel import select
+
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection, PipelineRun, UserProfile
+
+
+@dataclass
+class PipelineResult:
+    """Result of a pipeline run."""
+
+    run_id: str
+    status: str  # "completed" | "failed"
+    steps_completed: list[str] = field(default_factory=list)
+    step_results: dict[str, Any] = field(default_factory=dict)
+    error_message: Optional[str] = None
+    error_step: Optional[str] = None
+
+
+def run_daily_pipeline(
+    linkedin_dump_path: Optional[Path] = None,
+    user_name: Optional[str] = None,
+    skip_enrichment: bool = False,
+    skip_queue_generation: bool = False,
+    enrich_budget: Optional[int] = None,
+    queue_size: Optional[int] = None,
+) -> dict:
+    """
+    Run the daily pipeline.
+
+    Args:
+        linkedin_dump_path: Optional path to LinkedIn export ZIP
+        user_name: User's name for message direction detection
+        skip_enrichment: Skip Apify enrichment step
+        skip_queue_generation: Skip queue generation step
+        enrich_budget: Max contacts to enrich (default: settings.daily_enrich_budget)
+        queue_size: Max queue items to generate (default: settings.daily_queue_size)
+
+    Returns:
+        Dict with results from each step
+    """
+    if enrich_budget is None:
+        enrich_budget = settings.daily_enrich_budget
+    if queue_size is None:
+        queue_size = settings.daily_queue_size
+
+    # Create pipeline run record
+    run_id = None
+    with get_session() as session:
+        run = PipelineRun(
+            run_type="daily",
+            status="running",
+            input_params={
+                "linkedin_dump": str(linkedin_dump_path) if linkedin_dump_path else None,
+                "skip_enrichment": skip_enrichment,
+                "skip_queue_generation": skip_queue_generation,
+                "enrich_budget": enrich_budget,
+                "queue_size": queue_size,
+            },
+        )
+        session.add(run)
+        session.flush()
+        run_id = run.id
+
+    results = {}
+    steps_completed = []
+    error_message = None
+    error_step = None
+
+    try:
+        # Step 1: Import LinkedIn dump (if provided)
+        if linkedin_dump_path and linkedin_dump_path.exists():
+            from src.ingestion.linkedin_dump import import_linkedin_dump
+
+            # Get user name from profile if not provided
+            if not user_name:
+                with get_session() as session:
+                    profile = session.get(UserProfile, 1)
+                    if profile:
+                        user_name = profile.name
+
+            import_result = import_linkedin_dump(
+                linkedin_dump_path,
+                user_name=user_name,
+                summarize_conversations=True,
+            )
+            results["import"] = {
+                "batch_id": import_result.batch_id,
+                "imported": import_result.connections_imported,
+                "updated": import_result.connections_updated,
+                "new_ids": import_result.new_connection_ids,
+                "messages_processed": import_result.messages_processed,
+                "conversations_summarized": import_result.conversations_summarized,
+            }
+            steps_completed.append("import")
+
+            # Step 2: Update user profile from dump
+            from src.ingestion.linkedin_dump import extract_linkedin_dump
+            from src.ingestion.profile_inference import update_user_profile_from_dump
+
+            dump = extract_linkedin_dump(linkedin_dump_path)
+            update_user_profile_from_dump(dump)
+            steps_completed.append("profile_update")
+
+        # Step 3: Pre-score un-scored contacts
+        from src.llm.prescoring import prescore_unscored_connections
+
+        prescore_result = prescore_unscored_connections(use_llm=True)
+        results["prescore"] = prescore_result
+        steps_completed.append("prescore")
+
+        # Step 4: Enrich top tier-1 contacts (unless skipped)
+        if not skip_enrichment:
+            from src.ingestion.apify_client import update_connection_activity
+            from src.llm.prescoring import get_tier1_connections
+
+            tier1 = get_tier1_connections(limit=enrich_budget)
+            enrich_results = {"success": 0, "failed": 0, "errors": []}
+
+            for conn in tier1:
+                try:
+                    if update_connection_activity(conn.id):
+                        enrich_results["success"] += 1
+                    else:
+                        enrich_results["failed"] += 1
+                except Exception as e:
+                    enrich_results["failed"] += 1
+                    enrich_results["errors"].append(f"{conn.name}: {str(e)[:50]}")
+
+            results["enrich"] = enrich_results
+            steps_completed.append("enrich")
+
+            # Step 5: Full-score enriched contacts
+            from src.llm.scoring import score_connection
+
+            score_results = {"scored": 0, "failed": 0}
+
+            for conn in tier1:
+                # Only score if enrichment succeeded
+                with get_session() as session:
+                    connection = session.get(Connection, conn.id)
+                    if connection and connection.enriched_at:
+                        try:
+                            result = score_connection(conn.id)
+                            if result:
+                                score_results["scored"] += 1
+                            else:
+                                score_results["failed"] += 1
+                        except Exception:
+                            score_results["failed"] += 1
+
+            results["score"] = score_results
+            steps_completed.append("score")
+
+        # Step 6: Generate outreach queue (unless skipped)
+        if not skip_queue_generation:
+            from src.pipeline.queue_generator import generate_daily_queue
+
+            queue_result = generate_daily_queue(limit=queue_size)
+            results["queue"] = queue_result
+            steps_completed.append("queue")
+
+        # Mark run as completed
+        with get_session() as session:
+            run = session.get(PipelineRun, run_id)
+            if run:
+                run.status = "completed"
+                run.steps_completed = steps_completed
+                run.step_results = results
+                run.completed_at = datetime.utcnow()
+                session.add(run)
+
+    except Exception as e:
+        error_message = str(e)
+        error_step = steps_completed[-1] if steps_completed else "init"
+
+        # Mark run as failed
+        with get_session() as session:
+            run = session.get(PipelineRun, run_id)
+            if run:
+                run.status = "failed"
+                run.steps_completed = steps_completed
+                run.step_results = results
+                run.error_message = error_message
+                run.error_step = error_step
+                run.completed_at = datetime.utcnow()
+                session.add(run)
+
+        results["error"] = {"message": error_message, "step": error_step}
+
+    return results
+
+
+def get_recent_pipeline_runs(limit: int = 10) -> list[PipelineRun]:
+    """
+    Get recent pipeline run history.
+
+    Args:
+        limit: Max runs to return
+
+    Returns:
+        List of PipelineRun records, most recent first
+    """
+    with get_session() as session:
+        runs = session.exec(
+            select(PipelineRun)
+            .order_by(PipelineRun.started_at.desc())
+            .limit(limit)
+        ).all()
+
+        # Detach from session
+        result = []
+        for run in runs:
+            _ = run.id, run.status, run.step_results
+            result.append(run)
+
+        return result
+
+
+def get_pipeline_stats() -> dict:
+    """
+    Get aggregate pipeline statistics.
+
+    Returns:
+        Dict with run counts, success rate, etc.
+    """
+    with get_session() as session:
+        from sqlmodel import func
+
+        total = session.exec(
+            select(func.count(PipelineRun.id))
+        ).one()
+
+        completed = session.exec(
+            select(func.count(PipelineRun.id))
+            .where(PipelineRun.status == "completed")
+        ).one()
+
+        failed = session.exec(
+            select(func.count(PipelineRun.id))
+            .where(PipelineRun.status == "failed")
+        ).one()
+
+        # Get last run
+        last_run = session.exec(
+            select(PipelineRun)
+            .order_by(PipelineRun.started_at.desc())
+            .limit(1)
+        ).first()
+
+        return {
+            "total_runs": total,
+            "completed": completed,
+            "failed": failed,
+            "success_rate": (completed / total * 100) if total > 0 else 0,
+            "last_run": last_run.started_at if last_run else None,
+            "last_status": last_run.status if last_run else None,
+        }

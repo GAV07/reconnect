@@ -7,10 +7,10 @@ from typing import Optional
 
 from openai import OpenAI
 
-from reconnect.config import settings
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection, UserProfile
-from reconnect.llm.prompts import SYSTEM_PROMPT, build_prose_prompt, format_user_context
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection, UserProfile
+from src.llm.prompts import SYSTEM_PROMPT, build_prose_prompt, format_user_context
 
 
 @dataclass
@@ -236,3 +236,75 @@ def get_or_generate_prose(connection_id: str, force_refresh: bool = False) -> Pr
             session.add(connection)
 
     return result
+
+
+def generate_outreach_message(
+    connection: Connection,
+    user_profile: UserProfile,
+    channel: str = "email",
+) -> str:
+    """
+    Generate a personalized outreach message for a connection.
+
+    Args:
+        connection: Connection to generate message for
+        user_profile: User profile for context
+        channel: "email" or "linkedin"
+
+    Returns:
+        Generated message string
+    """
+    if not settings.openai_api_key:
+        # Fallback template
+        first_name = connection.name.split()[0] if connection.name else "there"
+        return f"Hi {first_name},\n\nHope you're doing well! Would love to catch up sometime."
+
+    # Build context
+    career_info = extract_career_info(connection.raw_enrichment)
+    recent_posts = extract_recent_posts(connection.activity_log)
+
+    # Format activity
+    activity_context = ""
+    if recent_posts:
+        activity_context = f"\nRecent activity: {recent_posts[0].get('content', '')[:150]}"
+
+    # Conversation context
+    convo_context = ""
+    if connection.conversation_summary:
+        convo_context = f"\nPrevious conversation: {connection.conversation_summary}"
+    elif connection.message_count and connection.message_count > 0:
+        convo_context = f"\nHave exchanged {connection.message_count} messages before."
+
+    prompt = f"""Generate a short, personalized {channel} message to reconnect with this contact.
+
+Sender: {user_profile.name or 'Me'}
+- Role: {user_profile.current_role or 'Professional'}
+- Company: {user_profile.company or 'N/A'}
+- Goals: {user_profile.goals or 'Network expansion'}
+
+Recipient: {connection.name}
+- Role: {connection.current_role or career_info.get('current_title', 'Unknown')}
+- Company: {connection.current_company or career_info.get('current_company', 'Unknown')}
+- Headline: {career_info.get('headline', 'N/A')}{activity_context}{convo_context}
+
+Guidelines:
+- Keep it brief (3-4 sentences max for LinkedIn, 4-5 for email)
+- Reference something specific if possible (recent post, shared background, etc.)
+- Be genuine, not salesy
+- Include a soft call to action (grab coffee, catch up, etc.)
+- {"Use casual tone for LinkedIn DM" if channel == "linkedin" else "Use professional but warm tone for email"}
+
+Return ONLY the message text, no subject line or explanations."""
+
+    try:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        first_name = connection.name.split()[0] if connection.name else "there"
+        return f"Hi {first_name},\n\nHope you're doing well! Would love to catch up sometime."

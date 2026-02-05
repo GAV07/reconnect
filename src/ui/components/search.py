@@ -7,8 +7,8 @@ from typing import Optional
 import streamlit as st
 from sqlmodel import col, or_, select
 
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection
+from src.database.engine import get_session
+from src.database.models import Connection
 
 
 @dataclass

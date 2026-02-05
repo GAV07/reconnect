@@ -3,9 +3,9 @@
 from datetime import datetime
 from typing import Optional
 
-from reconnect.config import settings
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection
 
 
 def fetch_profile_enrichment(linkedin_url: str) -> Optional[dict]:

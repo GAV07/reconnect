@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from reconnect.database.engine import init_db
+from src.database.engine import init_db
 
 
 def main():

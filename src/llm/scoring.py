@@ -7,9 +7,9 @@ from typing import Optional
 
 from openai import OpenAI
 
-from reconnect.config import settings
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection, UserProfile
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection, UserProfile
 
 
 SCORING_SYSTEM_PROMPT = """You are an expert at professional networking and relationship building.

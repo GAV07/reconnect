@@ -5,9 +5,9 @@ from typing import Optional
 
 from apify_client import ApifyClient
 
-from reconnect.config import settings
-from reconnect.database.engine import get_session
-from reconnect.database.models import Connection
+from src.config import settings
+from src.database.engine import get_session
+from src.database.models import Connection
 
 
 def get_apify_client() -> Optional[ApifyClient]:

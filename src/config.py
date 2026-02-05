@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     # Coresignal (placeholder)
     coresignal_api_key: str = ""
 
+    # Gmail OAuth2
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_redirect_uri: str = "http://localhost:8501/oauth/callback"
+
+    # Pipeline settings
+    daily_enrich_budget: int = 10  # Max contacts to enrich per day
+    daily_queue_size: int = 10  # Max contacts to add to outreach queue
+    prescore_batch_size: int = 50  # Contacts per LLM batch call
+
+    # Exclusion settings
+    active_conversation_days: int = 30  # Days to consider conversation "active"
+    recently_contacted_days: int = 30  # Days to exclude after contact
+
     # App settings
     debug: bool = False
     cache_ttl_days: int = 7
