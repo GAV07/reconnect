@@ -8,6 +8,7 @@ from src.database.models import (
     OutreachLog,
     OutreachQueueItem,
     PipelineRun,
+    SyncMetadata,
     UserProfile,
 )
 
@@ -18,6 +19,7 @@ __all__ = [
     "OutreachLog",
     "OutreachQueueItem",
     "PipelineRun",
+    "SyncMetadata",
     "UserProfile",
     "get_session",
     "init_db",

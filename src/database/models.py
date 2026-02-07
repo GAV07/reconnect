@@ -205,6 +205,26 @@ class GmailCredentials(SQLModel, table=True):
     updated_at: Optional[datetime] = None
 
 
+class SyncMetadata(SQLModel, table=True):
+    """
+    Singleton table to track cloud sync state.
+    Always id=1.
+    """
+
+    __tablename__ = "sync_metadata"
+
+    id: int = Field(default=1, primary_key=True)
+
+    last_push_at: Optional[datetime] = None
+    last_pull_at: Optional[datetime] = None
+    last_push_connections: int = Field(default=0)
+    last_push_queue_items: int = Field(default=0)
+    last_pull_actions: int = Field(default=0)
+
+    last_error: Optional[str] = Field(default=None, sa_column=Column(Text))
+    last_error_at: Optional[datetime] = None
+
+
 class PipelineRun(SQLModel, table=True):
     """
     Track pipeline executions for monitoring and debugging.

@@ -188,6 +188,30 @@ def run_daily_pipeline(
                 run.completed_at = datetime.utcnow()
                 session.add(run)
 
+        # Optional: sync to cloud if Supabase is configured
+        if settings.supabase_db_url:
+            try:
+                from src.sync.runner import run_sync
+
+                sync_result = run_sync()
+                results["sync"] = sync_result
+                steps_completed.append("sync")
+
+                # Update the pipeline run with sync step
+                with get_session() as session:
+                    run = session.get(PipelineRun, run_id)
+                    if run:
+                        run.steps_completed = steps_completed
+                        run.step_results = results
+                        session.add(run)
+            except Exception as sync_error:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Cloud sync failed (non-fatal): %s", sync_error
+                )
+                results["sync"] = {"error": str(sync_error)}
+
     except Exception as e:
         error_message = str(e)
         error_step = steps_completed[-1] if steps_completed else "init"

@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     # Database
     database_path: str = "data/reconnect.db"
+    database_mode: str = "local"  # "local" | "cloud"
+
+    # Supabase (cloud sync)
+    supabase_db_url: str = ""  # e.g. "postgresql://postgres:pw@db.xxx.supabase.co:5432/postgres"
 
     # OpenAI
     openai_api_key: str = ""
