@@ -167,6 +167,29 @@ def rule_based_prescore(
         score += 10
         factors.append("+10 has_messages")
 
+    # Engagement-based boosts
+    if connection.engagement_score is not None:
+        if connection.engagement_score >= 70:
+            score += 25
+            factors.append("+25 high_engagement")
+        elif connection.engagement_score >= 40:
+            score += 15
+            factors.append("+15 moderate_engagement")
+        elif connection.engagement_score > 0:
+            score += 8
+            factors.append("+8 some_engagement")
+
+    # Relationship signal boosts
+    if connection.has_recommendation:
+        score += 20
+        factors.append("+20 has_recommendation")
+    elif connection.endorsement_count >= 3:
+        score += 10
+        factors.append("+10 multiple_endorsements")
+    elif connection.endorsement_count > 0:
+        score += 5
+        factors.append("+5 has_endorsement")
+
     # Clamp score
     score = max(0, min(100, score))
 

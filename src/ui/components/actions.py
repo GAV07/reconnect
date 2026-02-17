@@ -9,7 +9,7 @@ import streamlit as st
 from src.config import settings
 from src.database.engine import get_session
 from src.database.models import Connection
-from src.ingestion.apify_client import update_connection_activity
+from src.ingestion.rapidapi_linkedin import update_connection_from_profile
 from src.llm.prose import ProseResult, get_or_generate_prose
 from src.llm.scoring import score_connection
 
@@ -114,7 +114,7 @@ def render_action_buttons(connection_id: str):
         if st.button(enrich_label, use_container_width=True, key="btn_enrich"):
             with st.spinner("Fetching LinkedIn data..."):
                 try:
-                    if update_connection_activity(connection_id):
+                    if update_connection_from_profile(connection_id):
                         # Also score if user has goals
                         if has_goals:
                             score_connection(connection_id)

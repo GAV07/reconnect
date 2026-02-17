@@ -9,10 +9,12 @@ from sqlmodel import Session, SQLModel, select
 from src.database.engine import init_db
 from src.database.models import (
     Connection,
+    EngagementSignal,
     GmailCredentials,
     OutreachLog,
     OutreachQueueItem,
     SyncMetadata,
+    UserContent,
     UserProfile,
 )
 from src.sync.engines import get_cloud_engine, get_local_engine
@@ -30,6 +32,9 @@ CONNECTION_SYNC_FIELDS = [
     "created_at", "updated_at", "enriched_at",
     "cached_summary", "cached_summary_at",
     "pre_score", "pre_score_tier",
+    # Engagement fields
+    "engagement_score", "last_engagement_date", "engagement_direction",
+    "endorsement_count", "has_recommendation",
 ]
 
 
@@ -90,6 +95,8 @@ def push_to_cloud() -> dict[str, Any]:
         "queue_items": 0,
         "outreach_logs": 0,
         "gmail_credentials": 0,
+        "engagement_signals": 0,
+        "user_content": 0,
     }
 
     # Get last push timestamp from local DB
@@ -155,6 +162,30 @@ def push_to_cloud() -> dict[str, Any]:
                     _upsert_record(cloud_session, GmailCredentials, data)
                     stats["gmail_credentials"] = 1
 
+            # 6. Push EngagementSignals
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(EngagementSignal)
+                if last_push_at:
+                    query = query.where(EngagementSignal.created_at > last_push_at)
+                signals = local_session.exec(query).all()
+
+                for signal in signals:
+                    data = _record_to_dict(signal)
+                    _upsert_record(cloud_session, EngagementSignal, data)
+                    stats["engagement_signals"] += 1
+
+            # 7. Push UserContent
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(UserContent)
+                if last_push_at:
+                    query = query.where(UserContent.created_at > last_push_at)
+                contents = local_session.exec(query).all()
+
+                for content in contents:
+                    data = _record_to_dict(content)
+                    _upsert_record(cloud_session, UserContent, data)
+                    stats["user_content"] += 1
+
             cloud_session.commit()
 
         except Exception:
@@ -171,7 +202,8 @@ def push_to_cloud() -> dict[str, Any]:
         local_session.commit()
 
     logger.info(
-        "Push complete: %d connections, %d queue items, %d outreach logs",
+        "Push complete: %d connections, %d queue items, %d outreach logs, %d engagement signals, %d user content",
         stats["connections"], stats["queue_items"], stats["outreach_logs"],
+        stats["engagement_signals"], stats["user_content"],
     )
     return stats

@@ -1,5 +1,12 @@
 """Main Streamlit application for Reconnect."""
 
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import streamlit as st
 
 from src.database.engine import get_session, init_db
@@ -154,7 +161,7 @@ def render_main_page():
             st.warning("Set your goals in Settings to enable scoring!")
 
         if st.button("🚀 Enrich & Score Next Batch", use_container_width=True):
-            from src.ingestion.apify_client import update_connection_activity
+            from src.ingestion.rapidapi_linkedin import update_connection_from_profile
             from src.llm.scoring import score_connection
 
             # Get un-enriched contacts
@@ -185,7 +192,7 @@ def render_main_page():
                     status_text.text(f"Enriching {conn_name}...")
                     enriched = False
                     try:
-                        if update_connection_activity(conn_id):
+                        if update_connection_from_profile(conn_id):
                             enrich_success += 1
                             enriched = True
                         else:
@@ -223,6 +230,74 @@ def render_main_page():
 
         st.divider()
 
+        # Email Finder section (Hunter.io)
+        st.subheader("Find Emails")
+        st.caption("Find emails for contacts missing them (Hunter.io)")
+
+        email_batch_size = st.number_input(
+            "Contacts to search",
+            min_value=1,
+            max_value=50,
+            value=5,
+            help="Number of tier-1 contacts to find emails for",
+            key="email_batch_size",
+        )
+
+        # Show count of contacts missing email
+        with get_session() as session:
+            from sqlmodel import select
+
+            missing_email_count = session.exec(
+                select(func.count(Connection.id))
+                .where(Connection.pre_score_tier == 1)
+                .where((Connection.email == None) | (Connection.email == ""))
+                .where(Connection.current_company != None)
+            ).one()
+
+        if missing_email_count == 0:
+            st.info("All tier-1 contacts have emails!")
+        else:
+            st.caption(f"{missing_email_count} tier-1 contacts missing email")
+
+            if st.button("📧 Find Emails", use_container_width=True):
+                from src.ingestion.hunter import find_emails_batch, get_contacts_missing_email
+
+                contacts = get_contacts_missing_email(limit=email_batch_size)
+
+                if not contacts:
+                    st.info("No contacts need email lookup.")
+                else:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+
+                    def update_progress(current, total):
+                        progress_bar.progress(current / total)
+                        if current <= len(contacts):
+                            status_text.text(f"Searching for {contacts[current - 1].name}...")
+
+                    results = find_emails_batch(
+                        [c.id for c in contacts],
+                        progress_callback=update_progress,
+                    )
+
+                    status_text.empty()
+                    progress_bar.empty()
+
+                    st.success(
+                        f"Found {results['found']} emails, "
+                        f"skipped {results['skipped']}, "
+                        f"failed {results['failed']}"
+                    )
+
+                    if results.get("errors"):
+                        with st.expander(f"Errors ({len(results['errors'])})"):
+                            for error in results["errors"][:10]:
+                                st.caption(error)
+
+                    st.rerun()
+
+        st.divider()
+
         # Navigation
         if st.button("📋 Review Queue", use_container_width=True, type="primary"):
             st.session_state.page = "review"
@@ -239,37 +314,123 @@ def render_main_page():
         st.divider()
 
         # Import section
-        st.subheader("Import Contacts")
-        uploaded_file = st.file_uploader(
-            "Upload LinkedIn CSV",
-            type=["csv"],
-            help="Export your connections from LinkedIn Settings > Data Privacy > Get a copy of your data",
+        st.subheader("Import Data")
+
+        # LinkedIn Data Export (ZIP) - preferred method
+        uploaded_zip = st.file_uploader(
+            "LinkedIn Data Export (ZIP)",
+            type=["zip"],
+            help="Full data export from LinkedIn: Settings > Data Privacy > Get a copy of your data",
+            key="zip_uploader",
         )
 
-        if uploaded_file is not None:
-            if st.button("Import CSV", use_container_width=True):
+        if uploaded_zip is not None:
+            st.caption(f"File ready: {uploaded_zip.name} ({uploaded_zip.size} bytes)")
+
+            # Get user name for message direction detection
+            try:
+                with get_session() as session:
+                    profile = session.get(UserProfile, 1)
+                    user_name = profile.name if profile else None
+                    print(f"[DEBUG] User name: {user_name}")
+            except Exception as e:
+                print(f"[DEBUG] Error getting profile: {e}")
+                user_name = None
+
+            if st.button("Import ZIP", use_container_width=True, type="primary"):
+                st.info("Starting import...")
                 import tempfile
+                import traceback
                 from pathlib import Path
 
-                from src.ingestion.csv_import import import_linkedin_csv
+                print(f"[DEBUG] Starting import of {uploaded_zip.name}")
 
-                # Save uploaded file temporarily
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-                    tmp.write(uploaded_file.getvalue())
-                    tmp_path = Path(tmp.name)
+                try:
+                    from src.ingestion.linkedin_dump import import_linkedin_dump
 
-                with st.spinner("Importing contacts..."):
-                    result = import_linkedin_csv(tmp_path)
+                    # Save uploaded file temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+                        tmp.write(uploaded_zip.getvalue())
+                        tmp_path = Path(tmp.name)
 
-                tmp_path.unlink()  # Clean up
+                    print(f"[DEBUG] Saved to temp file: {tmp_path}")
 
-                st.success(f"Imported {result.imported} new, updated {result.updated}")
-                if result.errors:
-                    with st.expander(f"Errors ({len(result.errors)})"):
-                        for error in result.errors[:10]:
-                            st.caption(error)
+                    with st.spinner("Importing LinkedIn data..."):
+                        result = import_linkedin_dump(
+                            tmp_path,
+                            user_name=user_name,
+                            summarize_conversations=False,  # Skip LLM for now
+                        )
 
-                st.rerun()
+                        print(f"[DEBUG] Import complete: {result}")
+
+                        st.success(
+                            f"Imported {result.connections_imported} new, "
+                            f"updated {result.connections_updated}"
+                        )
+
+                        # Show additional stats
+                        extras = []
+                        if result.messages_processed:
+                            extras.append(f"{result.messages_processed} conversations")
+                        if result.engagement_signals_created:
+                            extras.append(f"{result.engagement_signals_created} engagement signals")
+                        if result.endorsements_processed:
+                            extras.append(f"{result.endorsements_processed} endorsements")
+                        if result.user_content_created:
+                            extras.append(f"{result.user_content_created} posts")
+
+                        if extras:
+                            st.caption("Also processed: " + ", ".join(extras))
+
+                        if result.errors:
+                            with st.expander(f"Errors ({len(result.errors)})"):
+                                for error in result.errors[:10]:
+                                    st.caption(error)
+
+                    tmp_path.unlink()  # Clean up
+
+                except Exception as e:
+                    import sys
+                    print(f"[DEBUG] Import error: {e}")
+                    traceback.print_exc()
+                    # Also show full traceback in UI
+                    st.error(f"Import failed: {str(e)}")
+                    st.code(traceback.format_exc())
+
+        # Legacy CSV import
+        with st.expander("Or upload CSV only"):
+            uploaded_file = st.file_uploader(
+                "Connections.csv",
+                type=["csv"],
+                help="Just the Connections.csv file (less data than full export)",
+                key="csv_uploader",
+            )
+
+            if uploaded_file is not None:
+                if st.button("Import CSV", use_container_width=True):
+                    import tempfile
+                    from pathlib import Path
+
+                    from src.ingestion.csv_import import import_linkedin_csv
+
+                    # Save uploaded file temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+                        tmp.write(uploaded_file.getvalue())
+                        tmp_path = Path(tmp.name)
+
+                    with st.spinner("Importing contacts..."):
+                        result = import_linkedin_csv(tmp_path)
+
+                    tmp_path.unlink()  # Clean up
+
+                    st.success(f"Imported {result.imported} new, updated {result.updated}")
+                    if result.errors:
+                        with st.expander(f"Errors ({len(result.errors)})"):
+                            for error in result.errors[:10]:
+                                st.caption(error)
+
+                    st.rerun()
 
         # Drafts section
         render_drafts_sidebar()

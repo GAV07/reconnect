@@ -23,7 +23,7 @@ reconnect/
 │   │   └── models.py             # SQLModel table definitions
 │   ├── ingestion/
 │   │   ├── apify_client.py        # Apify LinkedIn profile scraping
-│   │   ├── coresignal.py          # Coresignal API integration
+│   │   ├── hunter.py              # Hunter.io email finding & enrichment
 │   │   ├── csv_import.py          # CSV import
 │   │   ├── linkedin_dump.py       # LinkedIn export ZIP parser (connections, messages, profile)
 │   │   └── profile_inference.py   # Auto-infer user profile from LinkedIn data
@@ -37,6 +37,10 @@ reconnect/
 │   ├── pipeline/
 │   │   ├── daily_pipeline.py      # Pipeline orchestrator
 │   │   └── queue_generator.py     # Outreach queue generation with exclusion rules
+│   ├── sync/                       # Cloud sync with Supabase
+│   │   ├── push.py                # Push local data to cloud
+│   │   ├── pull.py                # Pull cloud changes to local
+│   │   └── runner.py              # Sync orchestrator
 │   └── ui/
 │       ├── app.py                 # Main Streamlit app (routing, settings, pipeline)
 │       ├── components/
@@ -48,18 +52,23 @@ reconnect/
 ├── scripts/
 │   ├── import_csv.py              # CLI: import contacts from CSV
 │   ├── init_db.py                 # CLI: initialize database
-│   └── run_pipeline.py            # CLI: run the daily pipeline
+│   ├── run_pipeline.py            # CLI: run the daily pipeline
+│   └── run_sync.py                # CLI: sync with Supabase cloud
 ├── static/
 │   ├── manifest.json              # PWA web app manifest
 │   ├── service-worker.js          # Offline caching & push notifications
 │   └── offline.html               # Offline fallback page
+├── supabase/
+│   ├── config.toml                # Supabase local dev configuration
+│   ├── migrations/                # Database schema migrations
+│   └── seed.sql                   # Seed data for local dev
 └── pyproject.toml
 ```
 
 ## Requirements
 
 - Python >= 3.11
-- API keys: OpenAI, Apify (for enrichment)
+- API keys: OpenAI, Apify (for LinkedIn enrichment), Hunter.io (for email finding)
 - Gmail OAuth2 credentials (optional, for email sending)
 
 ## Setup
@@ -74,8 +83,11 @@ reconnect/
    # Required
    OPENAI_API_KEY=sk-...
 
-   # For LinkedIn enrichment
+   # For LinkedIn profile enrichment
    APIFY_API_KEY=apify_api_...
+
+   # For email finding (Hunter.io)
+   HUNTER_API_KEY=...
 
    # For Gmail integration (optional)
    GMAIL_CLIENT_ID=...
@@ -155,12 +167,123 @@ All settings are configurable via environment variables or `.env`:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_PATH` | `data/reconnect.db` | SQLite database path |
+| `DATABASE_MODE` | `local` | `local` (SQLite) or `cloud` (PostgreSQL) |
+| `SUPABASE_DB_URL` | - | PostgreSQL connection string for cloud sync |
 | `OPENAI_MODEL` | `gpt-4o-mini` | LLM model for scoring/generation |
 | `DAILY_ENRICH_BUDGET` | `10` | Max contacts to enrich per pipeline run |
 | `DAILY_QUEUE_SIZE` | `10` | Max outreach queue items to generate |
 | `PRESCORE_BATCH_SIZE` | `50` | Contacts per LLM batch scoring call |
 | `ACTIVE_CONVERSATION_DAYS` | `30` | Days to consider a conversation active (excluded from queue) |
 | `RECENTLY_CONTACTED_DAYS` | `30` | Days to exclude after contacting someone |
+
+## Cloud Sync with Supabase
+
+The app supports syncing data to Supabase PostgreSQL for cloud storage and mobile access.
+
+### Setting Up Supabase
+
+**Option 1: Hosted Supabase (recommended for production)**
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Go to **Settings > Database > Connection string** and copy the URI
+3. Add to your `.env`:
+   ```env
+   DATABASE_MODE=local
+   SUPABASE_DB_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+   ```
+4. Initialize the cloud schema:
+   ```bash
+   python -c "from src.database.engine import get_engine, init_db; init_db(get_engine('cloud'))"
+   ```
+
+**Option 2: Local Supabase (for development)**
+
+1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli)
+2. Start local Supabase:
+   ```bash
+   supabase start
+   ```
+3. Use the local database URL from the output:
+   ```env
+   SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+   ```
+
+### Running Sync
+
+The sync pushes local pipeline results to cloud and pulls user actions back:
+
+```bash
+# Full sync (push + pull)
+python scripts/run_sync.py
+
+# Push only (local -> cloud)
+python scripts/run_sync.py --push-only
+
+# Pull only (cloud -> local)
+python scripts/run_sync.py --pull-only
+```
+
+The daily pipeline automatically syncs to cloud after completion if `SUPABASE_DB_URL` is configured.
+
+### How Sync Works
+
+- **Push:** Sends enriched/scored connections, outreach queue items, and user profile to cloud
+- **Pull:** Retrieves queue item status changes and outreach log entries from cloud
+- **Conflict resolution:** Cloud wins for user review actions; most-recent timestamp wins otherwise
+
+## Scheduled Automation (macOS)
+
+The pipeline can run automatically on a daily schedule using macOS LaunchAgent.
+
+### Quick Start
+
+```bash
+# Install and start the scheduler (runs daily at 8 AM)
+./scripts/scheduler.sh install
+
+# Check status
+./scripts/scheduler.sh status
+
+# View logs
+./scripts/scheduler.sh logs
+```
+
+### Scheduler Commands
+
+| Command | Description |
+|---------|-------------|
+| `install` | Install and start the daily scheduler |
+| `uninstall` | Stop and remove the scheduler |
+| `start` | Start the scheduler (if installed) |
+| `stop` | Stop the scheduler temporarily |
+| `status` | Show scheduler status and recent output |
+| `run` | Run the pipeline manually now |
+| `logs` | Show today's pipeline log |
+
+### Configuration
+
+The scheduler runs at **8:00 AM daily**. To change the time, edit `com.reconnect.daily-pipeline.plist`:
+
+```xml
+<key>StartCalendarInterval</key>
+<dict>
+    <key>Hour</key>
+    <integer>8</integer>  <!-- Change this (0-23) -->
+    <key>Minute</key>
+    <integer>0</integer>  <!-- Change this (0-59) -->
+</dict>
+```
+
+Then reinstall: `./scripts/scheduler.sh uninstall && ./scripts/scheduler.sh install`
+
+### Logs
+
+Pipeline logs are stored in `logs/` with daily rotation:
+- `logs/pipeline-YYYY-MM-DD.log` - Daily pipeline output
+- `logs/launchd-stdout.log` - LaunchAgent stdout
+- `logs/launchd-stderr.log` - LaunchAgent stderr
+
+Logs older than 30 days are automatically deleted.
 
 ## Development
 

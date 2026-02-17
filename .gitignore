@@ -68,3 +68,4 @@ Thumbs.db
 
 # Project specific
 data/reconnect.db
+logs/

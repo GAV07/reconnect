@@ -22,12 +22,15 @@ class Settings(BaseSettings):
     openai_max_tokens: int = 500
     openai_temperature: float = 0.7
 
-    # Apify
+    # Apify (deprecated - use RapidAPI instead)
     apify_api_key: str = ""
     apify_actor_id: str = "2SyF0bVxmgGr8IVCZ"  # LinkedIn Profile Scraper actor
 
-    # Coresignal (placeholder)
-    coresignal_api_key: str = ""
+    # RapidAPI - LinkedIn enrichment
+    rapidapi_key: str = ""
+
+    # Hunter.io - Email finding and enrichment
+    hunter_api_key: str = ""
 
     # Gmail OAuth2
     gmail_client_id: str = ""
@@ -42,6 +45,10 @@ class Settings(BaseSettings):
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"
     recently_contacted_days: int = 30  # Days to exclude after contact
+
+    # LinkedIn import
+    linkedin_data_folder: str = "~/Downloads"  # Where to look for LinkedIn exports
+    linkedin_export_pattern: str = "LinkedIn Data Export*"  # Glob pattern for exports
 
     # App settings
     debug: bool = False

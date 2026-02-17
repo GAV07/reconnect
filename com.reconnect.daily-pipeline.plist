@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.reconnect.daily-pipeline</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/gavin/Developer/reconnect/scripts/run_scheduled.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/gavin/Developer/reconnect</string>
+
+    <!-- Run daily at 8:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Don't run immediately when loaded -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Standard output/error logging -->
+    <key>StandardOutPath</key>
+    <string>/Users/gavin/Developer/reconnect/logs/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/gavin/Developer/reconnect/logs/launchd-stderr.log</string>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin</string>
+    </dict>
+</dict>
+</plist>

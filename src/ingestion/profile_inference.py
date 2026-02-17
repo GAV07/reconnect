@@ -4,21 +4,26 @@ Analyzes LinkedIn dump data to infer user profile attributes like
 seniority, industry, expertise, and interests.
 """
 
+import csv
+import json
 import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from openai import OpenAI
+from sqlmodel import select
+
+from src.config import settings
 from src.database.engine import get_session
-from src.database.models import UserProfile
+from src.database.models import UserContent, UserProfile
 from src.ingestion.linkedin_dump import (
     ExtractedDump,
     get_column_value,
     parse_linkedin_date,
+    parse_profile_csv,
 )
-
-import csv
 
 
 # Seniority patterns
@@ -351,6 +356,128 @@ def infer_user_profile_from_dump(dump: ExtractedDump) -> dict:
     return result
 
 
+def extract_themes_from_posts(limit: int = 50) -> list[str]:
+    """
+    Extract themes from user's posts using LLM.
+
+    Args:
+        limit: Max posts to analyze
+
+    Returns:
+        List of theme strings
+    """
+    if not settings.openai_api_key:
+        return []
+
+    with get_session() as session:
+        contents = session.exec(
+            select(UserContent)
+            .where(UserContent.content_text.isnot(None))
+            .order_by(UserContent.posted_at.desc())
+            .limit(limit)
+        ).all()
+
+        if not contents:
+            return []
+
+        # Build text from posts
+        posts_text = []
+        for content in contents:
+            if content.content_text:
+                posts_text.append(content.content_text[:500])  # Limit per post
+
+        if not posts_text:
+            return []
+
+        combined_text = "\n---\n".join(posts_text[:20])  # Limit to 20 posts for prompt
+
+        prompt = f"""Analyze these LinkedIn posts and extract the main themes/topics this person writes about.
+
+Posts:
+{combined_text}
+
+Return JSON with a list of 5-10 theme keywords or short phrases that represent their content focus areas.
+Example: {{"themes": ["AI/ML", "startup growth", "leadership", "product management", "tech industry trends"]}}"""
+
+        try:
+            client = OpenAI(api_key=settings.openai_api_key)
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature=0.3,
+                response_format={"type": "json_object"},
+            )
+
+            data = json.loads(response.choices[0].message.content)
+            return data.get("themes", [])
+
+        except Exception as e:
+            print(f"Error extracting themes: {e}")
+            return []
+
+
+def extract_public_persona(
+    headline: Optional[str] = None,
+    about: Optional[str] = None,
+    themes: Optional[list[str]] = None,
+) -> Optional[str]:
+    """
+    Generate a public persona summary using LLM.
+
+    Args:
+        headline: LinkedIn headline
+        about: About/summary section
+        themes: Extracted posting themes
+
+    Returns:
+        Persona summary string or None
+    """
+    if not settings.openai_api_key:
+        return None
+
+    # Need at least some data to work with
+    if not headline and not about and not themes:
+        return None
+
+    context_parts = []
+    if headline:
+        context_parts.append(f"Headline: {headline}")
+    if about:
+        context_parts.append(f"About: {about[:1000]}")
+    if themes:
+        context_parts.append(f"Content themes: {', '.join(themes)}")
+
+    if not context_parts:
+        return None
+
+    context = "\n".join(context_parts)
+
+    prompt = f"""Based on this LinkedIn profile information, write a 2-3 sentence summary of this person's professional persona and what they're known for.
+
+{context}
+
+Write in third person. Focus on their professional identity, expertise areas, and what kind of value they provide.
+Return JSON: {{"persona": "Your summary here"}}"""
+
+    try:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.5,
+            response_format={"type": "json_object"},
+        )
+
+        data = json.loads(response.choices[0].message.content)
+        return data.get("persona")
+
+    except Exception as e:
+        print(f"Error extracting persona: {e}")
+        return None
+
+
 def update_user_profile_from_dump(dump: ExtractedDump) -> bool:
     """
     Update UserProfile with inferred data from LinkedIn dump.
@@ -362,6 +489,9 @@ def update_user_profile_from_dump(dump: ExtractedDump) -> bool:
         True if profile was updated
     """
     inferred = infer_user_profile_from_dump(dump)
+
+    # Parse profile data (headline, about)
+    profile_data = parse_profile_csv(dump.profile_path)
 
     with get_session() as session:
         profile = session.get(UserProfile, 1)
@@ -379,6 +509,46 @@ def update_user_profile_from_dump(dump: ExtractedDump) -> bool:
         # Also update main profile fields if empty
         if not profile.industry and inferred["inferred_industry"]:
             profile.industry = inferred["inferred_industry"]
+
+        # Update headline and about from Profile.csv
+        if profile_data.get("headline"):
+            profile.headline = profile_data["headline"]
+        if profile_data.get("about_summary"):
+            profile.about_summary = profile_data["about_summary"]
+
+        session.add(profile)
+
+    return True
+
+
+def update_user_persona_from_content() -> bool:
+    """
+    Update user profile with posting themes and persona summary.
+    Should be called after user content has been imported.
+
+    Returns:
+        True if profile was updated
+    """
+    # Extract themes from posts
+    themes = extract_themes_from_posts()
+
+    with get_session() as session:
+        profile = session.get(UserProfile, 1)
+        if not profile:
+            return False
+
+        # Update themes
+        if themes:
+            profile.posting_themes = themes
+
+        # Generate persona summary
+        persona = extract_public_persona(
+            headline=profile.headline,
+            about=profile.about_summary,
+            themes=themes,
+        )
+        if persona:
+            profile.public_persona_summary = persona
 
         session.add(profile)
 

@@ -3,12 +3,13 @@
 Orchestrates the full daily workflow:
 1. Import LinkedIn dump (if provided)
 2. Auto-update UserProfile from LinkedIn data
-3. Diff connections, mark new ones
-4. Parse messages, update conversation status
-5. Pre-score un-scored contacts
-6. Enrich top N from tier 1 (budgeted)
-7. Full-score enriched contacts
-8. Generate outreach queue
+3. Pre-score un-scored contacts
+4. Enrich top N from tier 1 via Apify (budgeted)
+5. Full-score enriched contacts
+6. Generate outreach queue
+7. Sync to cloud (if Supabase configured)
+
+Note: Email finding via Hunter.io is available as a separate manual step in the UI.
 """
 
 from dataclasses import dataclass, field
@@ -86,22 +87,38 @@ def run_daily_pipeline(
     error_step = None
 
     try:
-        # Step 1: Import LinkedIn dump (if provided)
+        # Step 1: Import LinkedIn dump
+        # Priority: explicit path > auto-detect from Downloads
+        from src.ingestion.linkedin_dump import (
+            auto_import_linkedin_dump,
+            extract_linkedin_dump,
+            import_linkedin_dump,
+        )
+
+        # Get user name from profile if not provided
+        if not user_name:
+            with get_session() as session:
+                profile = session.get(UserProfile, 1)
+                if profile:
+                    user_name = profile.name
+
+        import_result = None
+
         if linkedin_dump_path and linkedin_dump_path.exists():
-            from src.ingestion.linkedin_dump import import_linkedin_dump
-
-            # Get user name from profile if not provided
-            if not user_name:
-                with get_session() as session:
-                    profile = session.get(UserProfile, 1)
-                    if profile:
-                        user_name = profile.name
-
+            # Explicit path provided
             import_result = import_linkedin_dump(
                 linkedin_dump_path,
                 user_name=user_name,
                 summarize_conversations=True,
             )
+        else:
+            # Try auto-import from default location (Downloads)
+            import_result = auto_import_linkedin_dump(
+                user_name=user_name,
+                summarize_conversations=False,  # Skip LLM for auto-import
+            )
+
+        if import_result:
             results["import"] = {
                 "batch_id": import_result.batch_id,
                 "imported": import_result.connections_imported,
@@ -109,16 +126,17 @@ def run_daily_pipeline(
                 "new_ids": import_result.new_connection_ids,
                 "messages_processed": import_result.messages_processed,
                 "conversations_summarized": import_result.conversations_summarized,
+                "source": "explicit" if linkedin_dump_path else "auto",
             }
             steps_completed.append("import")
 
-            # Step 2: Update user profile from dump
-            from src.ingestion.linkedin_dump import extract_linkedin_dump
-            from src.ingestion.profile_inference import update_user_profile_from_dump
+            # Step 2: Update user profile from dump (only if explicit path)
+            if linkedin_dump_path:
+                from src.ingestion.profile_inference import update_user_profile_from_dump
 
-            dump = extract_linkedin_dump(linkedin_dump_path)
-            update_user_profile_from_dump(dump)
-            steps_completed.append("profile_update")
+                dump = extract_linkedin_dump(linkedin_dump_path)
+                update_user_profile_from_dump(dump)
+                steps_completed.append("profile_update")
 
         # Step 3: Pre-score un-scored contacts
         from src.llm.prescoring import prescore_unscored_connections
@@ -129,7 +147,7 @@ def run_daily_pipeline(
 
         # Step 4: Enrich top tier-1 contacts (unless skipped)
         if not skip_enrichment:
-            from src.ingestion.apify_client import update_connection_activity
+            from src.ingestion.rapidapi_linkedin import update_connection_from_profile
             from src.llm.prescoring import get_tier1_connections
 
             tier1 = get_tier1_connections(limit=enrich_budget)
@@ -137,7 +155,7 @@ def run_daily_pipeline(
 
             for conn in tier1:
                 try:
-                    if update_connection_activity(conn.id):
+                    if update_connection_from_profile(conn.id):
                         enrich_results["success"] += 1
                     else:
                         enrich_results["failed"] += 1

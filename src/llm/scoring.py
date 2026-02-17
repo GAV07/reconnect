@@ -52,6 +52,15 @@ def build_scoring_prompt(
 - Interests/topics: {user_profile.interests or 'Not specified'}
 """
 
+    # Add user's posting themes if available
+    if hasattr(user_profile, 'posting_themes') and user_profile.posting_themes:
+        themes_str = ", ".join(user_profile.posting_themes[:10])
+        user_context += f"- Content themes: {themes_str}\n"
+
+    # Add public persona if available
+    if hasattr(user_profile, 'public_persona_summary') and user_profile.public_persona_summary:
+        user_context += f"- Professional persona: {user_profile.public_persona_summary}\n"
+
     # Contact info from enrichment
     enrichment = connection.raw_enrichment or {}
 
@@ -105,6 +114,18 @@ def build_scoring_prompt(
         except (ValueError, IndexError):
             pass
 
+    # Build engagement context
+    engagement_context = ""
+    if hasattr(connection, 'engagement_score') and connection.engagement_score is not None:
+        engagement_context = f"""
+ENGAGEMENT HISTORY:
+- Engagement score: {connection.engagement_score:.0f}/100
+- Last engagement: {connection.last_engagement_date.strftime('%Y-%m-%d') if connection.last_engagement_date else 'N/A'}
+- Engagement direction: {connection.engagement_direction or 'N/A'}
+- Endorsements exchanged: {connection.endorsement_count or 0}
+- Has recommendation: {'Yes' if connection.has_recommendation else 'No'}
+"""
+
     contact_context = f"""CONTACT'S PROFILE:
 - Name: {connection.name}
 - Current role: {connection.current_role or enrichment.get('jobTitle', 'Unknown')}
@@ -116,7 +137,7 @@ def build_scoring_prompt(
 - Experience: {enrichment.get('totalExperienceYears', 'Unknown')} years
 - Is a LinkedIn Creator: {enrichment.get('isCreator', False)}
 - Recent job change (< 6 months): {is_recent_job_change}{career_trajectory}
-
+{engagement_context}
 RECENT LINKEDIN ACTIVITY:
 {activity_text}
 """
@@ -127,10 +148,11 @@ RECENT LINKEDIN ACTIVITY:
 TASK:
 Evaluate how valuable it would be for the user to reconnect with this contact based on:
 1. Alignment with user's stated networking goals
-2. Overlap with user's interests and industry
+2. Overlap with user's interests, industry, and content themes
 3. Potential for mutual value exchange
 4. Quality of conversation hooks (recent activity, job changes, shared interests)
 5. Professional relevance and network value
+6. Prior engagement history (reactions, comments, endorsements) showing existing rapport
 
 Respond in JSON format:
 {{

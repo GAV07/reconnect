@@ -34,6 +34,14 @@ class UserProfile(SQLModel, table=True):
     inferred_interests: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     profile_auto_updated_at: Optional[datetime] = None
 
+    # LinkedIn profile data (from Profile.csv)
+    headline: Optional[str] = Field(default=None, sa_column=Column(Text))
+    about_summary: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+    # User persona (from posts/shares analysis)
+    posting_themes: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    public_persona_summary: Optional[str] = Field(default=None, sa_column=Column(Text))
+
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -105,12 +113,57 @@ class Connection(SQLModel, table=True):
     is_new_connection: bool = Field(default=False)
     connected_on: Optional[datetime] = None
 
+    # Engagement metrics (from reactions, comments, endorsements)
+    engagement_score: Optional[float] = Field(default=None, index=True)  # 0-100 aggregate
+    last_engagement_date: Optional[datetime] = None
+    engagement_direction: Optional[str] = None  # "user_to_contact" | "contact_to_user" | "mutual"
+    endorsement_count: int = Field(default=0)
+    has_recommendation: bool = Field(default=False)
+
 
 # Composite indexes for common query patterns
 Connection.__table_args__ = (
     Index("idx_connection_search", "name", "current_company", "current_role"),
     Index("idx_connection_freshness", "enriched_at", "updated_at"),
+    Index("idx_connection_engagement", "engagement_score", "last_engagement_date"),
 )
+
+
+class EngagementSignal(SQLModel, table=True):
+    """
+    Track engagement signals between user and connections.
+    Captures reactions, comments, endorsements, and recommendations.
+    """
+
+    __tablename__ = "engagement_signals"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    connection_id: Optional[str] = Field(default=None, foreign_key="connections.id", index=True)
+    connection_name: str  # Name for matching when connection_id unknown
+
+    signal_type: str  # "reaction" | "comment" | "endorsement_given" | "endorsement_received" | "recommendation_given" | "recommendation_received"
+    signal_strength: int = Field(default=1)  # 1-5 scale
+    content_snippet: Optional[str] = Field(default=None, sa_column=Column(Text))
+    signal_date: Optional[datetime] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserContent(SQLModel, table=True):
+    """
+    User's own LinkedIn content (posts, shares, articles).
+    Used for persona extraction and theme analysis.
+    """
+
+    __tablename__ = "user_content"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    content_type: str  # "post" | "article" | "share"
+    content_text: Optional[str] = Field(default=None, sa_column=Column(Text))
+    topics: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    posted_at: Optional[datetime] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class OutreachLog(SQLModel, table=True):
