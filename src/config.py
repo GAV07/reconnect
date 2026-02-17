@@ -1,9 +1,21 @@
-"""Application configuration via environment variables."""
+"""Application configuration via environment variables or Streamlit secrets."""
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic_settings import BaseSettings
+
+
+def get_streamlit_secrets() -> dict[str, Any]:
+    """Get secrets from Streamlit Cloud if available."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            return dict(st.secrets)
+    except Exception:
+        pass
+    return {}
 
 
 class Settings(BaseSettings):
