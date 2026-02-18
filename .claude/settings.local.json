@@ -2,7 +2,29 @@
   "permissions": {
     "allow": [
       "Bash(pip install:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(xargs:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase start:*)",
+      "Bash(psql:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(nslookup:*)",
+      "Bash(curl:*)",
+      "Bash(host:*)",
+      "Bash(python -c:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(chmod:*)",
+      "Bash(plutil:*)",
+      "Bash(/Users/gavin/Developer/reconnect/scripts/scheduler.sh:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd scheduled automation, Hunter.io email finder, and RapidAPI enrichment\n\n- Add macOS LaunchAgent scheduler for daily pipeline runs at 8 AM\n- Replace Coresignal placeholder with Hunter.io for email finding\n- Replace Apify with RapidAPI for LinkedIn profile enrichment\n- Add auto-import of LinkedIn exports from ~/Downloads\n- Fix CSV parsing for LinkedIn exports with Notes header\n- Add manual email finder button in UI \\(for free tier usage control\\)\n- Add Supabase migrations for new schema columns\n- Update sync to handle engagement signals and user content\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Streamlit Cloud deployment support\n\n- Add requirements.txt for Streamlit Cloud\n- Add .streamlit/config.toml for app configuration\n- Add secrets.toml.example template for cloud secrets\n- Update config to support Streamlit secrets\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(Miami\"\\) using batched gpt-4o-mini calls with scored results and outreach\ngeneration.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git pull:*)"
     ]
   }
 }

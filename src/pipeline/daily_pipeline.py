@@ -230,6 +230,23 @@ def run_daily_pipeline(
                 )
                 results["sync"] = {"error": str(sync_error)}
 
+        # Send Telegram notification (non-fatal)
+        from src.integrations.telegram import is_telegram_configured, send_pipeline_notification
+
+        if is_telegram_configured():
+            try:
+                tg_ok = send_pipeline_notification(results)
+                results["telegram"] = {"sent": tg_ok}
+                if tg_ok:
+                    steps_completed.append("telegram")
+            except Exception as tg_error:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Telegram notification failed (non-fatal): %s", tg_error
+                )
+                results["telegram"] = {"error": str(tg_error)}
+
     except Exception as e:
         error_message = str(e)
         error_step = steps_completed[-1] if steps_completed else "init"
@@ -247,6 +264,15 @@ def run_daily_pipeline(
                 session.add(run)
 
         results["error"] = {"message": error_message, "step": error_step}
+
+        # Send failure alert via Telegram (non-fatal)
+        from src.integrations.telegram import is_telegram_configured, send_failure_notification
+
+        if is_telegram_configured():
+            try:
+                send_failure_notification(error_step, error_message)
+            except Exception:
+                pass  # Don't mask the original error
 
     return results
 

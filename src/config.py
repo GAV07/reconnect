@@ -49,10 +49,15 @@ class Settings(BaseSettings):
     gmail_client_secret: str = ""
     gmail_redirect_uri: str = "http://localhost:8501/oauth/callback"
 
+    # Telegram Bot notifications
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     # Pipeline settings
     daily_enrich_budget: int = 10  # Max contacts to enrich per day
     daily_queue_size: int = 10  # Max contacts to add to outreach queue
     prescore_batch_size: int = 50  # Contacts per LLM batch call
+    queue_min_score: float = 60  # Min reconnect/pre-score to generate outreach
 
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"

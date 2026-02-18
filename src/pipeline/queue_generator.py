@@ -180,13 +180,16 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
         if not user_profile:
             user_profile = UserProfile(id=1, name="")
 
-        # Get top-scored connections
+        # Get top-scored connections above minimum threshold
         # Prefer reconnect_score (post-enrichment), fall back to pre_score
+        min_score = settings.queue_min_score
         query = (
             select(Connection)
             .where(
-                # Has some score
-                (Connection.reconnect_score.isnot(None)) | (Connection.pre_score.isnot(None))
+                # Has a score above the minimum threshold
+                (Connection.reconnect_score >= min_score) | (
+                    Connection.reconnect_score.is_(None) & (Connection.pre_score >= min_score)
+                )
             )
             .order_by(
                 # Sort by reconnect_score first (nulls last), then pre_score
