@@ -303,6 +303,10 @@ def render_main_page():
             st.session_state.page = "review"
             st.rerun()
 
+        if st.button("🔍 Find Contacts", use_container_width=True):
+            st.session_state.page = "opportunities"
+            st.rerun()
+
         if st.button("🔄 Pipeline", use_container_width=True):
             st.session_state.page = "pipeline"
             st.rerun()
@@ -606,6 +610,9 @@ def main():
     elif st.session_state.page == "review":
         from src.ui.pages.review import render_review_page
         render_review_page()
+    elif st.session_state.page == "opportunities":
+        from src.ui.pages.opportunities import render_opportunities_page
+        render_opportunities_page()
     elif st.session_state.page == "pipeline":
         render_pipeline_page()
     else:
