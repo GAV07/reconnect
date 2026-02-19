@@ -69,3 +69,7 @@ Thumbs.db
 # Project specific
 data/reconnect.db
 logs/
+
+# Generated plist (template is tracked, generated file is not)
+com.reconnect.daily-pipeline.plist
+!com.reconnect.daily-pipeline.plist.template

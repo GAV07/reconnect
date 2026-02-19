@@ -7,11 +7,11 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/gavin/Developer/reconnect/scripts/run_scheduled.sh</string>
+        <string>__PROJECT_DIR__/scripts/run_scheduled.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/gavin/Developer/reconnect</string>
+    <string>__PROJECT_DIR__</string>
 
     <!-- Run daily at 8:00 AM -->
     <key>StartCalendarInterval</key>
@@ -28,15 +28,15 @@
 
     <!-- Standard output/error logging -->
     <key>StandardOutPath</key>
-    <string>/Users/gavin/Developer/reconnect/logs/launchd-stdout.log</string>
+    <string>__PROJECT_DIR__/logs/launchd-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/gavin/Developer/reconnect/logs/launchd-stderr.log</string>
+    <string>__PROJECT_DIR__/logs/launchd-stderr.log</string>
 
     <!-- Environment variables -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin</string>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
     </dict>
 </dict>
 </plist>

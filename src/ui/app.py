@@ -108,8 +108,176 @@ def render_settings_page():
         st.rerun()
 
 
+def render_welcome_page():
+    """Render a welcome screen for first-time users with no contacts."""
+
+    st.markdown(
+        """
+        <style>
+        .welcome-header { text-align: center; padding: 1rem 0 0.5rem 0; }
+        .welcome-sub { text-align: center; color: #666; font-size: 1.1rem; margin-bottom: 2rem; }
+        .step-num { font-size: 1.5rem; font-weight: bold; color: #1f77b4; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="welcome-header">', unsafe_allow_html=True)
+    st.title("Reconnect")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="welcome-sub">AI-powered networking CRM — resurface the connections that matter</p>',
+        unsafe_allow_html=True,
+    )
+
+    # How it works
+    st.markdown("---")
+    st.subheader("How It Works")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown('<p class="step-num">1</p>', unsafe_allow_html=True)
+        st.markdown("**Import**")
+        st.caption(
+            "Upload your LinkedIn data export. "
+            "Connections, messages, endorsements — all parsed automatically."
+        )
+
+    with col2:
+        st.markdown('<p class="step-num">2</p>', unsafe_allow_html=True)
+        st.markdown("**Score**")
+        st.caption(
+            "Two-stage AI scoring ranks every contact. "
+            "Rule-based pre-scoring, then LLM deep analysis on top prospects."
+        )
+
+    with col3:
+        st.markdown('<p class="step-num">3</p>', unsafe_allow_html=True)
+        st.markdown("**Enrich**")
+        st.caption(
+            "Top contacts get enriched with current roles, companies, "
+            "skills, and email addresses via API."
+        )
+
+    with col4:
+        st.markdown('<p class="step-num">4</p>', unsafe_allow_html=True)
+        st.markdown("**Reconnect**")
+        st.caption(
+            "AI drafts personalized outreach. "
+            "You review, edit, and send — via email or LinkedIn."
+        )
+
+    st.markdown("---")
+
+    # Architecture at a glance
+    st.subheader("Under the Hood")
+
+    st.code(
+        """
+  LinkedIn Export       Two-Stage Scoring       Enrichment          Outreach
+  ===============       =================       ==========          ========
+  Connections.csv  -->  Stage 1: Rules     -->  RapidAPI       -->  AI-Drafted
+  Messages.csv          (fast, free)            (current role)      Messages
+  Endorsements          Stage 2: LLM           Hunter.io           Human Review
+  Reactions             (deep analysis)         (email finder)      Gmail / LinkedIn
+
+                  Daily Pipeline (automated, runs at 8 AM)
+                  ==========================================
+                  Import -> Pre-Score -> Enrich -> Score -> Queue -> Notify
+        """,
+        language=None,
+    )
+
+    st.markdown("---")
+
+    # Get started
+    st.subheader("Get Started")
+
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown("**Step 1: Configure your profile**")
+        st.caption(
+            "Tell Reconnect about your role, goals, and interests "
+            "so the AI can score contacts relative to what matters to you."
+        )
+        if st.button("Open Settings", use_container_width=True):
+            st.session_state.page = "settings"
+            st.rerun()
+
+    with col_right:
+        st.markdown("**Step 2: Import your LinkedIn data**")
+        st.caption(
+            "Go to LinkedIn > Settings > Data Privacy > Get a copy of your data. "
+            "Upload the ZIP file below."
+        )
+        uploaded_zip = st.file_uploader(
+            "LinkedIn Data Export (ZIP)",
+            type=["zip"],
+            help="Full data export from LinkedIn",
+            key="welcome_zip_uploader",
+        )
+
+        if uploaded_zip is not None:
+            # Get user name for message direction detection
+            try:
+                with get_session() as session:
+                    profile = session.get(UserProfile, 1)
+                    user_name = profile.name if profile else None
+            except Exception:
+                user_name = None
+
+            if st.button("Import", use_container_width=True, type="primary"):
+                import tempfile
+                from pathlib import Path
+
+                try:
+                    from src.ingestion.linkedin_dump import import_linkedin_dump
+
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+                        tmp.write(uploaded_zip.getvalue())
+                        tmp_path = Path(tmp.name)
+
+                    with st.spinner("Importing LinkedIn data..."):
+                        result = import_linkedin_dump(
+                            tmp_path,
+                            user_name=user_name,
+                            summarize_conversations=False,
+                        )
+
+                        st.success(
+                            f"Imported {result.connections_imported} new, "
+                            f"updated {result.connections_updated}"
+                        )
+
+                    tmp_path.unlink()
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"Import failed: {str(e)}")
+
+    st.markdown("---")
+
+    # Tech stack
+    st.caption(
+        "Built with Python, Streamlit, SQLite, OpenAI, RapidAPI, Hunter.io, "
+        "and Claude Code. All data stored locally by default."
+    )
+
+
 def render_main_page():
     """Render the main contacts page."""
+    # Check if there are any contacts — show welcome screen if empty
+    with get_session() as session:
+        from sqlmodel import func, select
+
+        contact_count = session.exec(select(func.count(Connection.id))).one()
+
+    if contact_count == 0:
+        render_welcome_page()
+        return
+
     st.title("Reconnect")
     st.caption("Your personal networking CRM")
 

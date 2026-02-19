@@ -4,19 +4,27 @@
 
 set -e
 
-PROJECT_DIR="/Users/gavin/Developer/reconnect"
+# Resolve project directory relative to this script's location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLIST_NAME="com.reconnect.daily-pipeline.plist"
-PLIST_SRC="$PROJECT_DIR/$PLIST_NAME"
+PLIST_TEMPLATE="$PROJECT_DIR/$PLIST_NAME.template"
 PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME"
 LOG_DIR="$PROJECT_DIR/logs"
 
 case "$1" in
     install)
         echo "Installing LaunchAgent..."
+        if [ ! -f "$PLIST_TEMPLATE" ]; then
+            echo "Error: Template not found at $PLIST_TEMPLATE"
+            exit 1
+        fi
         mkdir -p "$HOME/Library/LaunchAgents"
-        cp "$PLIST_SRC" "$PLIST_DST"
+        # Generate plist from template with actual paths
+        sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" "$PLIST_TEMPLATE" > "$PLIST_DST"
         launchctl load "$PLIST_DST"
         echo "Installed and loaded. Pipeline will run daily at 8:00 AM."
+        echo "Project directory: $PROJECT_DIR"
         echo "Use './scripts/scheduler.sh status' to verify."
         ;;
 

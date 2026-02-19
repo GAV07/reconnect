@@ -4,10 +4,11 @@
 
 set -e
 
-# Configuration
-PROJECT_DIR="/Users/gavin/Developer/reconnect"
+# Resolve project directory relative to this script's location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$PROJECT_DIR/logs"
-PYTHON="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3"
+PYTHON="${RECONNECT_PYTHON:-$(which python3)}"
 
 # Create log directory if needed
 mkdir -p "$LOG_DIR"
