@@ -13,7 +13,6 @@ from sqlmodel import select
 from src.config import settings
 from src.database.engine import get_session
 from src.database.models import Connection, OutreachQueueItem, UserProfile
-from src.llm.prose import generate_outreach_message
 
 
 @dataclass
@@ -112,7 +111,9 @@ def generate_queue_item(
     channel: str,
 ) -> OutreachQueueItem:
     """
-    Create a queue item with draft message.
+    Create a queue item without a draft message.
+
+    Draft messages are generated on-demand in the review UI to save LLM credits.
 
     Args:
         connection: Connection to create item for
@@ -122,30 +123,11 @@ def generate_queue_item(
     Returns:
         OutreachQueueItem ready for review
     """
-    # Generate draft message
-    draft_message = None
-    draft_subject = None
-
-    try:
-        # Use existing prose generation if available
-        draft_message = generate_outreach_message(
-            connection,
-            user_profile,
-            channel=channel,
-        )
-        if channel == "email":
-            draft_subject = f"Reconnecting - {user_profile.name or 'Hi'}"
-    except Exception:
-        # Default template if generation fails
-        draft_message = f"Hi {connection.name.split()[0] if connection.name else 'there'},\n\nHope you're doing well! Would love to catch up sometime."
-        if channel == "email":
-            draft_subject = "Quick hello"
-
     return OutreachQueueItem(
         connection_id=connection.id,
         channel=channel,
-        draft_message=draft_message,
-        draft_subject=draft_subject,
+        draft_message=None,
+        draft_subject=f"Reconnecting - {user_profile.name or 'Hi'}" if channel == "email" else None,
         priority_score=connection.reconnect_score or connection.pre_score or 50,
         status="pending_review",
     )

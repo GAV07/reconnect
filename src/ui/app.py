@@ -467,6 +467,10 @@ def render_main_page():
         st.divider()
 
         # Navigation
+        if st.button("📊 Dashboard", use_container_width=True):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
         if st.button("📋 Review Queue", use_container_width=True, type="primary"):
             st.session_state.page = "review"
             st.rerun()
@@ -775,6 +779,9 @@ def main():
     # Route to appropriate page
     if st.session_state.page == "settings":
         render_settings_page()
+    elif st.session_state.page == "dashboard":
+        from src.ui.pages.dashboard import render_dashboard_page
+        render_dashboard_page()
     elif st.session_state.page == "review":
         from src.ui.pages.review import render_review_page
         render_review_page()

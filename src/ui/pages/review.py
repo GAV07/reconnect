@@ -138,6 +138,30 @@ def render_review_page():
     if edit_key not in st.session_state:
         st.session_state[edit_key] = queue_item.draft_message or ""
 
+    # Generate Draft button when no draft exists
+    if not queue_item.draft_message and not st.session_state[edit_key]:
+        if st.button("✨ Generate Draft", key=f"gen_{queue_item.id}", use_container_width=True):
+            with st.spinner("Generating draft..."):
+                from src.llm.prose import generate_outreach_message
+                from src.database.engine import get_session as _get_session
+                from src.database.models import UserProfile as _UP
+
+                with _get_session() as _sess:
+                    _profile = _sess.get(_UP, 1)
+                    if not _profile:
+                        _profile = _UP(id=1, name="")
+                    draft = generate_outreach_message(connection, _profile, channel=channel)
+
+                # Save to DB
+                with _get_session() as _sess:
+                    _item = _sess.get(type(queue_item), queue_item.id)
+                    if _item:
+                        _item.draft_message = draft
+                        _sess.add(_item)
+
+                st.session_state[edit_key] = draft
+                st.rerun()
+
     edited_message = st.text_area(
         "Message",
         value=st.session_state[edit_key],

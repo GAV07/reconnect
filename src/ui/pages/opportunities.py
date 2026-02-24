@@ -77,7 +77,7 @@ def render_opportunities_page():
                         render_connection_detail(match.connection_id)
                 with detail_cols[1]:
                     if st.button(
-                        "Generate Outreach",
+                        "Add to Queue",
                         key=f"outreach_{match.connection_id}_{i}",
                         use_container_width=True,
                     ):
