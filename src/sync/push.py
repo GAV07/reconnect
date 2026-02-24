@@ -21,7 +21,7 @@ from src.sync.engines import get_cloud_engine, get_local_engine
 
 logger = logging.getLogger(__name__)
 
-# Fields to sync for Connection (excludes large blobs and local-only fields)
+# Fields to sync for Connection
 CONNECTION_SYNC_FIELDS = [
     "id", "name", "email", "linkedin_url",
     "current_role", "current_company", "location",
@@ -32,6 +32,8 @@ CONNECTION_SYNC_FIELDS = [
     "created_at", "updated_at", "enriched_at",
     "cached_summary", "cached_summary_at",
     "pre_score", "pre_score_tier",
+    # Enrichment data (needed for detail views)
+    "raw_enrichment", "activity_log",
     # Engagement fields
     "engagement_score", "last_engagement_date", "engagement_direction",
     "endorsement_count", "has_recommendation",
@@ -115,15 +117,31 @@ def push_to_cloud() -> dict[str, Any]:
                     _upsert_record(cloud_session, UserProfile, data)
                     stats["user_profile"] = 1
 
-            # 2. Push fully-processed Connections (enriched + scored)
+            # 2. Push connections that have been scored or have queue items
             with Session(local_engine, expire_on_commit=False) as local_session:
+                # Get IDs of connections that are in the outreach queue
+                queued_ids = set(
+                    local_session.exec(select(OutreachQueueItem.connection_id)).all()
+                )
+
                 query = select(Connection).where(
-                    Connection.enriched_at.is_not(None),
-                    Connection.reconnect_score.is_not(None),
+                    # Enriched + scored OR pre-scored OR has a queue item
+                    (Connection.reconnect_score.is_not(None))
+                    | (Connection.pre_score.is_not(None))
                 )
                 if last_push_at:
                     query = query.where(Connection.updated_at > last_push_at)
                 connections = local_session.exec(query).all()
+
+                # Also include any queued connections not yet captured
+                if queued_ids:
+                    queued_conns = local_session.exec(
+                        select(Connection).where(Connection.id.in_(queued_ids))
+                    ).all()
+                    seen_ids = {c.id for c in connections}
+                    for c in queued_conns:
+                        if c.id not in seen_ids:
+                            connections.append(c)
 
                 for conn in connections:
                     data = _record_to_dict(conn, CONNECTION_SYNC_FIELDS)

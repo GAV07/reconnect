@@ -52,6 +52,64 @@ if "show_detail_dialog" not in st.session_state:
     st.session_state.show_detail_dialog = False
 
 
+def render_sidebar_nav():
+    """Render persistent sidebar navigation available on all pages."""
+    with st.sidebar:
+        st.header("Reconnect")
+
+        current = st.session_state.page
+
+        if st.button(
+            "🏠 Contacts",
+            use_container_width=True,
+            type="primary" if current == "main" else "secondary",
+        ):
+            st.session_state.page = "main"
+            st.rerun()
+
+        if st.button(
+            "📊 Dashboard",
+            use_container_width=True,
+            type="primary" if current == "dashboard" else "secondary",
+        ):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+        if st.button(
+            "📋 Review Queue",
+            use_container_width=True,
+            type="primary" if current == "review" else "secondary",
+        ):
+            st.session_state.page = "review"
+            st.rerun()
+
+        if st.button(
+            "🔍 Find Contacts",
+            use_container_width=True,
+            type="primary" if current == "opportunities" else "secondary",
+        ):
+            st.session_state.page = "opportunities"
+            st.rerun()
+
+        if st.button(
+            "🔄 Pipeline",
+            use_container_width=True,
+            type="primary" if current == "pipeline" else "secondary",
+        ):
+            st.session_state.page = "pipeline"
+            st.rerun()
+
+        if st.button(
+            "⚙️ Settings",
+            use_container_width=True,
+            type="primary" if current == "settings" else "secondary",
+        ):
+            st.session_state.page = "settings"
+            st.rerun()
+
+        st.divider()
+
+
 def render_settings_page():
     """Render the user profile settings page."""
     st.title("Settings")
@@ -102,11 +160,6 @@ def render_settings_page():
                 session.commit()
 
                 st.success("Profile saved!")
-
-    if st.button("← Back to Contacts"):
-        st.session_state.page = "main"
-        st.rerun()
-
 
 def render_welcome_page():
     """Render a welcome screen for first-time users with no contacts."""
@@ -466,29 +519,6 @@ def render_main_page():
 
         st.divider()
 
-        # Navigation
-        if st.button("📊 Dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
-            st.rerun()
-
-        if st.button("📋 Review Queue", use_container_width=True, type="primary"):
-            st.session_state.page = "review"
-            st.rerun()
-
-        if st.button("🔍 Find Contacts", use_container_width=True):
-            st.session_state.page = "opportunities"
-            st.rerun()
-
-        if st.button("🔄 Pipeline", use_container_width=True):
-            st.session_state.page = "pipeline"
-            st.rerun()
-
-        if st.button("⚙️ Settings", use_container_width=True):
-            st.session_state.page = "settings"
-            st.rerun()
-
-        st.divider()
-
         # Import section
         st.subheader("Import Data")
 
@@ -762,19 +792,15 @@ def render_pipeline_page():
             if dump_path and dump_path.exists():
                 dump_path.unlink()
 
-    st.divider()
-
-    if st.button("← Back to Main"):
-        st.session_state.page = "main"
-        st.rerun()
-
-
 def main():
     """Main application entry point."""
     # Handle URL parameters for deep linking
     query_params = st.query_params
     if "page" in query_params:
         st.session_state.page = query_params["page"]
+
+    # Persistent sidebar navigation (available on all pages)
+    render_sidebar_nav()
 
     # Route to appropriate page
     if st.session_state.page == "settings":

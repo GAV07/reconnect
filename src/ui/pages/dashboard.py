@@ -22,10 +22,6 @@ def render_dashboard_page():
     st.divider()
     _render_activity_timeline()
 
-    st.divider()
-    if st.button("← Back to Main"):
-        st.session_state.page = "main"
-        st.rerun()
 
 
 def _render_score_distribution():

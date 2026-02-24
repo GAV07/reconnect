@@ -38,9 +38,6 @@ def render_review_page():
 
     if not pending:
         st.info("No contacts in queue. Run the pipeline to generate new suggestions.")
-        if st.button("← Back to Main"):
-            st.session_state.page = "main"
-            st.rerun()
         return
 
     # Initialize current card index
@@ -210,24 +207,19 @@ def render_review_page():
             if st.button("📋 Copy & Open", use_container_width=True, type="primary"):
                 _linkedin_action(queue_item, connection, edited_message)
 
-    # Navigation
+    # Card navigation
     st.divider()
-    nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
+    nav_col1, nav_col2 = st.columns(2)
 
     with nav_col1:
         if st.session_state.review_index > 0:
-            if st.button("← Prev"):
+            if st.button("← Prev", use_container_width=True):
                 st.session_state.review_index -= 1
                 st.rerun()
 
     with nav_col2:
-        if st.button("← Back to Main", use_container_width=True):
-            st.session_state.page = "main"
-            st.rerun()
-
-    with nav_col3:
         if st.session_state.review_index < len(pending) - 1:
-            if st.button("Next →"):
+            if st.button("Next →", use_container_width=True):
                 st.session_state.review_index += 1
                 st.rerun()
 

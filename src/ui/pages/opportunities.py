@@ -85,10 +85,6 @@ def render_opportunities_page():
 
                 st.divider()
 
-    # Navigation
-    if st.button("← Back to Main"):
-        st.session_state.page = "main"
-        st.rerun()
 
 
 def _add_to_queue(connection_id: str):
