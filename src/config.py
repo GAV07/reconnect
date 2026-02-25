@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     daily_enrich_budget: int = 10  # Max contacts to enrich per day
     daily_queue_size: int = 10  # Max contacts to add to outreach queue
     prescore_batch_size: int = 50  # Contacts per LLM batch call
-    queue_min_score: float = 60  # Min reconnect/pre-score to generate outreach
+    queue_min_score: float = 70  # Min reconnect/pre-score to generate outreach
 
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"
@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Allow extra env vars (e.g. Google service account keys)
 
 
 @lru_cache()

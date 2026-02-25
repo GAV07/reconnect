@@ -76,6 +76,14 @@ def render_sidebar_nav():
             st.rerun()
 
         if st.button(
+            "🙋 Ask My Network",
+            use_container_width=True,
+            type="primary" if current == "ask" else "secondary",
+        ):
+            st.session_state.page = "ask"
+            st.rerun()
+
+        if st.button(
             "📋 Review Queue",
             use_container_width=True,
             type="primary" if current == "review" else "secondary",
@@ -806,13 +814,16 @@ def main():
     if st.session_state.page == "settings":
         render_settings_page()
     elif st.session_state.page == "dashboard":
-        from src.ui.pages.dashboard import render_dashboard_page
+        from src.ui.views.dashboard import render_dashboard_page
         render_dashboard_page()
+    elif st.session_state.page == "ask":
+        from src.ui.views.ask import render_ask_page
+        render_ask_page()
     elif st.session_state.page == "review":
-        from src.ui.pages.review import render_review_page
+        from src.ui.views.review import render_review_page
         render_review_page()
     elif st.session_state.page == "opportunities":
-        from src.ui.pages.opportunities import render_opportunities_page
+        from src.ui.views.opportunities import render_opportunities_page
         render_opportunities_page()
     elif st.session_state.page == "pipeline":
         render_pipeline_page()
