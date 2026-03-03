@@ -194,7 +194,7 @@ def rule_based_prescore(
     score = max(0, min(100, score))
 
     # Determine tier
-    if score >= 70:
+    if score >= 60:
         tier = 1  # Enrich
     elif score >= 40:
         tier = 2  # Maybe
@@ -275,7 +275,7 @@ Be selective - most contacts should score 30-60. Reserve 80+ for exceptional mat
                 if 0 <= idx < len(batch):
                     score = float(item.get("score", 50))
                     score = max(0, min(100, score))
-                    tier = 1 if score >= 70 else (2 if score >= 40 else 3)
+                    tier = 1 if score >= 60 else (2 if score >= 40 else 3)
                     results.append((batch[idx].id, score, tier))
 
         except Exception as e:

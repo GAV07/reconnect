@@ -54,10 +54,10 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
 
     # Pipeline settings
-    daily_enrich_budget: int = 10  # Max contacts to enrich per day
-    daily_queue_size: int = 10  # Max contacts to add to outreach queue
+    daily_enrich_budget: int = 30  # Max contacts to enrich per day
+    daily_queue_size: int = 20  # Max contacts to add to outreach queue
     prescore_batch_size: int = 50  # Contacts per LLM batch call
-    queue_min_score: float = 70  # Min reconnect/pre-score to generate outreach
+    min_queue_score: int = 55  # Minimum reconnect_score to enter outreach queue
 
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"

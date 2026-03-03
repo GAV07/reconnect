@@ -162,22 +162,12 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
         if not user_profile:
             user_profile = UserProfile(id=1, name="")
 
-        # Get top-scored connections above minimum threshold
-        # Prefer reconnect_score (post-enrichment), fall back to pre_score
-        min_score = settings.queue_min_score
+        # Get top-scored connections - only those with a full reconnect_score
         query = (
             select(Connection)
-            .where(
-                # Has a score above the minimum threshold
-                (Connection.reconnect_score >= min_score) | (
-                    Connection.reconnect_score.is_(None) & (Connection.pre_score >= min_score)
-                )
-            )
-            .order_by(
-                # Sort by reconnect_score first (nulls last), then pre_score
-                Connection.reconnect_score.desc().nullslast(),
-                Connection.pre_score.desc().nullslast(),
-            )
+            .where(Connection.reconnect_score.isnot(None))
+            .where(Connection.reconnect_score >= settings.min_queue_score)
+            .order_by(Connection.reconnect_score.desc())
             .limit(limit * 3)  # Fetch extra in case of exclusions
         )
 
@@ -228,9 +218,12 @@ def get_pending_queue() -> list[tuple[OutreachQueueItem, Connection]]:
         for item in items:
             conn = session.get(Connection, item.connection_id)
             if conn:
-                # Detach from session
-                _ = item.id, item.draft_message, item.channel
-                _ = conn.id, conn.name, conn.current_role
+                # Detach from session - load all attributes needed by review page
+                _ = item.id, item.draft_message, item.channel, item.draft_subject
+                _ = conn.id, conn.name, conn.current_role, conn.current_company
+                _ = conn.email, conn.linkedin_url, conn.reconnect_score, conn.pre_score
+                _ = conn.location, conn.score_reasoning
+                _ = conn.raw_enrichment, conn.activity_log
                 result.append((item, conn))
 
         return result

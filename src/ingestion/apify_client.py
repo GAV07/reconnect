@@ -222,7 +222,13 @@ def update_connection_activity(connection_id: str) -> bool:
             if not profile_data:
                 return False
 
-            # Store full response in raw_enrichment
+            # Validate that Apify returned substantive data
+            has_headline = bool(profile_data.get("headline"))
+            has_about = bool(profile_data.get("about"))
+            has_experiences = bool(profile_data.get("experiences"))
+            has_substance = has_headline or has_about or has_experiences
+
+            # Store raw response regardless (useful for debugging)
             connection.raw_enrichment = profile_data
 
             # Extract activity_log from updates
@@ -248,12 +254,19 @@ def update_connection_activity(connection_id: str) -> bool:
             elif profile_data.get("addressWithCountry"):
                 connection.location = profile_data.get("addressWithCountry")
 
-            connection.enriched_at = datetime.utcnow()
             connection.updated_at = datetime.utcnow()
+
+            # Only mark as enriched if we got substantive data
+            if has_substance:
+                connection.enriched_at = datetime.utcnow()
+            else:
+                # Clear enriched_at so pipeline retries this contact
+                connection.enriched_at = None
+                print(f"Sparse enrichment for {connection.name} - not marking as enriched")
 
             session.add(connection)
 
-            return True
+            return has_substance
 
         except Exception as e:
             print(f"Error updating activity for {connection_id}: {e}")

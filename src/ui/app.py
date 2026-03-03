@@ -800,6 +800,155 @@ def render_pipeline_page():
             if dump_path and dump_path.exists():
                 dump_path.unlink()
 
+    st.divider()
+
+    # Diagnostics & Re-processing section
+    _render_pipeline_diagnostics()
+
+
+def _render_pipeline_diagnostics():
+    """Render enrichment audit and re-processing tools."""
+    from sqlmodel import func, select
+
+    st.subheader("Diagnostics")
+
+    with get_session() as session:
+        # Count enriched contacts
+        total_enriched = session.exec(
+            select(func.count(Connection.id))
+            .where(Connection.enriched_at.isnot(None))
+        ).one()
+
+        # Count enriched-but-empty (have enriched_at but no substantive data)
+        enriched_connections = session.exec(
+            select(Connection)
+            .where(Connection.enriched_at.isnot(None))
+        ).all()
+
+        empty_enriched = []
+        for conn in enriched_connections:
+            enrichment = conn.raw_enrichment or {}
+            has_headline = bool(enrichment.get("headline"))
+            has_about = bool(enrichment.get("about"))
+            has_experiences = bool(enrichment.get("experiences"))
+            if not (has_headline or has_about or has_experiences):
+                empty_enriched.append((conn.id, conn.name, conn.current_role))
+
+        # Count scored contacts
+        total_scored = session.exec(
+            select(func.count(Connection.id))
+            .where(Connection.reconnect_score.isnot(None))
+        ).one()
+
+        # Count scored with new rubric (have dimension_scores in score_reasoning)
+        scored_with_rubric = 0
+        scored_connections = session.exec(
+            select(Connection)
+            .where(Connection.reconnect_score.isnot(None))
+            .where(Connection.score_reasoning.isnot(None))
+        ).all()
+        for conn in scored_connections:
+            try:
+                import json
+                reasoning = json.loads(conn.score_reasoning)
+                if reasoning.get("dimension_scores"):
+                    scored_with_rubric += 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    # Display stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Enriched", total_enriched)
+    with col2:
+        st.metric("Empty enrichments", len(empty_enriched))
+    with col3:
+        st.metric("Scored (rubric)", f"{scored_with_rubric}/{total_scored}")
+
+    # Empty enrichments detail
+    if empty_enriched:
+        with st.expander(f"Empty enrichments ({len(empty_enriched)} contacts)"):
+            for conn_id, name, role in empty_enriched:
+                st.caption(f"{name} - {role or 'No role'}")
+
+            if st.button("Reset empty enrichments for retry", use_container_width=True):
+                with get_session() as session:
+                    for conn_id, name, _ in empty_enriched:
+                        conn = session.get(Connection, conn_id)
+                        if conn:
+                            conn.enriched_at = None
+                            session.add(conn)
+                st.success(f"Reset {len(empty_enriched)} contacts. Run the pipeline to re-enrich them.")
+                st.rerun()
+
+    # Re-score all enriched contacts
+    if total_scored > scored_with_rubric:
+        st.caption(f"{total_scored - scored_with_rubric} contacts scored with old method (no rubric)")
+
+    col_rescore, col_rescore_all = st.columns(2)
+
+    with col_rescore:
+        if st.button("Re-score old-method contacts", use_container_width=True):
+            _rescore_contacts(rubric_only=True)
+
+    with col_rescore_all:
+        if st.button("Re-score ALL enriched", use_container_width=True):
+            _rescore_contacts(rubric_only=False)
+
+
+def _rescore_contacts(rubric_only: bool = True):
+    """Re-score contacts that need updated scoring."""
+    import json
+    from sqlmodel import select
+    from src.llm.scoring import score_connection
+
+    with get_session() as session:
+        query = (
+            select(Connection)
+            .where(Connection.enriched_at.isnot(None))
+            .where(Connection.reconnect_score.isnot(None))
+        )
+        connections = session.exec(query).all()
+
+        to_rescore = []
+        for conn in connections:
+            if rubric_only:
+                # Only re-score if missing dimension_scores
+                try:
+                    reasoning = json.loads(conn.score_reasoning or "{}")
+                    if reasoning.get("dimension_scores"):
+                        continue
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            to_rescore.append((conn.id, conn.name))
+
+    if not to_rescore:
+        st.info("All contacts already scored with rubric!")
+        return
+
+    progress = st.progress(0)
+    status = st.empty()
+    success = 0
+    failed = 0
+
+    for i, (conn_id, name) in enumerate(to_rescore):
+        status.text(f"Re-scoring {name}... ({i+1}/{len(to_rescore)})")
+        try:
+            result = score_connection(conn_id)
+            if result:
+                success += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+        progress.progress((i + 1) / len(to_rescore))
+
+    progress.empty()
+    status.empty()
+    st.success(f"Re-scored {success}/{len(to_rescore)} contacts ({failed} failed)")
+    st.rerun()
+
+
 def main():
     """Main application entry point."""
     # Handle URL parameters for deep linking

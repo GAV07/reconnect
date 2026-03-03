@@ -3,6 +3,8 @@
 Card-based interface optimized for mobile devices and PWA installation.
 """
 
+import json
+
 import streamlit as st
 
 from src.database.engine import get_session
@@ -127,6 +129,11 @@ def render_review_page():
 
     st.divider()
 
+    # Profile context section
+    _render_profile_context(connection)
+
+    st.divider()
+
     # Editable message
     st.markdown("**Draft Message:**")
 
@@ -222,6 +229,114 @@ def render_review_page():
             if st.button("Next →", use_container_width=True):
                 st.session_state.review_index += 1
                 st.rerun()
+
+
+def _render_profile_context(connection: Connection):
+    """Render the 'About this person' expandable section on review cards."""
+    enrichment = connection.raw_enrichment or {}
+    reasoning_data = {}
+    if connection.score_reasoning:
+        try:
+            reasoning_data = json.loads(connection.score_reasoning)
+        except json.JSONDecodeError:
+            pass
+
+    with st.expander("About this person", expanded=False):
+        # --- Why reach out ---
+        key_factors = reasoning_data.get("key_factors", [])
+        hooks = reasoning_data.get("conversation_hooks", [])
+        if key_factors or hooks:
+            st.markdown("**Why reach out**")
+            if reasoning_data.get("reasoning"):
+                st.caption(reasoning_data["reasoning"])
+            if hooks:
+                for hook in hooks:
+                    st.markdown(f"- {hook}")
+
+        # --- Score breakdown (dimension bars) ---
+        dimension_scores = reasoning_data.get("dimension_scores", {})
+        if dimension_scores:
+            st.markdown("**Score breakdown**")
+            _render_dimension_bars(dimension_scores)
+
+        # --- Profile snapshot ---
+        headline = enrichment.get("headline", "")
+        about = enrichment.get("about", "") or enrichment.get("summary", "")
+        location = (
+            connection.location
+            or enrichment.get("addressWithCountry", "")
+        )
+        if headline or about or location:
+            st.markdown("**Profile**")
+            if headline:
+                st.markdown(f"*{headline}*")
+            if about:
+                # Truncate to ~200 chars
+                truncated = about[:200] + ("..." if len(about) > 200 else "")
+                st.caption(truncated)
+            if location:
+                st.caption(f"📍 {location}")
+
+        # --- Recent activity ---
+        activity_log = connection.activity_log or []
+        if activity_log:
+            st.markdown("**Recent activity**")
+            post = activity_log[0]
+            content = post.get("content", "")[:200]
+            if content:
+                st.caption(f'"{content}"')
+
+        # --- Career context ---
+        experiences = enrichment.get("experiences", [])
+        total_years = enrichment.get("totalExperienceYears")
+        if experiences:
+            st.markdown("**Career**")
+            # Current role
+            current = experiences[0] if experiences else {}
+            current_title = current.get("title", "")
+            current_company = current.get("companyName", "")
+            if current_title and current_company:
+                st.markdown(f"**{current_title}** at {current_company}")
+
+            # Previous roles (1-2)
+            for exp in experiences[1:3]:
+                title = exp.get("title", "")
+                company = exp.get("companyName", "")
+                if title and company:
+                    st.caption(f"Previously: {title} at {company}")
+
+            if total_years:
+                st.caption(f"{total_years} years experience")
+
+        # --- Quick stats ---
+        connections_count = enrichment.get("connectionsCount")
+        is_creator = enrichment.get("isCreator", False)
+        follower_count = enrichment.get("followerCount")
+        badges = []
+        if is_creator:
+            badges.append("Creator")
+        if follower_count and follower_count > 1000:
+            badges.append(f"{follower_count:,} followers")
+        if connections_count:
+            badges.append(f"{connections_count:,}+ connections")
+        if badges:
+            st.markdown("**Stats:** " + " · ".join(badges))
+
+
+def _render_dimension_bars(dimension_scores: dict):
+    """Render dimension scores as labeled progress bars."""
+    dimensions = {
+        "goal_alignment": ("Goal Alignment", 25),
+        "industry_overlap": ("Industry Overlap", 20),
+        "mutual_value": ("Mutual Value", 20),
+        "conversation_hooks": ("Hooks", 20),
+        "network_reach": ("Network Reach", 15),
+    }
+    for key, (label, max_pts) in dimensions.items():
+        pts = dimension_scores.get(key, 0)
+        pct = pts / max_pts if max_pts > 0 else 0
+        st.caption(f"{label}: {pts}/{max_pts}")
+        st.progress(min(pct, 1.0))
 
 
 def _advance_to_next(total: int):

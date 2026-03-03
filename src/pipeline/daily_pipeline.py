@@ -163,15 +163,32 @@ def run_daily_pipeline(
                     enrich_results["failed"] += 1
                     enrich_results["errors"].append(f"{conn.name}: {str(e)[:50]}")
 
+            # Step 4b: If budget remains, enrich top tier-2 contacts
+            remaining_budget = enrich_budget - len(tier1)
+            tier2_enriched = []
+            if remaining_budget > 0:
+                tier2 = _get_tier2_connections(limit=remaining_budget)
+                for conn in tier2:
+                    try:
+                        if update_connection_activity(conn.id):
+                            enrich_results["success"] += 1
+                            tier2_enriched.append(conn)
+                        else:
+                            enrich_results["failed"] += 1
+                    except Exception as e:
+                        enrich_results["failed"] += 1
+                        enrich_results["errors"].append(f"{conn.name}: {str(e)[:50]}")
+
             results["enrich"] = enrich_results
             steps_completed.append("enrich")
 
             # Step 5: Full-score enriched contacts
             from src.llm.scoring import score_connection
 
+            all_enriched = list(tier1) + tier2_enriched
             score_results = {"scored": 0, "failed": 0}
 
-            for conn in tier1:
+            for conn in all_enriched:
                 # Only score if enrichment succeeded
                 with get_session() as session:
                     connection = session.get(Connection, conn.id)
@@ -342,3 +359,31 @@ def get_pipeline_stats() -> dict:
             "last_run": last_run.started_at if last_run else None,
             "last_status": last_run.status if last_run else None,
         }
+
+
+def _get_tier2_connections(limit: int = 20) -> list[Connection]:
+    """
+    Get top tier-2 connections for overflow enrichment when tier-1 budget remains.
+
+    Args:
+        limit: Max number to return
+
+    Returns:
+        List of tier-2 connections sorted by pre_score descending
+    """
+    with get_session() as session:
+        connections = session.exec(
+            select(Connection)
+            .where(Connection.pre_score_tier == 2)
+            .where(Connection.enriched_at.is_(None))
+            .where(Connection.linkedin_url.isnot(None))
+            .order_by(Connection.pre_score.desc())
+            .limit(limit)
+        ).all()
+
+        result = []
+        for conn in connections:
+            _ = conn.id, conn.name, conn.pre_score
+            result.append(conn)
+
+        return result

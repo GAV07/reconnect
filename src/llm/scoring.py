@@ -14,14 +14,57 @@ from src.database.models import Connection, UserProfile
 
 SCORING_SYSTEM_PROMPT = """You are an expert at professional networking and relationship building.
 Your task is to evaluate how valuable it would be for someone to reconnect with a professional contact,
-based on the user's goals, interests, and the contact's profile and recent activity.
+using a structured rubric with 5 independent dimensions. Score each dimension separately.
 
-Score from 0-100 where:
-- 90-100: Perfect match - strong alignment with goals, recent relevant activity, clear conversation starters
-- 70-89: High value - good alignment with interests/goals, worth reaching out soon
-- 50-69: Moderate value - some relevance, could be useful connection
-- 30-49: Low value - limited alignment, not a priority
-- 0-29: Not relevant - no clear reason to reconnect
+SCORING RUBRIC:
+
+1. Goal Alignment (0-25 points)
+   How directly relevant is this contact to the user's stated networking goals?
+   - 20-25: Core to their goals (same domain, direct collaborator potential)
+   - 12-19: Clearly relevant (adjacent space, useful perspective)
+   - 5-11: Tangentially related
+   - 0-4: No meaningful alignment
+
+2. Industry & Interest Overlap (0-20 points)
+   Shared industry, topics, expertise areas with the user?
+   - 16-20: Same industry + shared topics/expertise
+   - 10-15: Same or adjacent industry
+   - 4-9: Some topical overlap
+   - 0-3: Different worlds
+
+3. Mutual Value Potential (0-20 points)
+   Could both sides benefit? Complementary skills, appropriate seniority fit?
+   - 16-20: Clear two-way value (complementary skills, peer-level, intro potential)
+   - 10-15: Likely one-way value or moderate fit
+   - 4-9: Unclear or limited value exchange
+   - 0-3: Mismatch in seniority/skills/needs
+
+4. Conversation Hooks (0-20 points)
+   Are there tangible, timely reasons to reach out NOW?
+   - 16-20: Multiple strong hooks (recent job change + relevant posts + shared experience)
+   - 10-15: One solid hook (job change OR active posting OR shared event)
+   - 4-9: Weak hooks (generic activity, old news)
+   - 0-3: Nothing timely to reference
+
+5. Network Reach (0-15 points)
+   Amplification potential - are they a connector, creator, or influencer?
+   - 12-15: Active creator/influencer with large network (500+ connections, regular posts)
+   - 7-11: Well-connected professional (moderate network, some visibility)
+   - 3-6: Average network presence
+   - 0-2: Minimal or no network visibility
+
+CALIBRATION EXAMPLES:
+
+High scorer (~85): VP of Product at a SaaS company when user's goal is "break into product management".
+Same industry, recently posted about PM hiring, 10k followers, previously worked at user's target company.
+Scores: Goal=23, Industry=18, Mutual=16, Hooks=18, Reach=12
+
+Medium scorer (~50): Senior Engineer at a bank when user is in tech/startups.
+Adjacent industry, no recent activity, decent seniority but different domain.
+Scores: Goal=8, Industry=10, Mutual=12, Hooks=6, Reach=8
+
+Low scorer (~20): Student at a university, no shared industry, no activity.
+Scores: Goal=2, Industry=3, Mutual=4, Hooks=2, Reach=2
 
 Always respond with valid JSON."""
 
@@ -34,6 +77,11 @@ class ScoreResult:
     reasoning: str  # Why this score
     key_factors: list[str]  # Bullet points of what influenced the score
     conversation_hooks: list[str]  # Potential conversation starters if score is high
+    dimension_scores: dict[str, int] = None  # Per-dimension breakdown
+
+    def __post_init__(self):
+        if self.dimension_scores is None:
+            self.dimension_scores = {}
 
 
 def build_scoring_prompt(
@@ -146,23 +194,25 @@ RECENT LINKEDIN ACTIVITY:
 {contact_context}
 
 TASK:
-Evaluate how valuable it would be for the user to reconnect with this contact based on:
-1. Alignment with user's stated networking goals
-2. Overlap with user's interests, industry, and content themes
-3. Potential for mutual value exchange
-4. Quality of conversation hooks (recent activity, job changes, shared interests)
-5. Professional relevance and network value
-6. Prior engagement history (reactions, comments, endorsements) showing existing rapport
+Score this contact using the 5-dimension rubric. Evaluate each dimension independently, then sum for the total.
+Consider engagement history (reactions, comments, endorsements) as a signal of existing rapport when scoring.
 
 Respond in JSON format:
 {{
-  "score": <0-100>,
+  "dimension_scores": {{
+    "goal_alignment": <0-25>,
+    "industry_overlap": <0-20>,
+    "mutual_value": <0-20>,
+    "conversation_hooks": <0-20>,
+    "network_reach": <0-15>
+  }},
+  "score": <sum of all dimensions, 0-100>,
   "reasoning": "<2-3 sentence explanation of the score>",
   "key_factors": ["<factor 1>", "<factor 2>", ...],
   "conversation_hooks": ["<hook 1>", "<hook 2>", ...]
 }}
 
-If there's no clear reason to reconnect, give a low score and explain why."""
+Score each dimension honestly - most contacts will NOT max out every dimension. If there's no clear reason to reconnect, give low dimension scores and explain why."""
 
 
 def score_connection(connection_id: str) -> Optional[ScoreResult]:
@@ -201,7 +251,7 @@ def score_connection(connection_id: str) -> Optional[ScoreResult]:
                     {"role": "system", "content": SCORING_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=400,
+                max_tokens=600,
                 temperature=0.3,  # Lower temperature for more consistent scoring
                 response_format={"type": "json_object"},
             )
@@ -209,11 +259,20 @@ def score_connection(connection_id: str) -> Optional[ScoreResult]:
             content = response.choices[0].message.content
             data = json.loads(content)
 
+            dimension_scores = data.get("dimension_scores", {})
+
+            # Compute total from dimensions if available, otherwise use raw score
+            if dimension_scores:
+                computed_total = sum(dimension_scores.values())
+            else:
+                computed_total = float(data.get("score", 0))
+
             result = ScoreResult(
-                score=float(data.get("score", 0)),
+                score=computed_total,
                 reasoning=data.get("reasoning", ""),
                 key_factors=data.get("key_factors", []),
                 conversation_hooks=data.get("conversation_hooks", []),
+                dimension_scores=dimension_scores,
             )
 
             # Update the connection with score
@@ -222,6 +281,7 @@ def score_connection(connection_id: str) -> Optional[ScoreResult]:
                 "reasoning": result.reasoning,
                 "key_factors": result.key_factors,
                 "conversation_hooks": result.conversation_hooks,
+                "dimension_scores": result.dimension_scores,
             })
             connection.scored_at = datetime.utcnow()
             session.add(connection)
