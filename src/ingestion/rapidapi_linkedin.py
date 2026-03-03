@@ -123,10 +123,11 @@ def update_connection_from_profile(connection_id: str) -> bool:
                 print(f"RapidAPI returned error: {profile_data.get('message', 'Unknown')}")
                 return False
 
-            # Store full response in raw_enrichment
-            connection.raw_enrichment = profile_data
+            # Store the profile fields (unwrap "data" envelope if present)
+            data = profile_data.get("data", profile_data)
+            connection.raw_enrichment = data
 
-            # Extract activity_log
+            # Extract activity_log (use full response — posts may be at top level)
             activity_log = extract_activity_log(profile_data)
             if activity_log:
                 existing = connection.activity_log or []

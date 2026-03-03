@@ -8,6 +8,20 @@ from sqlalchemy import JSON, Column, Index, Text
 from sqlmodel import Field, SQLModel
 
 
+def get_enrichment_data(connection: "Connection") -> dict:
+    """Unwrap enrichment data from raw_enrichment.
+
+    RapidAPI responses nest profile fields under a ``"data"`` key.  Older
+    records or other providers may store fields at the top level.  This
+    helper returns the inner dict so callers always get flat field access
+    (e.g. ``data.get("headline")``).
+    """
+    raw = connection.raw_enrichment or {}
+    if "data" in raw and isinstance(raw["data"], dict):
+        return raw["data"]
+    return raw
+
+
 class UserProfile(SQLModel, table=True):
     """
     User's own profile - provides context for LLM suggestions.

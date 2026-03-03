@@ -170,7 +170,7 @@ def run_daily_pipeline(
                 tier2 = _get_tier2_connections(limit=remaining_budget)
                 for conn in tier2:
                     try:
-                        if update_connection_activity(conn.id):
+                        if update_connection_from_profile(conn.id):
                             enrich_results["success"] += 1
                             tier2_enriched.append(conn)
                         else:
@@ -182,28 +182,33 @@ def run_daily_pipeline(
             results["enrich"] = enrich_results
             steps_completed.append("enrich")
 
-            # Step 5: Full-score enriched contacts
-            from src.llm.scoring import score_connection
+        # Step 5: Full-score enriched contacts that need scoring
+        # Runs even when enrichment is skipped — picks up enriched-but-unscored contacts
+        from src.llm.scoring import score_connection
 
-            all_enriched = list(tier1) + tier2_enriched
-            score_results = {"scored": 0, "failed": 0}
+        score_results = {"scored": 0, "failed": 0, "skipped": 0}
 
-            for conn in all_enriched:
-                # Only score if enrichment succeeded
-                with get_session() as session:
-                    connection = session.get(Connection, conn.id)
-                    if connection and connection.enriched_at:
-                        try:
-                            result = score_connection(conn.id)
-                            if result:
-                                score_results["scored"] += 1
-                            else:
-                                score_results["failed"] += 1
-                        except Exception:
-                            score_results["failed"] += 1
+        with get_session() as session:
+            # Find all enriched contacts that either have no score or no rubric
+            unscored = session.exec(
+                select(Connection)
+                .where(Connection.enriched_at.isnot(None))
+                .where(Connection.reconnect_score.is_(None))
+            ).all()
+            to_score = [(c.id, c.name) for c in unscored]
 
-            results["score"] = score_results
-            steps_completed.append("score")
+        for conn_id, conn_name in to_score:
+            try:
+                result = score_connection(conn_id)
+                if result:
+                    score_results["scored"] += 1
+                else:
+                    score_results["failed"] += 1
+            except Exception:
+                score_results["failed"] += 1
+
+        results["score"] = score_results
+        steps_completed.append("score")
 
         # Step 6: Generate outreach queue (unless skipped)
         if not skip_queue_generation:

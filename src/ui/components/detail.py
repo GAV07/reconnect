@@ -5,7 +5,7 @@ import json
 import streamlit as st
 
 from src.database.engine import get_session
-from src.database.models import Connection
+from src.database.models import Connection, get_enrichment_data
 
 
 def format_activity_item(activity: dict) -> str:
@@ -29,7 +29,7 @@ def render_connection_detail(connection_id: str):
             st.error("Connection not found")
             return
 
-        enrichment = connection.raw_enrichment or {}
+        enrichment = get_enrichment_data(connection)
 
         # Header with profile pic if available
         col_pic, col_info = st.columns([1, 4])

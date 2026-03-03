@@ -9,7 +9,7 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database.engine import get_session
-from src.database.models import Connection, UserProfile
+from src.database.models import Connection, UserProfile, get_enrichment_data
 
 
 SCORING_SYSTEM_PROMPT = """You are an expert at professional networking and relationship building.
@@ -109,8 +109,8 @@ def build_scoring_prompt(
     if hasattr(user_profile, 'public_persona_summary') and user_profile.public_persona_summary:
         user_context += f"- Professional persona: {user_profile.public_persona_summary}\n"
 
-    # Contact info from enrichment
-    enrichment = connection.raw_enrichment or {}
+    # Contact info from enrichment (unwrap nested "data" key if present)
+    enrichment = get_enrichment_data(connection)
 
     # Extract skills
     skills_raw = enrichment.get("skills", [])

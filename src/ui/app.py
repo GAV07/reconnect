@@ -10,7 +10,7 @@ sys.path.insert(0, str(project_root))
 import streamlit as st
 
 from src.database.engine import get_session, init_db
-from src.database.models import Connection, UserProfile
+from src.database.models import Connection, UserProfile, get_enrichment_data
 from src.ui.components.actions import render_action_buttons, render_drafts_sidebar
 from src.ui.components.detail import render_connection_detail
 from src.ui.components.search import render_search_filters, search_connections
@@ -791,10 +791,22 @@ def render_pipeline_page():
             if result.get("enrich"):
                 en = result["enrich"]
                 st.write(f"**Enriched:** {en.get('success', 0)} contacts")
+                if en.get("errors"):
+                    with st.expander("Enrichment errors"):
+                        for err in en["errors"][:10]:
+                            st.caption(err)
+
+            if result.get("score"):
+                sc = result["score"]
+                st.write(f"**Scored:** {sc.get('scored', 0)} contacts ({sc.get('failed', 0)} failed)")
 
             if result.get("queue"):
                 q = result["queue"]
                 st.write(f"**Queue:** {q.get('added', 0)} added")
+                if q.get("exclusion_reasons"):
+                    with st.expander("Exclusion reasons"):
+                        for reason, count in q["exclusion_reasons"].items():
+                            st.caption(f"{reason}: {count}")
 
             # Clean up temp file
             if dump_path and dump_path.exists():
@@ -827,7 +839,7 @@ def _render_pipeline_diagnostics():
 
         empty_enriched = []
         for conn in enriched_connections:
-            enrichment = conn.raw_enrichment or {}
+            enrichment = get_enrichment_data(conn)
             has_headline = bool(enrichment.get("headline"))
             has_about = bool(enrichment.get("about"))
             has_experiences = bool(enrichment.get("experiences"))
@@ -900,7 +912,19 @@ def _rescore_contacts(rubric_only: bool = True):
     """Re-score contacts that need updated scoring."""
     import json
     from sqlmodel import select
+    from src.config import settings as _settings
     from src.llm.scoring import score_connection
+
+    # Pre-flight checks — surface common config issues before looping
+    if not _settings.openai_api_key:
+        st.error("Cannot re-score: OPENAI_API_KEY is not set. Add it to .env or Streamlit secrets.")
+        return
+
+    with get_session() as session:
+        _up = session.get(UserProfile, 1)
+        if not _up or not _up.goals:
+            st.error("Cannot re-score: Networking Goals are empty. Fill them in on the Settings page.")
+            return
 
     with get_session() as session:
         query = (
@@ -930,6 +954,7 @@ def _rescore_contacts(rubric_only: bool = True):
     status = st.empty()
     success = 0
     failed = 0
+    errors = []
 
     for i, (conn_id, name) in enumerate(to_rescore):
         status.text(f"Re-scoring {name}... ({i+1}/{len(to_rescore)})")
@@ -939,14 +964,26 @@ def _rescore_contacts(rubric_only: bool = True):
                 success += 1
             else:
                 failed += 1
-        except Exception:
+                if len(errors) < 5:
+                    errors.append(f"{name}: score_connection returned None")
+        except Exception as e:
             failed += 1
+            if len(errors) < 5:
+                errors.append(f"{name}: {str(e)[:80]}")
         progress.progress((i + 1) / len(to_rescore))
 
     progress.empty()
     status.empty()
-    st.success(f"Re-scored {success}/{len(to_rescore)} contacts ({failed} failed)")
-    st.rerun()
+
+    if success > 0:
+        st.success(f"Re-scored {success}/{len(to_rescore)} contacts ({failed} failed)")
+    else:
+        st.error(f"Re-scored 0/{len(to_rescore)} contacts — all failed")
+
+    if errors:
+        with st.expander(f"First {len(errors)} errors"):
+            for err in errors:
+                st.caption(err)
 
 
 def main():

@@ -59,18 +59,35 @@ def is_contact_excluded(connection: Connection) -> ExclusionResult:
                 reason=f"Recently contacted ({days_since_contact} days ago)"
             )
 
-    # Rule 3: Already in queue (check in database)
+    # Rule 3: Already in queue or recently skipped
     with get_session() as session:
-        existing_queue = session.exec(
+        # Block if pending or approved
+        active_item = session.exec(
             select(OutreachQueueItem)
             .where(OutreachQueueItem.connection_id == connection.id)
             .where(OutreachQueueItem.status.in_(["pending_review", "approved"]))
         ).first()
 
-        if existing_queue:
+        if active_item:
             return ExclusionResult(
                 excluded=True,
-                reason=f"Already in queue (status: {existing_queue.status})"
+                reason=f"Already in queue (status: {active_item.status})"
+            )
+
+        # Block if skipped within cooldown period
+        cooldown_cutoff = now - timedelta(days=settings.skip_cooldown_days)
+        skipped_item = session.exec(
+            select(OutreachQueueItem)
+            .where(OutreachQueueItem.connection_id == connection.id)
+            .where(OutreachQueueItem.status == "skipped")
+            .where(OutreachQueueItem.reviewed_at >= cooldown_cutoff)
+        ).first()
+
+        if skipped_item:
+            days_ago = (now - skipped_item.reviewed_at).days
+            return ExclusionResult(
+                excluded=True,
+                reason=f"Skipped {days_ago} days ago (cooldown: {settings.skip_cooldown_days}d)"
             )
 
     # Rule 4: No contact method

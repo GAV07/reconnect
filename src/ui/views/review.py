@@ -1,6 +1,7 @@
 """Mobile-first review UI for outreach queue.
 
 Card-based interface optimized for mobile devices and PWA installation.
+Includes a compact list view for rapid batch triage.
 """
 
 import json
@@ -8,7 +9,7 @@ import json
 import streamlit as st
 
 from src.database.engine import get_session
-from src.database.models import Connection, OutreachQueueItem
+from src.database.models import Connection, OutreachQueueItem, get_enrichment_data
 from src.integrations.gmail import is_gmail_configured, send_email
 from src.pipeline.queue_generator import (
     approve_queue_item,
@@ -16,6 +17,12 @@ from src.pipeline.queue_generator import (
     get_queue_stats,
     mark_item_sent,
     skip_queue_item,
+)
+
+# Shared CSS for action link buttons
+_ACTION_LINK_STYLE = (
+    "display:inline-block;padding:4px 10px;margin:2px;border-radius:6px;"
+    "font-size:12px;text-decoration:none;font-weight:500;"
 )
 
 
@@ -42,6 +49,74 @@ def render_review_page():
         st.info("No contacts in queue. Run the pipeline to generate new suggestions.")
         return
 
+    # View mode toggle
+    review_mode = st.radio(
+        "View", ["Card", "List"], horizontal=True,
+        key="review_mode", label_visibility="collapsed",
+    )
+
+    if review_mode == "Card":
+        _render_card_view(pending)
+    else:
+        _render_batch_view(pending)
+
+
+# ---------------------------------------------------------------------------
+# Quick action links (HTML anchors — no page rerun)
+# ---------------------------------------------------------------------------
+
+def _render_quick_actions(connection: Connection):
+    """Render clickable action links for the contact (open in new tab)."""
+    links = []
+    if connection.linkedin_url:
+        links.append(
+            f'<a href="{connection.linkedin_url}" target="_blank" '
+            f'style="{_ACTION_LINK_STYLE}background:#e8f5e9;color:#2e7d32;">'
+            "View Profile</a>"
+        )
+        dm_url = connection.linkedin_url.rstrip("/") + "/overlay/new-message/"
+        links.append(
+            f'<a href="{dm_url}" target="_blank" '
+            f'style="{_ACTION_LINK_STYLE}background:#e3f2fd;color:#1565c0;">'
+            "Send DM</a>"
+        )
+    if connection.email:
+        from src.ui.components.actions import create_mailto_link
+        mailto = create_mailto_link(connection.email)
+        links.append(
+            f'<a href="{mailto}" target="_blank" '
+            f'style="{_ACTION_LINK_STYLE}background:#fce4ec;color:#c62828;">'
+            "Email</a>"
+        )
+    activity = connection.activity_log or []
+    if activity and activity[0].get("postUrl"):
+        links.append(
+            f'<a href="{activity[0]["postUrl"]}" target="_blank" '
+            f'style="{_ACTION_LINK_STYLE}background:#fff3e0;color:#e65100;">'
+            "See Post</a>"
+        )
+    if links:
+        st.markdown(" ".join(links), unsafe_allow_html=True)
+
+
+def _get_top_hook(connection: Connection) -> str | None:
+    """Extract the first conversation hook from score_reasoning."""
+    if not connection.score_reasoning:
+        return None
+    try:
+        data = json.loads(connection.score_reasoning)
+    except json.JSONDecodeError:
+        return None
+    hooks = data.get("conversation_hooks", [])
+    return hooks[0] if hooks else None
+
+
+# ---------------------------------------------------------------------------
+# Card view (existing behaviour, extracted)
+# ---------------------------------------------------------------------------
+
+def _render_card_view(pending: list[tuple[OutreachQueueItem, Connection]]):
+    """Render the single-card swipe-through view."""
     # Initialize current card index
     if "review_index" not in st.session_state:
         st.session_state.review_index = 0
@@ -110,22 +185,30 @@ def render_review_page():
     with col_score:
         score = connection.reconnect_score or connection.pre_score or 0
         if score >= 70:
-            st.markdown(f"### 🔥 {int(score)}")
+            st.markdown(f"### {int(score)}")
         elif score >= 50:
-            st.markdown(f"### 👍 {int(score)}")
+            st.markdown(f"### {int(score)}")
         else:
             st.markdown(f"### {int(score)}")
+
+    # Quick action links
+    _render_quick_actions(connection)
 
     # Channel indicator
     channel = queue_item.channel
     if channel == "email":
-        st.markdown("📧 **Email**")
+        st.markdown("**Email**")
         if connection.email:
             st.caption(f"To: {connection.email}")
     else:
-        st.markdown("💼 **LinkedIn**")
+        st.markdown("**LinkedIn**")
         if connection.linkedin_url:
             st.caption("Will copy message to clipboard")
+
+    # Top conversation hook (surfaced before expander)
+    top_hook = _get_top_hook(connection)
+    if top_hook:
+        st.caption(f"Hook: {top_hook}")
 
     st.divider()
 
@@ -144,7 +227,7 @@ def render_review_page():
 
     # Generate Draft button when no draft exists
     if not queue_item.draft_message and not st.session_state[edit_key]:
-        if st.button("✨ Generate Draft", key=f"gen_{queue_item.id}", use_container_width=True):
+        if st.button("Generate Draft", key=f"gen_{queue_item.id}", use_container_width=True):
             with st.spinner("Generating draft..."):
                 from src.llm.prose import generate_outreach_message
                 from src.database.engine import get_session as _get_session
@@ -197,7 +280,7 @@ def render_review_page():
     col_skip, col_send = st.columns(2)
 
     with col_skip:
-        if st.button("⏭️ Skip", use_container_width=True, type="secondary"):
+        if st.button("Skip", use_container_width=True, type="secondary"):
             skip_queue_item(queue_item.id, reason="Skipped during review")
             _advance_to_next(len(pending))
 
@@ -205,13 +288,13 @@ def render_review_page():
         if channel == "email":
             gmail_ready = is_gmail_configured()
             if gmail_ready:
-                if st.button("📤 Send Email", use_container_width=True, type="primary"):
+                if st.button("Send Email", use_container_width=True, type="primary"):
                     _send_email_action(queue_item, connection, edited_message, edited_subject)
             else:
-                st.button("📤 Send Email", use_container_width=True, disabled=True)
+                st.button("Send Email", use_container_width=True, disabled=True)
                 st.caption("Gmail not connected")
         else:
-            if st.button("📋 Copy & Open", use_container_width=True, type="primary"):
+            if st.button("Copy & Open", use_container_width=True, type="primary"):
                 _linkedin_action(queue_item, connection, edited_message)
 
     # Card navigation
@@ -220,20 +303,74 @@ def render_review_page():
 
     with nav_col1:
         if st.session_state.review_index > 0:
-            if st.button("← Prev", use_container_width=True):
+            if st.button("Prev", use_container_width=True):
                 st.session_state.review_index -= 1
                 st.rerun()
 
     with nav_col2:
         if st.session_state.review_index < len(pending) - 1:
-            if st.button("Next →", use_container_width=True):
+            if st.button("Next", use_container_width=True):
                 st.session_state.review_index += 1
                 st.rerun()
 
 
+# ---------------------------------------------------------------------------
+# List / batch view
+# ---------------------------------------------------------------------------
+
+def _render_batch_view(pending: list[tuple[OutreachQueueItem, Connection]]):
+    """Render a compact list of all pending contacts for rapid triage."""
+    st.caption(f"{len(pending)} contacts pending review")
+
+    for i, (item, conn) in enumerate(pending):
+        col_name, col_score, col_hook, col_actions = st.columns([3, 1, 3, 2])
+
+        with col_name:
+            st.markdown(f"**{conn.name}**")
+            role_parts = []
+            if conn.current_role:
+                role_parts.append(conn.current_role)
+            if conn.current_company:
+                role_parts.append(f"@ {conn.current_company}")
+            if role_parts:
+                st.caption(" ".join(role_parts))
+
+        with col_score:
+            score = conn.reconnect_score or conn.pre_score or 0
+            st.markdown(f"**{int(score)}**")
+            st.caption(item.channel or "")
+
+        with col_hook:
+            top_hook = _get_top_hook(conn)
+            if top_hook:
+                st.caption(top_hook[:80] + ("..." if len(top_hook) > 80 else ""))
+            _render_quick_actions(conn)
+
+        with col_actions:
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                if st.button("Skip", key=f"list_skip_{item.id}", use_container_width=True):
+                    skip_queue_item(item.id, reason="Skipped in list view")
+                    st.rerun()
+            with btn_col2:
+                if st.button("View", key=f"list_view_{item.id}", use_container_width=True):
+                    st.session_state.review_index = i
+                    st.session_state.review_mode = "Card"
+                    st.rerun()
+
+        # Light separator between rows
+        if i < len(pending) - 1:
+            st.markdown("<hr style='margin:4px 0;border:none;border-top:1px solid #eee;'>",
+                        unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers (profile context, dimension bars, navigation, send actions)
+# ---------------------------------------------------------------------------
+
 def _render_profile_context(connection: Connection):
     """Render the 'About this person' expandable section on review cards."""
-    enrichment = connection.raw_enrichment or {}
+    enrichment = get_enrichment_data(connection)
     reasoning_data = {}
     if connection.score_reasoning:
         try:
@@ -275,7 +412,7 @@ def _render_profile_context(connection: Connection):
                 truncated = about[:200] + ("..." if len(about) > 200 else "")
                 st.caption(truncated)
             if location:
-                st.caption(f"📍 {location}")
+                st.caption(f"Location: {location}")
 
         # --- Recent activity ---
         activity_log = connection.activity_log or []
@@ -423,7 +560,7 @@ def _linkedin_action(
         """, unsafe_allow_html=True)
 
     # Mark as sent when user confirms
-    if st.button("✅ Mark as Sent", use_container_width=True):
+    if st.button("Mark as Sent", use_container_width=True):
         mark_item_sent(queue_item.id)
         pending = get_pending_queue()
         _advance_to_next(len(pending))

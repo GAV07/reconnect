@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"
     recently_contacted_days: int = 30  # Days to exclude after contact
+    skip_cooldown_days: int = 7  # Days before a skipped contact can re-enter queue
 
     # LinkedIn import
     linkedin_data_folder: str = "~/Downloads"  # Where to look for LinkedIn exports

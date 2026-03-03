@@ -9,7 +9,7 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database.engine import get_session
-from src.database.models import Connection, UserProfile
+from src.database.models import Connection, UserProfile, get_enrichment_data
 from src.llm.prompts import SYSTEM_PROMPT, build_prose_prompt, format_user_context
 
 
@@ -63,16 +63,17 @@ def format_post_for_prompt(post: dict) -> str:
 
 def extract_career_info(raw_enrichment: Optional[dict]) -> dict:
     """
-    Extract relevant career information from Apify enrichment data.
+    Extract relevant career information from enrichment data.
 
-    Uses actual Apify field names:
-    - jobTitle, companyName (current job)
-    - experiences[] (job history)
-    - headline, about
-    - skills[] (array of {title: ...})
+    Handles both flat dicts and RapidAPI responses where profile fields
+    are nested under a ``"data"`` key.
     """
     if not raw_enrichment:
         return {}
+
+    # Unwrap "data" envelope if present (RapidAPI format)
+    if "data" in raw_enrichment and isinstance(raw_enrichment["data"], dict):
+        raw_enrichment = raw_enrichment["data"]
 
     # Extract skills - handle both {title: ...} format and plain strings
     skills_raw = raw_enrichment.get("skills", [])
