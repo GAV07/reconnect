@@ -907,6 +907,46 @@ def _render_pipeline_diagnostics():
         if st.button("Re-score ALL enriched", use_container_width=True):
             _rescore_contacts(rubric_only=False)
 
+    # Reset stale queue
+    from src.pipeline.queue_generator import get_queue_stats as _get_queue_stats
+    queue_stats = _get_queue_stats()
+    pending_count = queue_stats.get("pending_review", 0)
+    approved_count = queue_stats.get("approved", 0)
+    stale_count = pending_count + approved_count
+
+    if stale_count > 0:
+        st.divider()
+        if st.button(
+            f"Reset queue ({stale_count} pending/approved items)",
+            use_container_width=True,
+            help="Marks all pending and approved queue items as skipped so the next pipeline run starts fresh.",
+        ):
+            _reset_stale_queue()
+
+
+def _reset_stale_queue():
+    """Mark all pending_review and approved queue items as skipped."""
+    from datetime import datetime
+    from sqlmodel import select
+    from src.database.models import OutreachQueueItem
+
+    with get_session() as session:
+        items = session.exec(
+            select(OutreachQueueItem)
+            .where(OutreachQueueItem.status.in_(["pending_review", "approved"]))
+        ).all()
+
+        count = 0
+        for item in items:
+            item.status = "skipped"
+            item.skip_reason = "Queue reset from diagnostics"
+            item.reviewed_at = datetime.utcnow()
+            session.add(item)
+            count += 1
+
+    st.success(f"Reset {count} queue items. Run the pipeline to generate fresh suggestions.")
+    st.rerun()
+
 
 def _rescore_contacts(rubric_only: bool = True):
     """Re-score contacts that need updated scoring."""

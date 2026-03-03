@@ -424,38 +424,44 @@ def _render_profile_context(connection: Connection):
                 st.caption(f'"{content}"')
 
         # --- Career context ---
-        experiences = enrichment.get("experiences", [])
-        total_years = enrichment.get("totalExperienceYears")
+        experiences = (
+            enrichment.get("experiences")
+            or enrichment.get("experience")
+            or []
+        )
+        total_years = enrichment.get("totalExperienceYears") or enrichment.get("total_experience_years")
         if experiences:
             st.markdown("**Career**")
-            # Current role
-            current = experiences[0] if experiences else {}
+            current = experiences[0]
             current_title = current.get("title", "")
-            current_company = current.get("companyName", "")
-            if current_title and current_company:
-                st.markdown(f"**{current_title}** at {current_company}")
+            current_company = current.get("company") or current.get("companyName") or ""
+            if current_title or current_company:
+                label = f"**{current_title}**" if current_title else ""
+                if current_company:
+                    label += f" at {current_company}" if label else current_company
+                st.markdown(label)
 
-            # Previous roles (1-2)
             for exp in experiences[1:3]:
                 title = exp.get("title", "")
-                company = exp.get("companyName", "")
-                if title and company:
-                    st.caption(f"Previously: {title} at {company}")
+                company = exp.get("company") or exp.get("companyName") or ""
+                if title or company:
+                    parts = [p for p in [title, company] if p]
+                    st.caption(f"Previously: {' at '.join(parts)}")
 
             if total_years:
                 st.caption(f"{total_years} years experience")
 
         # --- Quick stats ---
-        connections_count = enrichment.get("connectionsCount")
-        is_creator = enrichment.get("isCreator", False)
-        follower_count = enrichment.get("followerCount")
+        connections_count = enrichment.get("connection_count") or enrichment.get("connectionsCount")
+        is_creator = enrichment.get("is_creator") or enrichment.get("isCreator", False)
+        follower_count = enrichment.get("follower_count") or enrichment.get("followerCount")
         badges = []
         if is_creator:
             badges.append("Creator")
-        if follower_count and follower_count > 1000:
-            badges.append(f"{follower_count:,} followers")
-        if connections_count:
-            badges.append(f"{connections_count:,}+ connections")
+        if follower_count and isinstance(follower_count, (int, float)) and follower_count > 1000:
+            badges.append(f"{int(follower_count):,} followers")
+        if connections_count and isinstance(connections_count, (int, float)):
+            badges.append(f"{int(connections_count):,}+ connections")
         if badges:
             st.markdown("**Stats:** " + " · ".join(badges))
 

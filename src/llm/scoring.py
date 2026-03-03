@@ -112,15 +112,26 @@ def build_scoring_prompt(
     # Contact info from enrichment (unwrap nested "data" key if present)
     enrichment = get_enrichment_data(connection)
 
-    # Extract skills
-    skills_raw = enrichment.get("skills", [])
-    skills = []
-    for s in skills_raw[:8]:
-        if isinstance(s, dict):
-            skills.append(s.get("title", ""))
-        else:
-            skills.append(str(s))
-    skills_str = ", ".join([s for s in skills if s]) or "N/A"
+    # Extract skills — RapidAPI embeds them as " · " strings in each experience
+    skills_list = []
+    skills_raw = enrichment.get("skills")
+    if isinstance(skills_raw, list) and skills_raw:
+        for s in skills_raw[:8]:
+            if isinstance(s, dict):
+                skills_list.append(s.get("title") or s.get("name") or "")
+            elif isinstance(s, str):
+                skills_list.append(s)
+    else:
+        seen = set()
+        for exp in (enrichment.get("experiences") or enrichment.get("experience") or []):
+            exp_skills = exp.get("skills", "")
+            if isinstance(exp_skills, str) and exp_skills:
+                for s in exp_skills.split(" · "):
+                    s = s.strip()
+                    if s and s not in seen:
+                        seen.add(s)
+                        skills_list.append(s)
+    skills_str = ", ".join([s for s in skills_list if s][:10]) or "N/A"
 
     # Extract recent activity
     activity_log = connection.activity_log or []
@@ -135,32 +146,40 @@ def build_scoring_prompt(
         activity_text = "No recent activity available"
 
     # Career trajectory
-    experiences = enrichment.get("experiences", [])
+    experiences = enrichment.get("experiences") or enrichment.get("experience") or []
     career_trajectory = ""
     if len(experiences) > 1:
         prev_roles = []
         for exp in experiences[1:3]:
             title = exp.get("title", "")
-            company = exp.get("companyName", "")
+            company = exp.get("company") or exp.get("companyName") or ""
             if title and company:
                 prev_roles.append(f"{title} at {company}")
         if prev_roles:
             career_trajectory = f"\nPrevious roles: {', '.join(prev_roles)}"
 
-    # Job change detection
-    job_started = enrichment.get("jobStartedOn", "")
+    # Job change detection — RapidAPI uses current_company_join_month/year
     is_recent_job_change = False
-    if job_started:
-        # Format is "M-YYYY" like "8-2024"
+    join_year = enrichment.get("current_company_join_year")
+    join_month = enrichment.get("current_company_join_month")
+    if join_year and join_month:
         try:
-            parts = job_started.split("-")
-            if len(parts) == 2:
-                month, year = int(parts[0]), int(parts[1])
-                job_start_date = datetime(year, month, 1)
+            job_start_date = datetime(int(join_year), int(join_month), 1)
+            months_in_role = (datetime.utcnow() - job_start_date).days / 30
+            is_recent_job_change = months_in_role < 6
+        except (ValueError, TypeError):
+            pass
+    # Fallback: check first experience start_year/start_month
+    if not is_recent_job_change and experiences:
+        sy = experiences[0].get("start_year")
+        sm = experiences[0].get("start_month")
+        if sy and sm:
+            try:
+                job_start_date = datetime(int(sy), int(sm), 1)
                 months_in_role = (datetime.utcnow() - job_start_date).days / 30
                 is_recent_job_change = months_in_role < 6
-        except (ValueError, IndexError):
-            pass
+            except (ValueError, TypeError):
+                pass
 
     # Build engagement context
     engagement_context = ""
@@ -174,16 +193,29 @@ ENGAGEMENT HISTORY:
 - Has recommendation: {'Yes' if connection.has_recommendation else 'No'}
 """
 
+    # Resolve fields — RapidAPI uses snake_case
+    current_role = connection.current_role or enrichment.get('job_title') or enrichment.get('title') or 'Unknown'
+    current_company = connection.current_company or enrichment.get('company') or 'Unknown'
+    industry = enrichment.get('company_industry') or enrichment.get('companyIndustry') or 'Unknown'
+    headline = enrichment.get('headline', 'N/A')
+    location = connection.location or enrichment.get('location') or 'Unknown'
+    current_job_duration = enrichment.get('current_job_duration') or 'Unknown'
+    is_creator = enrichment.get('is_creator') or enrichment.get('isCreator', False)
+    follower_count = enrichment.get('follower_count') or enrichment.get('followerCount') or 0
+    connection_count = enrichment.get('connection_count') or enrichment.get('connectionsCount') or 0
+
     contact_context = f"""CONTACT'S PROFILE:
 - Name: {connection.name}
-- Current role: {connection.current_role or enrichment.get('jobTitle', 'Unknown')}
-- Company: {connection.current_company or enrichment.get('companyName', 'Unknown')}
-- Industry: {enrichment.get('companyIndustry', 'Unknown')}
-- Headline: {enrichment.get('headline', 'N/A')}
-- Location: {connection.location or enrichment.get('addressWithCountry', 'Unknown')}
+- Current role: {current_role}
+- Company: {current_company}
+- Industry: {industry}
+- Headline: {headline}
+- Location: {location}
 - Skills: {skills_str}
-- Experience: {enrichment.get('totalExperienceYears', 'Unknown')} years
-- Is a LinkedIn Creator: {enrichment.get('isCreator', False)}
+- Time in current role: {current_job_duration}
+- Is a LinkedIn Creator: {is_creator}
+- Followers: {follower_count}
+- Connections: {connection_count}
 - Recent job change (< 6 months): {is_recent_job_change}{career_trajectory}
 {engagement_context}
 RECENT LINKEDIN ACTIVITY:

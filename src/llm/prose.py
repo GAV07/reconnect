@@ -75,37 +75,51 @@ def extract_career_info(raw_enrichment: Optional[dict]) -> dict:
     if "data" in raw_enrichment and isinstance(raw_enrichment["data"], dict):
         raw_enrichment = raw_enrichment["data"]
 
-    # Extract skills - handle both {title: ...} format and plain strings
-    skills_raw = raw_enrichment.get("skills", [])
+    # Extract skills — RapidAPI puts them as " · " strings in each experience
     skills = []
-    for s in skills_raw[:10]:
-        if isinstance(s, dict):
-            skills.append(s.get("title", ""))
-        else:
-            skills.append(str(s))
-    skills = [s for s in skills if s]  # Filter empty
+    skills_raw = raw_enrichment.get("skills")
+    if isinstance(skills_raw, list) and skills_raw:
+        for s in skills_raw[:10]:
+            if isinstance(s, dict):
+                skills.append(s.get("title") or s.get("name") or "")
+            elif isinstance(s, str):
+                skills.append(s)
+        skills = [s for s in skills if s]
+    else:
+        seen = set()
+        for exp in (raw_enrichment.get("experiences") or raw_enrichment.get("experience") or []):
+            exp_skills = exp.get("skills", "")
+            if isinstance(exp_skills, str) and exp_skills:
+                for s in exp_skills.split(" · "):
+                    s = s.strip()
+                    if s and s not in seen:
+                        seen.add(s)
+                        skills.append(s)
+        skills = skills[:10]
 
     # Extract experiences for career trajectory
-    experiences = raw_enrichment.get("experiences", [])
+    experiences = raw_enrichment.get("experiences") or raw_enrichment.get("experience") or []
     previous_roles = []
-    for exp in experiences[1:4]:  # Skip current, get next 3
+    for exp in experiences[1:4]:
         title = exp.get("title", "")
-        company = exp.get("companyName", "")
+        company = exp.get("company") or exp.get("companyName") or ""
         if title and company:
             previous_roles.append(f"{title} at {company}")
 
+    about = raw_enrichment.get("about") or raw_enrichment.get("summary") or ""
+
     return {
         "headline": raw_enrichment.get("headline", ""),
-        "about": raw_enrichment.get("about", "")[:500] if raw_enrichment.get("about") else "",
-        "current_title": raw_enrichment.get("jobTitle", ""),
-        "current_company": raw_enrichment.get("companyName", ""),
-        "company_industry": raw_enrichment.get("companyIndustry", ""),
-        "total_experience_years": raw_enrichment.get("totalExperienceYears"),
+        "about": about[:500] if about else "",
+        "current_title": raw_enrichment.get("job_title") or raw_enrichment.get("jobTitle") or raw_enrichment.get("title") or "",
+        "current_company": raw_enrichment.get("company") or raw_enrichment.get("companyName") or "",
+        "company_industry": raw_enrichment.get("company_industry") or raw_enrichment.get("companyIndustry") or "",
+        "current_job_duration": raw_enrichment.get("current_job_duration"),
         "skills": skills,
         "previous_roles": previous_roles,
-        "is_creator": raw_enrichment.get("isCreator", False),
-        "connections": raw_enrichment.get("connections", 0),
-        "followers": raw_enrichment.get("followers", 0),
+        "is_creator": raw_enrichment.get("is_creator") or raw_enrichment.get("isCreator", False),
+        "connections": raw_enrichment.get("connection_count") or raw_enrichment.get("connectionsCount") or 0,
+        "followers": raw_enrichment.get("follower_count") or raw_enrichment.get("followerCount") or 0,
     }
 
 

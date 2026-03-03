@@ -137,32 +137,28 @@ def update_connection_from_profile(connection_id: str) -> bool:
                         existing.append(item)
                 connection.activity_log = existing
 
-            # Update denormalized fields from RapidAPI response
-            data = profile_data.get("data", profile_data)
-
+            # Update denormalized fields from the unwrapped data
             # Company
             if data.get("company"):
-                connection.current_company = data.get("company")
+                connection.current_company = data["company"]
 
-            # Role - try multiple sources
-            if data.get("title"):
-                connection.current_role = data.get("title")
+            # Role — prefer job_title, fall back to headline parsing
+            if data.get("job_title"):
+                connection.current_role = data["job_title"]
             elif data.get("headline"):
-                # Extract role from headline (before "|" or "at")
-                headline = data.get("headline", "")
+                headline = data["headline"]
                 if " | " in headline:
                     connection.current_role = headline.split(" | ")[0].strip()
                 elif " at " in headline.lower():
                     connection.current_role = headline.lower().split(" at ")[0].strip().title()
                 else:
-                    # Use first 100 chars of headline as role
                     connection.current_role = headline[:100]
 
             # Location
             if data.get("location"):
-                connection.location = data.get("location")
+                connection.location = data["location"]
             elif data.get("city"):
-                location_parts = [data.get("city"), data.get("country")]
+                location_parts = [data.get("city"), data.get("state"), data.get("country")]
                 connection.location = ", ".join(p for p in location_parts if p)
 
             connection.enriched_at = datetime.utcnow()
@@ -211,48 +207,74 @@ def enrich_connections_batch(
 
 
 def _get_mock_profile_data() -> dict:
-    """Return mock profile data for development."""
+    """Return mock profile data matching RapidAPI fresh-linkedin-profile-data format."""
     return {
         "data": {
             "full_name": "John Doe",
             "first_name": "John",
             "last_name": "Doe",
             "headline": "Senior Product Manager | AI Enthusiast",
-            "title": "Senior Product Manager",
+            "job_title": "Senior Product Manager",
             "company": "Acme Corp",
-            "current_company_name": "Acme Corp",
-            "current_company_position": "Senior Product Manager",
-            "location": "San Francisco, CA",
+            "company_industry": "Technology",
+            "company_website": "https://acmecorp.com",
+            "company_domain": "acmecorp.com",
+            "location": "San Francisco, California, United States",
             "city": "San Francisco",
+            "state": "California",
             "country": "United States",
             "about": "Passionate about building products that matter.",
-            "followers_count": 2500,
-            "connections_count": 1500,
-            "experience": [
+            "follower_count": 2500,
+            "connection_count": 1500,
+            "is_creator": False,
+            "is_premium": True,
+            "is_influencer": False,
+            "current_company_join_month": 3,
+            "current_company_join_year": 2022,
+            "current_job_duration": "4 yrs",
+            "profile_image_url": "",
+            "experiences": [
                 {
                     "title": "Senior Product Manager",
-                    "company_name": "Acme Corp",
-                    "start_date": "2022-01",
-                    "end_date": None,
+                    "company": "Acme Corp",
+                    "company_linkedin_url": "",
+                    "date_range": "Mar 2022 - Present",
+                    "duration": "4 yrs",
+                    "start_month": 3,
+                    "start_year": 2022,
+                    "end_month": "",
+                    "end_year": "",
                     "is_current": True,
+                    "description": "Leading product strategy for enterprise platform.",
+                    "location": "San Francisco, CA",
+                    "skills": "Product Management · Strategy · AI/ML",
                 },
                 {
                     "title": "Product Manager",
-                    "company_name": "StartupXYZ",
-                    "start_date": "2019-06",
-                    "end_date": "2021-12",
+                    "company": "StartupXYZ",
+                    "company_linkedin_url": "",
+                    "date_range": "Jun 2019 - Dec 2021",
+                    "duration": "2 yrs 7 mos",
+                    "start_month": 6,
+                    "start_year": 2019,
+                    "end_month": 12,
+                    "end_year": 2021,
                     "is_current": False,
+                    "description": "",
+                    "location": "",
+                    "skills": "Leadership · Agile Methodologies",
                 },
             ],
-            "education": [
+            "educations": [
                 {
-                    "school_name": "Stanford University",
+                    "school": "Stanford University",
                     "degree": "MBA",
                     "field_of_study": "Business Administration",
-                }
+                    "date_range": "2017 - 2019",
+                    "start_year": 2017,
+                    "end_year": 2019,
+                },
             ],
-            "skills": ["Product Management", "Strategy", "AI/ML", "Leadership"],
         },
-        "_fetched_at": datetime.utcnow().isoformat(),
-        "_source": "rapidapi_mock",
+        "message": "ok",
     }
