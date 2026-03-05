@@ -5,6 +5,8 @@ Handles OAuth2 authentication and email sending via Gmail API.
 
 import base64
 from datetime import datetime, timedelta
+import re
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
@@ -244,6 +246,44 @@ def send_email(to: str, subject: str, body: str) -> dict:
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     # Send
+    result = service.users().messages().send(
+        userId="me",
+        body={"raw": raw}
+    ).execute()
+
+    return {
+        "message_id": result.get("id"),
+        "thread_id": result.get("threadId"),
+    }
+
+
+def send_html_email(to: str, subject: str, html_body: str, text_body: Optional[str] = None) -> dict:
+    """
+    Send an HTML email via Gmail API with plain-text fallback.
+
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        html_body: HTML email body
+        text_body: Optional plain-text fallback (auto-stripped from HTML if not provided)
+
+    Returns:
+        Dict with message ID and thread ID
+    """
+    service = _get_gmail_service()
+
+    if text_body is None:
+        text_body = re.sub(r"<[^>]+>", "", html_body)
+        text_body = re.sub(r"\n\s*\n", "\n\n", text_body).strip()
+
+    message = MIMEMultipart("alternative")
+    message["to"] = to
+    message["subject"] = subject
+    message.attach(MIMEText(text_body, "plain"))
+    message.attach(MIMEText(html_body, "html"))
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
     result = service.users().messages().send(
         userId="me",
         body={"raw": raw}

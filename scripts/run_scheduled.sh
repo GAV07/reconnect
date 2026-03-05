@@ -25,12 +25,8 @@ echo "========================================" >> "$LOG_FILE"
 echo "Pipeline run started at $(date)" >> "$LOG_FILE"
 echo "========================================" >> "$LOG_FILE"
 
-# Load environment variables from .env if it exists
-if [ -f "$PROJECT_DIR/.env" ]; then
-    set -a
-    source "$PROJECT_DIR/.env"
-    set +a
-fi
+# Note: .env is loaded by Python (pydantic-settings), not here.
+# Sourcing .env in bash breaks on multi-line values.
 
 # Run the pipeline
 $PYTHON scripts/run_pipeline.py >> "$LOG_FILE" 2>&1

@@ -252,6 +252,24 @@ def run_daily_pipeline(
                 )
                 results["sync"] = {"error": str(sync_error)}
 
+        # Send email digest (non-fatal)
+        from src.integrations.email_digest import send_digest_email
+        from src.integrations.gmail import is_gmail_configured
+
+        if is_gmail_configured():
+            try:
+                digest_result = send_digest_email(results)
+                results["email_digest"] = digest_result
+                if digest_result.get("sent"):
+                    steps_completed.append("email_digest")
+            except Exception as digest_error:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Email digest failed (non-fatal): %s", digest_error
+                )
+                results["email_digest"] = {"error": str(digest_error)}
+
         # Send Telegram notification (non-fatal)
         from src.integrations.telegram import is_telegram_configured, send_pipeline_notification
 

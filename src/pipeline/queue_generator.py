@@ -150,6 +150,33 @@ def generate_queue_item(
     )
 
 
+def expire_stale_queue_items(max_age_days: int = 7) -> int:
+    """
+    Mark pending_review/approved queue items older than max_age_days as skipped.
+
+    Returns:
+        Number of items expired
+    """
+    cutoff = datetime.utcnow() - timedelta(days=max_age_days)
+
+    with get_session() as session:
+        stale_items = session.exec(
+            select(OutreachQueueItem)
+            .where(OutreachQueueItem.status.in_(["pending_review", "approved"]))
+            .where(OutreachQueueItem.created_at < cutoff)
+        ).all()
+
+        count = 0
+        for item in stale_items:
+            item.status = "skipped"
+            item.skip_reason = f"Auto-expired after {max_age_days} days"
+            item.reviewed_at = datetime.utcnow()
+            session.add(item)
+            count += 1
+
+    return count
+
+
 def generate_daily_queue(limit: Optional[int] = None) -> dict:
     """
     Generate daily outreach queue from top-scored contacts.
@@ -163,14 +190,18 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
         limit: Max items to add (defaults to settings.daily_queue_size)
 
     Returns:
-        Dict with stats: {"added": N, "excluded": N, "exclusion_reasons": {...}}
+        Dict with stats: {"added": N, "excluded": N, "expired": N, "exclusion_reasons": {...}}
     """
     if limit is None:
         limit = settings.daily_queue_size
 
+    # Expire stale items first so their contacts can re-enter the queue
+    expired = expire_stale_queue_items()
+
     stats = {
         "added": 0,
         "excluded": 0,
+        "expired": expired,
         "exclusion_reasons": {},
     }
 

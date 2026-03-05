@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     daily_enrich_budget: int = 30  # Max contacts to enrich per day
     daily_queue_size: int = 20  # Max contacts to add to outreach queue
     prescore_batch_size: int = 50  # Contacts per LLM batch call
-    min_queue_score: int = 55  # Minimum reconnect_score to enter outreach queue
+    min_queue_score: int = 40  # Minimum reconnect_score to enter outreach queue
 
     # Exclusion settings
     active_conversation_days: int = 30  # Days to consider conversation "active"
@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # LinkedIn import
     linkedin_data_folder: str = "~/Downloads"  # Where to look for LinkedIn exports
     linkedin_export_pattern: str = "LinkedIn Data Export*"  # Glob pattern for exports
+
+    # Email digest
+    digest_recipient_email: str = ""  # Override recipient (falls back to Gmail user)
+    digest_top_n: int = 5  # Contacts with full draft treatment in digest
 
     # App settings
     debug: bool = False

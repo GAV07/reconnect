@@ -47,13 +47,24 @@ def send_pipeline_notification(results: dict) -> bool:
         # Build success digest
         summary = _build_pipeline_summary(results)
 
-        # Build action-oriented summary of pending contacts
-        action_summary = _build_action_summary()
-
-        if action_summary:
-            full_message = summary + "\n\n" + action_summary
+        # If email digest was sent, skip the LLM action brief — just ping
+        if results.get("email_digest", {}).get("sent"):
+            digest_info = results["email_digest"]
+            count = digest_info.get("contacts", 0)
+            drafts = digest_info.get("drafts_generated", 0)
+            full_message = (
+                summary + "\n\n"
+                f"<b>Email digest sent</b> — {count} contacts, "
+                f"{drafts} draft messages.\n"
+                "Check your email for today's action brief."
+            )
         else:
-            full_message = summary
+            # Full LLM-generated action brief (fallback)
+            action_summary = _build_action_summary()
+            if action_summary:
+                full_message = summary + "\n\n" + action_summary
+            else:
+                full_message = summary
 
         if len(full_message) > MAX_MESSAGE_LENGTH:
             full_message = full_message[:MAX_MESSAGE_LENGTH - 3] + "..."
@@ -116,10 +127,11 @@ def _build_pipeline_summary(results: dict) -> str:
 
     # Queue generation
     if queue := results.get("queue"):
-        lines.append(
-            f"Queue: +{queue.get('added', 0)} added, "
-            f"{queue.get('excluded', 0)} excluded"
-        )
+        parts = [f"+{queue.get('added', 0)} added"]
+        if queue.get("expired", 0) > 0:
+            parts.append(f"{queue['expired']} expired")
+        parts.append(f"{queue.get('excluded', 0)} excluded")
+        lines.append("Queue: " + ", ".join(parts))
 
     # Sync
     if sync := results.get("sync"):
@@ -151,7 +163,7 @@ def _build_action_summary() -> str:
     # Cap at 15 contacts by priority score (already sorted by get_pending_queue)
     pending = pending[:15]
 
-    # Build context for LLM
+    # Build context for LLM — extract rich rubric data
     contact_lines = []
     channels = {"email": 0, "linkedin": 0}
     for queue_item, connection in pending:
@@ -160,19 +172,29 @@ def _build_action_summary() -> str:
         company = connection.current_company or ""
         role_str = f"{role} @ {company}" if company else role
 
-        factors = ""
+        extras = []
         if connection.score_reasoning:
             try:
                 reasoning = json.loads(connection.score_reasoning)
+                # Top dimension scores
+                if dims := reasoning.get("dimension_scores"):
+                    if isinstance(dims, dict):
+                        top_dims = sorted(dims.items(), key=lambda x: x[1], reverse=True)[:2]
+                        extras.append("Top: " + ", ".join(f"{k} {v}" for k, v in top_dims))
+                # Conversation hooks
+                if hooks := reasoning.get("conversation_hooks"):
+                    if isinstance(hooks, list) and hooks:
+                        extras.append("Hooks: " + "; ".join(str(h) for h in hooks[:2]))
+                # Key factors
                 if kf := reasoning.get("key_factors"):
-                    if isinstance(kf, list):
-                        factors = "; ".join(str(f) for f in kf[:2])
+                    if isinstance(kf, list) and kf:
+                        extras.append("Why: " + "; ".join(str(f) for f in kf[:2]))
             except (json.JSONDecodeError, TypeError):
                 pass
 
         line = f"- {connection.name} | {role_str} | Score: {score:.0f}"
-        if factors:
-            line += f" | {factors}"
+        if extras:
+            line += " | " + " | ".join(extras)
         contact_lines.append(line)
         channels[queue_item.channel or "linkedin"] = channels.get(queue_item.channel or "linkedin", 0) + 1
 
@@ -193,14 +215,18 @@ def _build_action_summary() -> str:
             messages=[{
                 "role": "user",
                 "content": (
-                    "You are a concise networking assistant. Given these pending outreach contacts, "
-                    "write a ~500 character action brief for a busy professional. "
-                    "Highlight the top 2-3 people to prioritize and why. Be specific with names and reasons. "
-                    "Use plain text, no markdown or HTML.\n\n"
-                    f"Pending contacts ({len(pending)} total):\n{context}"
+                    "You are a concise networking assistant. Write a daily action brief for a busy professional.\n\n"
+                    "FORMAT (plain text, no markdown/HTML):\n"
+                    "1. Top 3 people to reach out to today — for each, give their name and a specific "
+                    "conversation opener based on the hooks provided\n"
+                    "2. One line: queue summary (total pending, channels)\n\n"
+                    "Be specific — use the conversation hooks and key factors to craft openers, "
+                    "not generic 'catch up' suggestions.\n\n"
+                    f"Pending contacts ({len(pending)} total, "
+                    f"{channels.get('email', 0)} email / {channels.get('linkedin', 0)} LinkedIn):\n{context}"
                 ),
             }],
-            max_tokens=200,
+            max_tokens=350,
             temperature=0.7,
         )
         brief = response.choices[0].message.content.strip()
@@ -216,7 +242,6 @@ def _build_fallback_summary(
 ) -> str:
     """Stats-only fallback when OpenAI is unavailable."""
     total = len(pending)
-    top_names = [conn.name for _, conn in pending[:3]]
 
     lines = [f"<b>Pending Outreach: {total} contacts</b>"]
 
@@ -227,8 +252,19 @@ def _build_fallback_summary(
     if channel_parts:
         lines.append("Channels: " + ", ".join(channel_parts))
 
-    if top_names:
-        lines.append("Top: " + ", ".join(html.escape(n) for n in top_names))
+    # Top 3 contacts with conversation hooks
+    for _, conn in pending[:3]:
+        name = html.escape(conn.name or "Unknown")
+        hook = ""
+        if conn.score_reasoning:
+            try:
+                reasoning = json.loads(conn.score_reasoning)
+                hooks = reasoning.get("conversation_hooks", [])
+                if isinstance(hooks, list) and hooks:
+                    hook = f" — {html.escape(str(hooks[0]))}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        lines.append(f"• {name}{hook}")
 
     return "\n".join(lines)
 
