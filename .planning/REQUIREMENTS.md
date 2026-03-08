@@ -73,30 +73,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEPLOY-01 | — | Pending |
-| DEPLOY-02 | — | Pending |
-| DEPLOY-03 | — | Pending |
-| EMAIL-01 | — | Pending |
-| EMAIL-02 | — | Pending |
-| EMAIL-03 | — | Pending |
-| EMAIL-04 | — | Pending |
-| EMAIL-05 | — | Pending |
-| EMAIL-06 | — | Pending |
-| EMAIL-07 | — | Pending |
-| PROFILE-01 | — | Pending |
-| PROFILE-02 | — | Pending |
-| PROFILE-03 | — | Pending |
-| PROFILE-04 | — | Pending |
-| VIEW-01 | — | Pending |
-| VIEW-02 | — | Pending |
-| VIEW-03 | — | Pending |
-| VIEW-04 | — | Pending |
+| DEPLOY-01 | Phase 1 | Pending |
+| DEPLOY-02 | Phase 1 | Pending |
+| DEPLOY-03 | Phase 1 | Pending |
+| EMAIL-01 | Phase 1 | Pending |
+| EMAIL-02 | Phase 2 | Pending |
+| EMAIL-03 | Phase 2 | Pending |
+| EMAIL-04 | Phase 2 | Pending |
+| EMAIL-05 | Phase 2 | Pending |
+| EMAIL-06 | Phase 2 | Pending |
+| EMAIL-07 | Phase 2 | Pending |
+| PROFILE-01 | Phase 3 | Pending |
+| PROFILE-02 | Phase 3 | Pending |
+| PROFILE-03 | Phase 3 | Pending |
+| PROFILE-04 | Phase 3 | Pending |
+| VIEW-01 | Phase 3 | Pending |
+| VIEW-02 | Phase 3 | Pending |
+| VIEW-03 | Phase 3 | Pending |
+| VIEW-04 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️
+- Mapped to phases: 18
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-08 after initial definition*
+*Last updated: 2026-03-08 after roadmap creation*
