@@ -27,6 +27,11 @@ class Settings(BaseSettings):
 
     # Supabase (cloud sync)
     supabase_db_url: str = ""  # e.g. "postgresql://postgres:pw@db.xxx.supabase.co:5432/postgres"
+    supabase_project_url: str = ""  # e.g. "https://dxaewlecrkcttfziguer.supabase.co"
+    supabase_anon_key: str = ""  # For PostgREST access from PWA
+
+    # Action tokens
+    action_token_ttl_hours: int = 48  # Token expiry for email action links
 
     # OpenAI
     openai_api_key: str = ""
@@ -44,10 +49,12 @@ class Settings(BaseSettings):
     # Hunter.io - Email finding and enrichment
     hunter_api_key: str = ""
 
-    # Gmail OAuth2
-    gmail_client_id: str = ""
-    gmail_client_secret: str = ""
-    gmail_redirect_uri: str = "http://localhost:8501/oauth/callback"
+    # PWA
+    pwa_url: str = ""  # Netlify URL, e.g. https://eg-connect.netlify.app
+
+    # Gmail App Password
+    gmail_app_password: str = ""  # 16-char app password (spaces stripped)
+    gmail_sender_email: str = ""  # Gmail address to send from
 
     # Telegram Bot notifications
     telegram_bot_token: str = ""
