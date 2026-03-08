@@ -12,7 +12,7 @@ The pipeline, scoring, and data sync already work. Two blockers prevent end-to-e
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Infrastructure Foundations** - Deploy PWA to Netlify, wire up Gmail sending, update config
+- [x] **Phase 1: Infrastructure Foundations** - Deploy PWA to Netlify, wire up Gmail sending, update config (completed 2026-03-08)
 - [ ] **Phase 2: Email Reliability** - Make email layout, actions, and deep links work correctly in Gmail
 - [ ] **Phase 3: PWA Feature Completeness** - Contact profiles, pipeline funnel, enrichment status, feedback history
 
@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The service worker registers without errors and pre-caches assets using correct Netlify-relative paths
   3. Running the daily pipeline sends an email digest to the inbox (visible in Gmail, not spam)
   4. All email links (View Profile, Open LinkedIn, action buttons) point to the Netlify domain, not Supabase Storage
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 01-01-PLAN.md — Config surgery + Gmail smtplib rewrite + test scaffold + package cleanup
 - [ ] 01-02-PLAN.md — Netlify deploy fix + service worker fix + email digest URL update + human verify
@@ -64,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure Foundations | 1/2 | In Progress|  |
+| 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-08 |
 | 2. Email Reliability | 0/TBD | Not started | - |
 | 3. PWA Feature Completeness | 0/TBD | Not started | - |

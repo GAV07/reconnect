@@ -9,8 +9,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Deployment
 
-- [ ] **DEPLOY-01**: PWA deployed on Netlify with `publish = "pwa"` directory and SPA redirect rule (`/* → /index.html 200`)
-- [ ] **DEPLOY-02**: Service worker BASE path fixed for Netlify (no longer computes path from Supabase Storage URL)
+- [x] **DEPLOY-01**: PWA deployed on Netlify with `publish = "pwa"` directory and SPA redirect rule (`/* → /index.html 200`)
+- [x] **DEPLOY-02**: Service worker BASE path fixed for Netlify (no longer computes path from Supabase Storage URL)
 - [x] **DEPLOY-03**: `pwa_url` config variable added to `.env` and `src/config.py`, all email/Edge Function references updated from Supabase Storage URL to Netlify URL
 
 ### Email Delivery
@@ -73,8 +73,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEPLOY-01 | Phase 1 | Pending |
-| DEPLOY-02 | Phase 1 | Pending |
+| DEPLOY-01 | Phase 1 | Complete |
+| DEPLOY-02 | Phase 1 | Complete |
 | DEPLOY-03 | Phase 1 | Complete |
 | EMAIL-01 | Phase 1 | Complete |
 | EMAIL-02 | Phase 2 | Pending |

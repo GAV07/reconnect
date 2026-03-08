@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 01-infrastructure-foundations/01-01-PLAN.md
-last_updated: "2026-03-08T23:15:23.604Z"
-last_activity: 2026-03-08 — Roadmap created, phases derived from 18 v1 requirements
+status: executing
+stopped_at: "Checkpoint 01-02 Task 3: human-verify Netlify deploy"
+last_updated: "2026-03-08T23:19:38.143Z"
+last_activity: 2026-03-08 — Completed 01-01 (Gmail smtplib + config + test scaffold)
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 50
 ---
 
@@ -50,6 +50,7 @@ Progress: [█████░░░░░] 50%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-infrastructure-foundations P02 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - [Pre-phase]: Table-based HTML layout for email cards (Flexbox stripped by Gmail)
 - [Phase 01-01]: Use get_settings() at call time in gmail.py (not module-level singleton) so monkeypatching works in tests
 - [Phase 01-01]: Gmail App Password via smtplib replaces entire OAuth flow -- 330 lines replaced with 60
+- [Phase 01-infrastructure-foundations]: netlify.toml has no build command (static HTML) and one SPA redirect rule
+- [Phase 01-infrastructure-foundations]: service-worker.js uses root-relative paths — no BASE variable needed on Netlify
+- [Phase 01-infrastructure-foundations]: email_digest.py pwa_link = settings.pwa_url.rstrip('/') + '/#/queue'
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T23:15:23.602Z
-Stopped at: Completed 01-infrastructure-foundations/01-01-PLAN.md
+Last session: 2026-03-08T23:19:38.141Z
+Stopped at: Checkpoint 01-02 Task 3: human-verify Netlify deploy
 Resume file: None
