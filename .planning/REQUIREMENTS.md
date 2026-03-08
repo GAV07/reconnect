@@ -11,11 +11,11 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 - [ ] **DEPLOY-01**: PWA deployed on Netlify with `publish = "pwa"` directory and SPA redirect rule (`/* → /index.html 200`)
 - [ ] **DEPLOY-02**: Service worker BASE path fixed for Netlify (no longer computes path from Supabase Storage URL)
-- [ ] **DEPLOY-03**: `pwa_url` config variable added to `.env` and `src/config.py`, all email/Edge Function references updated from Supabase Storage URL to Netlify URL
+- [x] **DEPLOY-03**: `pwa_url` config variable added to `.env` and `src/config.py`, all email/Edge Function references updated from Supabase Storage URL to Netlify URL
 
 ### Email Delivery
 
-- [ ] **EMAIL-01**: Email digest sends via Gmail App Password + `smtplib` (replaces unconfigured OAuth flow)
+- [x] **EMAIL-01**: Email digest sends via Gmail App Password + `smtplib` (replaces unconfigured OAuth flow)
 - [ ] **EMAIL-02**: Email card layout uses table-based HTML (not Flexbox) for Gmail mobile compatibility
 - [ ] **EMAIL-03**: Email action buttons are 44px+ tap targets with 600px max-width and 16px+ font
 - [ ] **EMAIL-04**: "View full profile" links use query parameters (`?view=contact&id=123`) that survive Gmail's redirect chain
@@ -75,8 +75,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | DEPLOY-01 | Phase 1 | Pending |
 | DEPLOY-02 | Phase 1 | Pending |
-| DEPLOY-03 | Phase 1 | Pending |
-| EMAIL-01 | Phase 1 | Pending |
+| DEPLOY-03 | Phase 1 | Complete |
+| EMAIL-01 | Phase 1 | Complete |
 | EMAIL-02 | Phase 2 | Pending |
 | EMAIL-03 | Phase 2 | Pending |
 | EMAIL-04 | Phase 2 | Pending |
