@@ -1,0 +1,7 @@
+[build]
+  publish = "pwa"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
