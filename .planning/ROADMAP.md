@@ -13,7 +13,7 @@ The pipeline, scoring, and data sync already work. Two blockers prevent end-to-e
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Infrastructure Foundations** - Deploy PWA to Netlify, wire up Gmail sending, update config (completed 2026-03-08)
-- [ ] **Phase 2: Email Reliability** - Make email layout, actions, and deep links work correctly in Gmail
+- [x] **Phase 2: Email Reliability** - Make email layout, actions, and deep links work correctly in Gmail (completed 2026-03-09)
 - [ ] **Phase 3: PWA Feature Completeness** - Contact profiles, pipeline funnel, enrichment status, feedback history
 
 ## Phase Details
@@ -43,7 +43,7 @@ Plans:
   4. Tapping "Open LinkedIn" goes directly to the contact's LinkedIn profile
   5. Tapping "Yes" in the email automatically queues the contact for outreach with no extra step required
   6. Gmail scanner pre-fetching the action URL does not consume the token or execute the action prematurely
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 02-01-PLAN.md — Table-based email card HTML rewrite + tap targets + profile deep links + LinkedIn buttons
 - [x] 02-02-PLAN.md — Edge Function GET/POST split + PWA deep link bridge + production deploy (deployed, awaiting human-verify)
@@ -68,5 +68,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-09 |
-| 2. Email Reliability | 1/2 | In progress (02-02 deployed, pending verify) | - |
+| 2. Email Reliability | 2/2 | Complete   | 2026-03-09 |
 | 3. PWA Feature Completeness | 0/TBD | Not started | - |

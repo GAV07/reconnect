@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: "Completed 02-02-PLAN.md (checkpoint:human-verify — awaiting browser verification of Edge Function and PWA deep link)"
-last_updated: "2026-03-09T01:23:36.999Z"
+stopped_at: Completed 02-01-PLAN.md (email card table layout, tap targets, deep links — all 5 tests pass)
+last_updated: "2026-03-09T01:23:46.016Z"
 last_activity: 2026-03-09 — Completed 02-02 (GET/POST split on action Edge Function, PWA deep link bridge — human-verify pending)
 progress:
   total_phases: 3
@@ -47,7 +47,7 @@ Progress: [███████░░░] 67% (Phase 1 of 3 complete, Phase 2 P
 | 02-email-reliability | 2/2 code | ~5 min | ~2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3 min), 01-02 (2 min), 02-01 (N/A), 02-02 (3 min)
+- Last 5 plans: 01-01 (3 min), 01-02 (2 min), 02-01 (3 min), 02-02 (3 min)
 - Trend: consistent ~3 min/plan
 
 *Updated after each plan completion*
@@ -74,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 02-02]: Token passed as query param in form action URL (not POST body) — Edge Function reads url.searchParams for both methods
 - [Phase 02-02]: checkDeepLinkQueryParams() returns true to skip render() — hashchange event handles the render after hash is set
 - [Phase 02-01]: email_digest.py uses get_settings() at call time (not module-level singleton) — same pattern as gmail.py, required for monkeypatching in tests
+- [Phase 02-01]: Email card header uses table role=presentation with left td (name/role) and right td (score badge 80px) — replaces display:flex that Gmail strips on mobile
 
 ### Pending Todos
 
@@ -84,11 +85,11 @@ None yet.
 - [Phase 1]: Gmail App Password requires 2FA enabled on the Gmail account — one-time external prerequisite
 - [Phase 1]: Netlify UI site settings may have stale config beyond netlify.toml — verify both file and UI
 - [Phase 1]: RLS status of Supabase tables is unknown — must verify before Netlify URL goes public
-- [Phase 2]: email_digest.py uses module-level `settings` import — monkeypatching does not work for pwa_url in tests (pre-existing, not introduced in 02-02)
+- [Phase 2, RESOLVED in 02-01]: email_digest.py now uses get_settings() at call time — monkeypatching works for pwa_url in tests
 - [Phase 3]: dashboard_snapshots funnel-stage field names unconfirmed — read actual schema before building funnel view
 
 ## Session Continuity
 
-Last session: 2026-03-09T01:22:01Z
-Stopped at: Completed 02-02-PLAN.md (checkpoint:human-verify — awaiting browser verification of Edge Function and PWA deep link)
+Last session: 2026-03-09T01:23:46.014Z
+Stopped at: Completed 02-01-PLAN.md (email card table layout, tap targets, deep links — all 5 tests pass)
 Resume file: None
