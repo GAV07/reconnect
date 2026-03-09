@@ -10,7 +10,7 @@ from datetime import datetime
 from html import escape
 from typing import Any
 
-from src.config import settings
+from src.config import get_settings
 from src.database.engine import get_session
 from src.database.models import Connection, OutreachQueueItem, UserProfile
 
@@ -58,6 +58,7 @@ def _extract_why_today(conn: Connection, queue_item: OutreachQueueItem) -> str:
 def _get_data_health_stats() -> dict[str, int]:
     """Compute data health statistics for the digest."""
     from sqlmodel import func, select
+    settings = get_settings()
 
     stats = {
         "need_email": 0,
@@ -133,6 +134,7 @@ def _build_digest_html(
     top_n: int,
 ) -> str:
     """Build the HTML email body with action buttons and data health section."""
+    settings = get_settings()
     today = datetime.now().strftime("%B %-d, %Y")
     total = len(contacts)
 
@@ -171,25 +173,55 @@ def _build_digest_html(
         # Name linked to LinkedIn
         name_html = f'<a href="{escape(linkedin_url)}" style="color:#0a66c2;text-decoration:none;font-weight:bold;font-size:17px;">{name}</a>' if linkedin_url else f'<span style="font-weight:bold;font-size:17px;">{name}</span>'
 
-        # Token-based action buttons
+        # Profile deep link using query parameters (not hash fragments — survive Gmail redirect)
+        pwa_base = settings.pwa_url.rstrip("/") if settings.pwa_url else ""
+        profile_url = f"{pwa_base}/?view=contact&id={conn.id}"
+
+        # LinkedIn button cell — only if linkedin_url is set
+        linkedin_cell = ""
+        if linkedin_url:
+            linkedin_cell = (
+                f'<td style="padding-right:6px;">'
+                f'<a href="{escape(linkedin_url)}" style="display:inline-block;background:#0a66c2;'
+                f'color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:4px;'
+                f'font-size:16px;">LinkedIn</a></td>'
+            )
+
+        # Profile button cell
+        profile_cell = (
+            f'<td style="padding-right:6px;">'
+            f'<a href="{escape(profile_url)}" style="display:inline-block;background:#ffffff;'
+            f'border:1px solid #0a66c2;color:#0a66c2;text-decoration:none;padding:12px 20px;'
+            f'border-radius:4px;font-size:16px;">Profile</a></td>'
+        )
+
+        # Token-based action buttons in table row (44px+ tap targets)
         buttons_html = ""
         if queue_item.id and conn.id:
             try:
                 urls = create_action_tokens(queue_item.id, conn.id)
-                buttons_html = f'''<div style="margin-top:10px;">
-                    <a href="{escape(urls['approve'])}" style="display:inline-block;background:#1a7f37;color:#ffffff;text-decoration:none;padding:8px 16px;border-radius:4px;font-size:13px;font-weight:bold;margin-right:6px;">Reach Out &#9654;</a>
-                    <a href="{escape(urls['skip'])}" style="display:inline-block;background:#6c757d;color:#ffffff;text-decoration:none;padding:8px 16px;border-radius:4px;font-size:13px;margin-right:6px;">Skip</a>
-                    <a href="{escape(urls['snooze'])}" style="display:inline-block;background:#f0ad4e;color:#ffffff;text-decoration:none;padding:8px 16px;border-radius:4px;font-size:13px;">Snooze 3d</a>
-                </div>'''
+                buttons_html = (
+                    f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">'
+                    f'<tr>'
+                    f'<td style="padding-right:6px;"><a href="{escape(urls["approve"])}" style="display:inline-block;background:#1a7f37;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;font-weight:bold;">Yes</a></td>'
+                    f'<td style="padding-right:6px;"><a href="{escape(urls["skip"])}" style="display:inline-block;background:#6c757d;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;">Skip</a></td>'
+                    f'<td style="padding-right:6px;"><a href="{escape(urls["snooze"])}" style="display:inline-block;background:#f0ad4e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;">Snooze</a></td>'
+                    f'{linkedin_cell}'
+                    f'{profile_cell}'
+                    f'</tr>'
+                    f'</table>'
+                )
             except Exception as e:
                 logger.warning("Failed to create action tokens for %s: %s", conn.name, e)
 
         cards_html += f'''
         <div style="background:#ffffff;border:1px solid #e0e0e0;border-radius:8px;padding:16px 18px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                <div>{name_html}<div style="color:#555;font-size:14px;margin:2px 0;">{role_line}</div></div>
-                <div style="background:#e8f4fd;color:#0a66c2;font-weight:bold;font-size:14px;padding:4px 10px;border-radius:12px;white-space:nowrap;">Score: {score:.0f}</div>
-            </div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td>{name_html}<div style="color:#555;font-size:14px;margin:2px 0;">{role_line}</div></td>
+                    <td style="width:80px;text-align:right;white-space:nowrap;"><span style="background:#e8f4fd;color:#0a66c2;font-weight:bold;font-size:14px;padding:4px 10px;border-radius:12px;display:inline-block;">Score: {score:.0f}</span></td>
+                </tr>
+            </table>
             {why_html}
             {buttons_html}
         </div>
@@ -244,7 +276,7 @@ def _build_digest_html(
         rating_buttons = ""
         for i in range(1, 6):
             url = create_feedback_token(rating=i)
-            rating_buttons += f'<a href="{escape(url)}" style="display:inline-block;background:#ffffff;border:1px solid #ddd;color:#333;text-decoration:none;padding:8px 14px;border-radius:4px;font-size:16px;margin:0 3px;">{i}</a>'
+            rating_buttons += f'<a href="{escape(url)}" style="display:inline-block;background:#ffffff;border:1px solid #ddd;color:#333;text-decoration:none;padding:12px 14px;border-radius:4px;font-size:16px;margin:0 3px;">{i}</a>'
         feedback_html = f'''
         <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
             <div style="font-size:14px;color:#666;margin-bottom:8px;">Was today's digest useful?</div>
@@ -302,6 +334,7 @@ def send_digest_email(pipeline_results: dict[str, Any]) -> dict[str, Any]:
         Dict with sent status, recipient, and contact count
     """
     from src.integrations.gmail import get_user_email, is_gmail_configured, send_html_email
+    settings = get_settings()
 
     if not is_gmail_configured():
         return {"sent": False, "reason": "Gmail not configured"}

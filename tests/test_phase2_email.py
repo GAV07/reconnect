@@ -116,9 +116,12 @@ def test_button_tap_targets(mock_settings, mocker):
     html = _build_digest_html(contacts, {}, 5)
 
     # Buttons must have 12px+ padding (44px tap target) and 16px font size
-    # Check that 8px padding from old code is NOT present in action buttons
+    # Check that 8px padding from old code is NOT present in any buttons
     assert 'padding:8px' not in html, "Old 8px button padding found — must be 12px+"
-    assert 'font-size:13px' not in html, "Old 13px button font size found — must be 16px"
+    # Old action button font size must be gone from inline button styles
+    # (13px may appear in body text like the WHY hook, health section, etc.)
+    assert 'padding:8px 16px;border-radius:4px;font-size:13px' not in html, \
+        "Old 13px action button font size found — must be 16px"
     # Check for 12px padding and 16px font-size in action buttons
     assert 'padding:12px' in html, "Action buttons must have padding:12px (44px tap target)"
     assert 'font-size:16px' in html, "Action buttons must have font-size:16px"
