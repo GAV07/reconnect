@@ -87,20 +87,45 @@ async function renderPreferences(container) {
   }
   html += '</div>';
 
-  // Recent Feedback
+  // Feedback History
+  const feedbackTypeLabels = {
+    suggestion_quality: 'Suggestion',
+    outcome: 'Outcome',
+    preference: 'Preference',
+    digest_rating: 'Digest Rating',
+    never_suggest: 'Blocked',
+    always_suggest: 'Prioritized',
+  };
+
+  function formatRelativeDate(dateStr) {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const diffMs = now - then;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return '1d ago';
+    if (diffDays < 30) return `${diffDays}d ago`;
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths === 1) return '1mo ago';
+    if (diffMonths < 12) return `${diffMonths}mo ago`;
+    return new Date(dateStr).toLocaleDateString();
+  }
+
   html += `
     <div class="pref-group">
-      <h3>Recent Feedback</h3>`;
+      <h3>Feedback History</h3>`;
   if (!feedback || feedback.length === 0) {
     html += '<p style="font-size: 14px; color: var(--text-muted);">No feedback recorded yet.</p>';
   } else {
-    for (const fb of feedback.slice(0, 10)) {
-      const date = new Date(fb.created_at).toLocaleDateString();
+    html += `<p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Showing last ${Math.min(feedback.length, 20)} feedback entries</p>`;
+    for (const fb of feedback.slice(0, 20)) {
+      const typeLabel = feedbackTypeLabels[fb.feedback_type] || escapeHtml(fb.feedback_type);
       const ratingStr = fb.rating ? ` — ${fb.rating}/5` : '';
+      const relDate = formatRelativeDate(fb.created_at);
       html += `
         <div class="pref-item">
-          <span style="font-size: 13px; color: var(--text-secondary);">${escapeHtml(fb.feedback_type)}${ratingStr}</span>
-          <span style="font-size: 12px; color: var(--text-muted);">${date}</span>
+          <span style="font-size: 13px; color: var(--text-secondary);">${typeLabel}${ratingStr}</span>
+          <span style="font-size: 12px; color: var(--text-muted);">${relDate}</span>
         </div>`;
     }
   }
