@@ -1,13 +1,13 @@
 /* Dashboard page — network health, opportunities, data quality */
 
 async function renderDashboard(container) {
-  if (!supabase) {
+  if (!db) {
     container.innerHTML = '<div class="empty-state"><p>Supabase not configured.</p></div>';
     return;
   }
 
   // Fetch latest dashboard snapshot
-  const { data: snapshots, error } = await supabase
+  const { data: snapshots, error } = await db
     .from('dashboard_snapshots')
     .select('*')
     .eq('snapshot_type', 'daily')

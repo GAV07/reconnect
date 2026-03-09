@@ -1,13 +1,13 @@
 /* Queue review page — mobile-first card interface */
 
 async function renderQueue(container) {
-  if (!supabase) {
+  if (!db) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Supabase not configured. Set your project URL and anon key in index.html.</p></div>';
     return;
   }
 
   // Fetch pending queue items with connection data
-  const { data: items, error } = await supabase
+  const { data: items, error } = await db
     .from('outreach_queue')
     .select('*, connections(*)')
     .eq('status', 'pending_review')
@@ -95,14 +95,14 @@ async function queueAction(itemId, connectionId, action) {
 
   try {
     // Try online update
-    if (supabase && navigator.onLine) {
+    if (db && navigator.onLine) {
       const updateData = {
         status: newStatus,
         reviewed_at: new Date().toISOString(),
       };
       if (skipReason) updateData.skip_reason = skipReason;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('outreach_queue')
         .update(updateData)
         .eq('id', itemId);
@@ -148,9 +148,9 @@ async function queueAction(itemId, connectionId, action) {
 }
 
 function setupQueueRealtime() {
-  if (!supabase) return;
+  if (!db) return;
 
-  supabase
+  db
     .channel('queue-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'outreach_queue' }, () => {
       // Refresh queue when pipeline adds new items

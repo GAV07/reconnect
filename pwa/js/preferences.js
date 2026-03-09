@@ -1,27 +1,27 @@
 /* Preferences page — manage scoring preferences and view feedback history */
 
 async function renderPreferences(container) {
-  if (!supabase) {
+  if (!db) {
     container.innerHTML = '<div class="empty-state"><p>Supabase not configured.</p></div>';
     return;
   }
 
   // Fetch user preferences
-  const { data: prefs } = await supabase
+  const { data: prefs } = await db
     .from('user_preferences')
     .select('*')
     .eq('is_active', true)
     .order('pref_type');
 
   // Fetch recent feedback
-  const { data: feedback } = await supabase
+  const { data: feedback } = await db
     .from('user_feedback')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(20);
 
   // Fetch never/always contacts
-  const { data: priorityContacts } = await supabase
+  const { data: priorityContacts } = await db
     .from('connections')
     .select('id, name, current_company, user_priority')
     .in('user_priority', ['always', 'never'])
@@ -110,9 +110,9 @@ async function renderPreferences(container) {
 }
 
 async function clearPriority(connectionId) {
-  if (!supabase) return;
+  if (!db) return;
 
-  const { error } = await supabase
+  const { error } = await db
     .from('connections')
     .update({ user_priority: null })
     .eq('id', connectionId);

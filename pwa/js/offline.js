@@ -70,7 +70,7 @@ async function clearPendingAction(id) {
 }
 
 async function replayPendingActions() {
-  if (!supabase || !navigator.onLine) return;
+  if (!db || !navigator.onLine) return;
 
   const actions = await getPendingActions();
   for (const action of actions) {
@@ -82,7 +82,7 @@ async function replayPendingActions() {
       const updateData = { status: newStatus, reviewed_at: new Date(action.timestamp).toISOString() };
       if (skipReason) updateData.skip_reason = skipReason;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('outreach_queue')
         .update(updateData)
         .eq('id', action.itemId);

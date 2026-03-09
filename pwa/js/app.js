@@ -4,14 +4,14 @@
 const SUPABASE_URL = window.RECONNECT_CONFIG?.supabaseUrl || '';
 const SUPABASE_ANON_KEY = window.RECONNECT_CONFIG?.supabaseAnonKey || '';
 
-let supabase = null;
+let db = null;
 
 function initSupabase() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn('Supabase not configured. Set RECONNECT_CONFIG in index.html.');
     return;
   }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
 // Simple hash-based router

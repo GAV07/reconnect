@@ -1,7 +1,7 @@
 /* Contact detail page — view enrichment data + generate drafts */
 
 async function renderContact(container, connectionId) {
-  if (!supabase || !connectionId) {
+  if (!db || !connectionId) {
     container.innerHTML = '<div class="empty-state"><p>Contact not found.</p></div>';
     return;
   }
@@ -10,7 +10,7 @@ async function renderContact(container, connectionId) {
   const queueItemId = params.queue_item;
 
   // Fetch connection
-  const { data: conn, error } = await supabase
+  const { data: conn, error } = await db
     .from('connections')
     .select('*')
     .eq('id', connectionId)
@@ -195,7 +195,7 @@ function copyDraft() {
 }
 
 async function setContactPriority(connectionId, priority) {
-  if (!supabase) return;
+  if (!db) return;
 
   try {
     // Use feedback Edge Function

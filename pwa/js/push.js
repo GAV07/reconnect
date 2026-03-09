@@ -23,8 +23,8 @@ async function registerPushNotifications() {
     }
 
     // Store subscription in Supabase (when push Edge Function is deployed)
-    if (subscription && supabase) {
-      await supabase.from('push_subscriptions').upsert({
+    if (subscription && db) {
+      await db.from('push_subscriptions').upsert({
         endpoint: subscription.endpoint,
         subscription_data: subscription.toJSON(),
         updated_at: new Date().toISOString(),
