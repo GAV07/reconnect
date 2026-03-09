@@ -53,7 +53,10 @@ Plans:
   2. Dashboard shows a visual industry distribution chart across enriched contacts
   3. Dashboard shows role and seniority mix across enriched contacts
   4. Dashboard shows score tier distribution (e.g., how many contacts in high/medium/low tiers)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 05-01-PLAN.md — Test scaffold + Python compute functions (health breakdown, industry, role/seniority, score tiers)
+- [ ] 05-02-PLAN.md — PWA dashboard rendering (4 new sections with inline CSS bar charts)
 
 ### Phase 6: CLI + Gmail OAuth + Streamlit Removal
 **Goal**: Users can operate the pipeline entirely from the CLI and the broken Streamlit UI is fully removed
@@ -74,5 +77,5 @@ Plans:
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
-| 5. Dashboard Intelligence | v1.1 | 0/? | Not started | - |
+| 5. Dashboard Intelligence | v1.1 | 0/2 | Not started | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |
