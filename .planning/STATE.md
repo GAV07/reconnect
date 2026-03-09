@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Network Intelligence
 status: planning
-stopped_at: Completed 04-01-PLAN.md — INFRA-02 resolved, 139 contacts rescored
-last_updated: "2026-03-09T17:58:35.867Z"
-last_activity: 2026-03-09 — v1.1 roadmap created
+stopped_at: Completed 04-02-PLAN.md — Queue sort/filter controls live in PWA
+last_updated: "2026-03-09T18:25:00.000Z"
+last_activity: 2026-03-09 — Queue filter controls verified in PWA
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -26,22 +26,23 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 4 of 6 (Foundation Fixes + Queue UX)
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: In progress
-Last activity: 2026-03-09 — Plan 01 complete (INFRA-02 resolved, 139 contacts rescored)
+Last activity: 2026-03-09 — Plan 02 complete (queue sort/filter controls live in PWA)
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v1.1)
-- Average duration: 11 min
-- Total execution time: 11 min
+- Total plans completed: 2 (v1.1)
+- Average duration: 16 min
+- Total execution time: 31 min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 04 | 01 | 11 min | 2 | 2 |
+| 04 | 02 | 20 min | 2 | 2 |
 
 *Updated after each plan completion*
 
@@ -57,6 +58,8 @@ Recent decisions affecting current work:
 - v1.1: Score breakdown fix is a data fix (rescore command), not a code change
 - [Phase 04-foundation-fixes-queue-ux]: Score breakdown bug is data fix: contacts scored before 5-dimension rubric need rescoring via rescore_missing_dimensions(), not UI changes
 - [Phase 04-foundation-fixes-queue-ux]: TDD scaffold uses @pytest.mark.skip stubs for future plans so test file serves as VALIDATION mapping without CI failures
+- [Phase 04-02]: Sort field is reconnect_score (not priority_score) — priority_score is stale/legacy; reconnect_score is the live composite
+- [Phase 04-02]: Industry filter is client-side only — raw_enrichment is JSON, PostgREST cannot filter on nested JSON without a generated column
 
 ### Pending Todos
 
@@ -70,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T17:58:35.865Z
-Stopped at: Completed 04-01-PLAN.md — INFRA-02 resolved, 139 contacts rescored
+Last session: 2026-03-09T18:25:00.000Z
+Stopped at: Completed 04-02-PLAN.md — Queue sort/filter controls live in PWA
 Resume file: None

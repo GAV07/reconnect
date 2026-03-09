@@ -73,6 +73,6 @@ Plans:
 | 1. Infrastructure Foundations | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
-| 4. Foundation Fixes + Queue UX | 1/3 | In Progress|  | - |
+| 4. Foundation Fixes + Queue UX | 2/3 | In Progress|  | - |
 | 5. Dashboard Intelligence | v1.1 | 0/? | Not started | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |

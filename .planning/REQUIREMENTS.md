@@ -14,9 +14,9 @@ Requirements for v1.1 Network Intelligence milestone. Each maps to roadmap phase
 
 ### Queue UX
 
-- [ ] **QUEUE-01**: User can sort queue contacts by composite score (ascending/descending)
-- [ ] **QUEUE-02**: User can filter queue by status (pending, approved, sent)
-- [ ] **QUEUE-03**: User can filter queue by industry
+- [x] **QUEUE-01**: User can sort queue contacts by composite score (ascending/descending)
+- [x] **QUEUE-02**: User can filter queue by status (pending, approved, sent)
+- [x] **QUEUE-03**: User can filter queue by industry
 
 ### Dashboard Intelligence
 
@@ -70,9 +70,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | INFRA-01 | Phase 4 | Pending |
 | INFRA-02 | Phase 4 | Complete |
-| QUEUE-01 | Phase 4 | Pending |
-| QUEUE-02 | Phase 4 | Pending |
-| QUEUE-03 | Phase 4 | Pending |
+| QUEUE-01 | Phase 4 | Complete |
+| QUEUE-02 | Phase 4 | Complete |
+| QUEUE-03 | Phase 4 | Complete |
 | DASH-01 | Phase 5 | Pending |
 | DASH-02 | Phase 5 | Pending |
 | DASH-03 | Phase 5 | Pending |
