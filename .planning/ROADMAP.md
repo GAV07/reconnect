@@ -38,7 +38,11 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   3. User can filter queue by industry to narrow to a specific sector
   4. Contact profile pages show real values (not 0) in all 5 scoring dimension bars
   5. Daily email digest sends successfully via Gmail OAuth using GCP JSON credentials
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 04-01-PLAN.md — Fix score breakdown bug (rescore contacts with missing dimension_scores)
+- [ ] 04-02-PLAN.md — Add queue sort/filter controls (sort by score, filter by status and industry)
+- [ ] 04-03-PLAN.md — Add Gmail OAuth send path with App Password fallback
 
 ### Phase 5: Dashboard Intelligence
 **Goal**: Users can see what drives their network health score and understand their network composition
@@ -69,6 +73,6 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 1. Infrastructure Foundations | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
-| 4. Foundation Fixes + Queue UX | v1.1 | 0/? | Not started | - |
+| 4. Foundation Fixes + Queue UX | v1.1 | 0/3 | Planned | - |
 | 5. Dashboard Intelligence | v1.1 | 0/? | Not started | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |
