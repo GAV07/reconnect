@@ -32,10 +32,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### PWA Views
 
-- [ ] **VIEW-01**: Pipeline funnel view showing contact flow: imported → scored → reviewed → reached out → connected
-- [ ] **VIEW-02**: Enrichment status view showing which contacts have full data vs. need more enrichment
-- [ ] **VIEW-03**: Feedback history view showing past yes/no decisions and scoring accuracy over time
-- [ ] **VIEW-04**: PWA reads query parameters on load and navigates to correct hash route (email deep link bridge)
+- [x] **VIEW-01**: Pipeline funnel view showing contact flow: imported → scored → reviewed → reached out → connected
+- [x] **VIEW-02**: Enrichment status view showing which contacts have full data vs. need more enrichment
+- [x] **VIEW-03**: Feedback history view showing past yes/no decisions and scoring accuracy over time
+- [x] **VIEW-04**: PWA reads query parameters on load and navigates to correct hash route (email deep link bridge)
 
 ## v2 Requirements
 
@@ -87,10 +87,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROFILE-02 | Phase 3 | Complete |
 | PROFILE-03 | Phase 3 | Complete |
 | PROFILE-04 | Phase 3 | Complete |
-| VIEW-01 | Phase 3 | Pending |
-| VIEW-02 | Phase 3 | Pending |
-| VIEW-03 | Phase 3 | Pending |
-| VIEW-04 | Phase 3 | Pending |
+| VIEW-01 | Phase 3 | Complete |
+| VIEW-02 | Phase 3 | Complete |
+| VIEW-03 | Phase 3 | Complete |
+| VIEW-04 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 18 total
