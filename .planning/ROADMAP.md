@@ -40,9 +40,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   5. Daily email digest sends successfully via Gmail OAuth using GCP JSON credentials
 **Plans**: 3 plans
 Plans:
-- [ ] 04-01-PLAN.md — Fix score breakdown bug (rescore contacts with missing dimension_scores)
-- [ ] 04-02-PLAN.md — Add queue sort/filter controls (sort by score, filter by status and industry)
-- [ ] 04-03-PLAN.md — Add Gmail OAuth send path with App Password fallback
+- [x] 04-01-PLAN.md — Fix score breakdown bug (rescore contacts with missing dimension_scores)
+- [x] 04-02-PLAN.md — Add queue sort/filter controls (sort by score, filter by status and industry)
+- [x] 04-03-PLAN.md — Add Gmail OAuth send path with App Password fallback
 
 ### Phase 5: Dashboard Intelligence
 **Goal**: Users can see what drives their network health score and understand their network composition
@@ -73,6 +73,6 @@ Plans:
 | 1. Infrastructure Foundations | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
-| 4. Foundation Fixes + Queue UX | 3/3 | Complete   | 2026-03-09 | - |
+| 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | v1.1 | 0/? | Not started | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |

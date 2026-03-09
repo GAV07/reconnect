@@ -63,7 +63,7 @@ completed: 2026-03-09
 - **Duration:** ~1 min
 - **Started:** 2026-03-09T19:20:14Z
 - **Completed:** 2026-03-09T19:21:00Z
-- **Tasks:** 1 of 2 completed (Task 2 is a blocking checkpoint: human must run OAuth browser flow)
+- **Tasks:** 2 of 2 completed
 - **Files modified:** 7
 
 ## Accomplishments
@@ -79,10 +79,9 @@ completed: 2026-03-09
 Each task was committed atomically:
 
 1. **Task 1: Add Gmail OAuth functions and update pipeline send logic** - `174a46c` (feat)
+2. **Task 2: Authorize Gmail OAuth (one-time GCP setup)** - human action (no code commit — OAuth tokens saved to local DB)
 
-**Plan metadata:** (pending — paused at Task 2 checkpoint)
-
-_Note: Task 2 is a `checkpoint:human-action` — user must run browser OAuth flow to authorize Gmail._
+**Plan metadata:** `a45eaa3` (docs: complete Gmail OAuth plan)
 
 ## Files Created/Modified
 - `src/integrations/gmail.py` - Added GMAIL_SCOPES, _save_oauth_credentials(), _load_oauth_credentials(), authorize_gmail_oauth(), is_oauth_configured(), oauth_send_html_email(); imported get_session at module level
@@ -128,18 +127,19 @@ _Note: Task 2 is a `checkpoint:human-action` — user must run browser OAuth flo
 
 ## User Setup Required
 
-Task 2 is a blocking `checkpoint:human-action`. The user must:
-1. Complete GCP setup (OAuth consent screen, credentials.json download)
-2. Run: `python3 -c "from src.integrations.gmail import authorize_gmail_oauth; authorize_gmail_oauth('credentials.json')"`
-3. Verify: `python3 -c "from src.integrations.gmail import is_oauth_configured; print('OAuth configured:', is_oauth_configured())"`
+Completed. The user:
+1. Created a Desktop app OAuth client in GCP and added erickgavin7@gmail.com as a test user
+2. Downloaded credentials.json and ran `authorize_gmail_oauth('credentials.json')` — browser OAuth flow completed
+3. Verified: `is_oauth_configured()` returns True
 
-See Task 2 in the PLAN.md for full GCP setup instructions.
+OAuth tokens are stored in the local `GmailCredentials` table. The daily pipeline will now use OAuth send on first run.
 
 ## Next Phase Readiness
-- Gmail OAuth code is complete and tested — waiting on user GCP setup
-- App Password fallback preserved — pipeline continues to work without OAuth
+- Gmail OAuth authorized and working — `is_oauth_configured()` returns True
+- App Password fallback preserved — pipeline degrades gracefully if OAuth expires
 - GmailCredentials no longer synced to Supabase (security fix live)
-- Phase 4 complete once user authorizes OAuth or explicitly defers
+- Phase 4 fully complete: INFRA-02 (score breakdown), QUEUE-01/02/03 (sort/filter), INFRA-01 (Gmail OAuth) all resolved
+- Ready for Phase 5: Dashboard Intelligence
 
 ---
 *Phase: 04-foundation-fixes-queue-ux*
