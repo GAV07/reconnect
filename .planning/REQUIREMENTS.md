@@ -25,10 +25,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### PWA Profile
 
-- [ ] **PROFILE-01**: Contact profile page displays AI scoring rationale with dimension breakdown (Goal Alignment, Industry Overlap, Mutual Value, Conversation Hooks, Network Reach)
-- [ ] **PROFILE-02**: Contact profile page shows professional context (current role, company, industry, career trajectory)
-- [ ] **PROFILE-03**: Contact profile page shows connection strength (how you know them, mutual connections, last interaction)
-- [ ] **PROFILE-04**: Contact profile page surfaces full enrichment fields (location, headline, email status, LinkedIn URL)
+- [x] **PROFILE-01**: Contact profile page displays AI scoring rationale with dimension breakdown (Goal Alignment, Industry Overlap, Mutual Value, Conversation Hooks, Network Reach)
+- [x] **PROFILE-02**: Contact profile page shows professional context (current role, company, industry, career trajectory)
+- [x] **PROFILE-03**: Contact profile page shows connection strength (how you know them, mutual connections, last interaction)
+- [x] **PROFILE-04**: Contact profile page surfaces full enrichment fields (location, headline, email status, LinkedIn URL)
 
 ### PWA Views
 
@@ -83,10 +83,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EMAIL-05 | Phase 2 | Complete |
 | EMAIL-06 | Phase 2 | Complete |
 | EMAIL-07 | Phase 2 | Complete |
-| PROFILE-01 | Phase 3 | Pending |
-| PROFILE-02 | Phase 3 | Pending |
-| PROFILE-03 | Phase 3 | Pending |
-| PROFILE-04 | Phase 3 | Pending |
+| PROFILE-01 | Phase 3 | Complete |
+| PROFILE-02 | Phase 3 | Complete |
+| PROFILE-03 | Phase 3 | Complete |
+| PROFILE-04 | Phase 3 | Complete |
 | VIEW-01 | Phase 3 | Pending |
 | VIEW-02 | Phase 3 | Pending |
 | VIEW-03 | Phase 3 | Pending |
