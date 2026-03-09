@@ -20,10 +20,10 @@ Requirements for v1.1 Network Intelligence milestone. Each maps to roadmap phase
 
 ### Dashboard Intelligence
 
-- [ ] **DASH-01**: User can see health score breakdown showing what drives the score with actionable insights
-- [ ] **DASH-02**: User can see industry distribution across enriched contacts
-- [ ] **DASH-03**: User can see role/seniority mix across enriched contacts
-- [ ] **DASH-04**: User can see score tier distribution across contacts
+- [x] **DASH-01**: User can see health score breakdown showing what drives the score with actionable insights
+- [x] **DASH-02**: User can see industry distribution across enriched contacts
+- [x] **DASH-03**: User can see role/seniority mix across enriched contacts
+- [x] **DASH-04**: User can see score tier distribution across contacts
 
 ### CLI + Streamlit Removal
 
@@ -73,10 +73,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QUEUE-01 | Phase 4 | Complete |
 | QUEUE-02 | Phase 4 | Complete |
 | QUEUE-03 | Phase 4 | Complete |
-| DASH-01 | Phase 5 | Pending |
-| DASH-02 | Phase 5 | Pending |
-| DASH-03 | Phase 5 | Pending |
-| DASH-04 | Phase 5 | Pending |
+| DASH-01 | Phase 5 | Complete |
+| DASH-02 | Phase 5 | Complete |
+| DASH-03 | Phase 5 | Complete |
+| DASH-04 | Phase 5 | Complete |
 | CLI-01 | Phase 6 | Pending |
 | CLI-02 | Phase 6 | Pending |
 

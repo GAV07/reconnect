@@ -77,5 +77,5 @@ Plans:
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
-| 5. Dashboard Intelligence | v1.1 | 0/2 | Not started | - |
+| 5. Dashboard Intelligence | 1/2 | In Progress|  | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |
