@@ -43,7 +43,10 @@ Plans:
   4. Tapping "Open LinkedIn" goes directly to the contact's LinkedIn profile
   5. Tapping "Yes" in the email automatically queues the contact for outreach with no extra step required
   6. Gmail scanner pre-fetching the action URL does not consume the token or execute the action prematurely
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 02-01-PLAN.md — Table-based email card HTML rewrite + tap targets + profile deep links + LinkedIn buttons
+- [ ] 02-02-PLAN.md — Edge Function GET/POST split + PWA deep link bridge + production deploy
 
 ### Phase 3: PWA Feature Completeness
 **Goal**: The PWA surfaces the full enrichment and scoring data needed to review, triage, and track contacts
@@ -65,5 +68,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-09 |
-| 2. Email Reliability | 0/TBD | Not started | - |
+| 2. Email Reliability | 0/2 | In progress | - |
 | 3. PWA Feature Completeness | 0/TBD | Not started | - |
