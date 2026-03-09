@@ -40,7 +40,18 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 
 ### Active
 
-(None — next milestone requirements TBD via `/gsd:new-milestone`)
+#### Current Milestone: v1.1 Network Intelligence
+
+**Goal:** Make the tool smarter about surfacing network insights, give users control over queue prioritization, and add AI-powered contact search — while fixing infra gaps and removing Streamlit.
+
+**Target features:**
+- Gmail OAuth (replace App Password workaround with GCP credentials)
+- Fix score breakdown bug (profile shows 0 in all 5 scoring dimensions)
+- Queue filtering/sorting (score sort, industry filter, status filter)
+- Dashboard health score breakdown (what drives it, actionable insights)
+- Dashboard demographic charts (industry distribution, role/seniority mix, score tier distribution)
+- AI contact search ("Who in my network knows about X?" against enriched data)
+- Streamlit removal + CLI commands for pipeline operations
 
 ### Out of Scope
 
@@ -53,6 +64,10 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - Push notifications — redundant with email (daily email IS the push notification)
 - Calendar integration — daily email is the reminder mechanism
 - Social graph visualization — impressive to demo, not useful in daily workflow
+- Geographic distribution — interesting but not priority; defer to v1.2+
+- Broader AI questions (life/personal) — start with professional enriched data only
+- Pipeline controls in PWA — CLI sufficient for now, PWA admin panel deferred
+- Company size demographics — not selected for v1.1
 
 ## Context
 
@@ -92,4 +107,4 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | raw_enrichment dual-key unwrap | Enrichment pipeline returns nested `data` wrapper or flat object — handle both | ✓ Good — defensive, no crashes on either shape |
 
 ---
-*Last updated: 2026-03-09 after v1.0 milestone*
+*Last updated: 2026-03-09 after v1.1 milestone started*
