@@ -1,8 +1,8 @@
-# Reconnect v2: Actionable PWA + Rich Email Reports
+# Reconnect: Actionable PWA + Rich Email Reports
 
 ## What This Is
 
-A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. Currently the pipeline, scoring, and data sync work — but the PWA is broken (hosted as static files on Supabase Storage, not deployed as a real site) and the email digest is read-only. This milestone makes the whole system usable end-to-end: a real PWA on Netlify for daily triage and deeper exploration, plus actionable email reports that let you act without leaving your inbox.
+A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (LaunchAgent @ 8AM) that scores contacts, generates an actionable email digest, and syncs data to a PWA where you can triage, review profiles, and track your outreach pipeline.
 
 ## Core Value
 
@@ -21,57 +21,75 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - ✓ Edge Functions for action tokens (approve/skip/snooze) — existing
 - ✓ Email digest HTML generation — existing
 - ✓ Streamlit admin UI (contacts, dashboard, review, opportunities) — existing
-- ✓ PWA code with hash-based router and offline support — existing (but not deployed)
+- ✓ PWA deployed on Netlify with SPA routing — v1.0
+- ✓ Service worker with root-relative paths for Netlify — v1.0
+- ✓ pwa_url config + all references updated to Netlify domain — v1.0
+- ✓ Gmail App Password + smtplib email sending — v1.0
+- ✓ Table-based email HTML for Gmail mobile compatibility — v1.0
+- ✓ 44px+ tap targets, 16px+ font in email — v1.0
+- ✓ Query parameter deep links surviving Gmail redirect chain — v1.0
+- ✓ LinkedIn direct link in email digest — v1.0
+- ✓ Yes auto-queues contact for outreach — v1.0
+- ✓ GET/POST split prevents Gmail scanner token consumption — v1.0
+- ✓ Contact profile with AI scoring rationale (5 dimensions) — v1.0
+- ✓ Professional context, connection strength, enrichment fields on profile — v1.0
+- ✓ Pipeline funnel view (imported → scored → reviewed → reached out → connected) — v1.0
+- ✓ Enrichment status view — v1.0
+- ✓ Feedback history view — v1.0
+- ✓ Deep link bridge (query params → hash route) — v1.0
 
 ### Active
 
-- [ ] PWA properly deployed on Netlify with custom domain/subdomain
-- [ ] PWA daily action hub: review today's queue, approve/skip/snooze contacts
-- [ ] PWA contact profile page showing enriched data, AI scoring rationale, and connection strength
-- [ ] PWA pipeline funnel view (imported → scored → reviewed → reached out → connected)
-- [ ] PWA enrichment status view (which contacts have full data vs. need enrichment)
-- [ ] PWA feedback history (past yes/no decisions, scoring accuracy over time)
-- [ ] Email digest with Yes/No/Skip action buttons per contact
-- [ ] Email "View full profile" links that open PWA contact detail page
-- [ ] Email "Open LinkedIn" direct links per contact
-- [ ] Email actions: "Yes" queues contact for outreach automatically
-- [ ] Email mobile-responsive design (triage on phone, follow up on desktop)
-- [ ] Netlify deployment configured correctly (pointing at `pwa/` directory from eg-connect repo)
+(None — next milestone requirements TBD via `/gsd:new-milestone`)
 
 ### Out of Scope
 
-- Native mobile app — PWA covers mobile use case
-- Real-time chat or messaging — not a communication tool
-- OAuth/social login for PWA — single-user tool, anon key is fine
-- Draft outreach from email — action hub handles drafts, email is for triage
-- Telegram notifications — email is the primary channel now
+- Native mobile app — PWA covers mobile use case via add-to-home-screen
+- Real-time chat or messaging — not a communication tool, surfaces who to reach out to
+- OAuth/social login for PWA — single-user tool, anon key + action tokens sufficient
+- Draft outreach from email — email is for triage only; drafts handled in PWA contact page
+- Contact import in PWA — import is a pipeline concern; keep in Python pipeline / Streamlit
+- Bulk actions — let "Never Suggest" per contact handle this
+- Push notifications — redundant with email (daily email IS the push notification)
+- Calendar integration — daily email is the reminder mechanism
+- Social graph visualization — impressive to demo, not useful in daily workflow
 
 ## Context
 
-- Existing Netlify account linked to `eg-connect` repo but pointing at wrong directory — needs reconfiguration to serve `pwa/`
-- PWA code exists in `pwa/` with hash-based routing, Supabase JS SDK, service worker — needs proper deployment and feature buildout
-- Email digest generates HTML but Gmail OAuth not configured — need to either configure Gmail or find alternative send method
-- Edge Functions already handle action tokens — email buttons can leverage existing `/functions/v1/action?token=UUID` pattern
-- User consumes email on both mobile and desktop — responsive design is critical
-- Scoring rationale (`score_reasoning` field) already exists on Connection model — needs surfacing in PWA and email
-- Data like enrichment status, connection strength, professional context already stored — needs proper UI presentation
+**Current State (post v1.0):**
+- ~6,200 LOC across Python (pipeline, sync, services), JavaScript (PWA), TypeScript (Edge Functions)
+- Tech stack: Python + SQLModel + SQLite (local), Supabase PostgreSQL + PostgREST + Edge Functions (cloud), Vanilla JS PWA on Netlify
+- All 18 v1.0 requirements shipped and verified
+- Pipeline runs daily via LaunchAgent, email digest lands in Gmail, PWA live on Netlify
+
+**Known Tech Debt:**
+- `src/ui/views/review.py` references removed OAuth functions — Streamlit admin UI crashes on import
+- `test_netlify_toml` test asserts no `command` but commit added echo build command
+- Edge Function uses relative path `/functions/v1/action` (works but brittle)
+- RLS status of Supabase tables unverified for public exposure
 
 ## Constraints
 
-- **Hosting**: PWA on Netlify (not Supabase Storage) — needs proper SPA routing and deployment
-- **Backend**: Keep Supabase for API/database/Edge Functions — Netlify is frontend only
-- **Email**: Must work in Gmail (mobile + desktop) — HTML email compatibility constraints
-- **Auth**: Single-user tool — no multi-tenant auth needed, anon key + action tokens sufficient
-- **Pipeline**: Don't break existing daily pipeline — additive changes only
+- **Hosting**: PWA on Netlify, backend on Supabase — no additional infra
+- **Email**: Must work in Gmail (mobile + desktop) — table-based HTML, no CSS flexbox
+- **Auth**: Single-user tool — anon key + action tokens, no multi-tenant auth
+- **Pipeline**: Daily batch (not real-time) — LaunchAgent @ 8AM
+- **Budget**: Minimal — free tiers of Netlify + Supabase
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Netlify for PWA hosting | Proper SPA deployment, custom domain, CI/CD — Supabase Storage can't do this | — Pending |
-| Email Yes auto-queues for outreach | Reduces friction — one tap to act, no extra steps | — Pending |
-| No draft outreach from email | Keep email simple (triage only), handle drafts in PWA | — Pending |
-| Profile page shows AI rationale | Transparency builds trust in scoring — user wants to know why | — Pending |
+| Netlify for PWA hosting | Proper SPA deployment, custom domain, CI/CD — Supabase Storage can't do SPA routing | ✓ Good — clean deploy, SPA redirect works |
+| Gmail App Password + smtplib | Replaces unconfigured OAuth flow — 330 lines → 60 lines, no client ID needed | ✓ Good — email sending works reliably |
+| GET/POST split on action Edge Function | Gmail scanners pre-fetch GET URLs — showing confirmation page on GET prevents token consumption | ✓ Good — scanner-safe, no false triggers |
+| Query parameter deep links (not hash fragments) | Hash fragments stripped by Gmail redirect chain — query params survive | ✓ Good — email → PWA profile navigation works |
+| Table-based email HTML | Gmail strips CSS flexbox on mobile — table role=presentation is bulletproof | ✓ Good — renders correctly on all clients |
+| Email Yes auto-queues for outreach | Reduces friction — one tap to act, no extra steps | ✓ Good — streamlines daily triage |
+| No draft outreach from email | Keep email simple (triage only), handle drafts in PWA | ✓ Good — clear separation of concerns |
+| Profile page shows AI rationale | Transparency builds trust in scoring — user wants to know why | ✓ Good — 5-dimension breakdown is actionable |
+| get_settings() at call time | Module-level singleton breaks monkeypatching — call-time pattern enables testing | ✓ Good — adopted across gmail.py and email_digest.py |
+| raw_enrichment dual-key unwrap | Enrichment pipeline returns nested `data` wrapper or flat object — handle both | ✓ Good — defensive, no crashes on either shape |
 
 ---
-*Last updated: 2026-03-08 after initialization*
+*Last updated: 2026-03-09 after v1.0 milestone*
