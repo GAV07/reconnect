@@ -58,7 +58,11 @@ Plans:
   3. The pipeline funnel view shows a count of contacts at each stage (imported → scored → reviewed → reached out → connected)
   4. The enrichment status view shows which contacts have full data and which need more enrichment
   5. Clicking an email deep link (e.g., `?view=contact&id=123`) opens the PWA and navigates to the correct contact page
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 03-01-PLAN.md — Backend data layer update (funnel counts in dashboard snapshot) + test scaffold
+- [ ] 03-02-PLAN.md — Contact profile sections (professional context, connection strength, enrichment status)
+- [ ] 03-03-PLAN.md — Dashboard funnel + enrichment status views + feedback history + deploy + human verify
 
 ## Progress
 
@@ -69,4 +73,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-09 |
 | 2. Email Reliability | 2/2 | Complete   | 2026-03-09 |
-| 3. PWA Feature Completeness | 0/TBD | Not started | - |
+| 3. PWA Feature Completeness | 0/3 | Not started | - |
