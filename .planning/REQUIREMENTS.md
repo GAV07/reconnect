@@ -9,7 +9,7 @@ Requirements for v1.1 Network Intelligence milestone. Each maps to roadmap phase
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: User can send daily email digest via Gmail OAuth using GCP JSON credentials
+- [x] **INFRA-01**: User can send daily email digest via Gmail OAuth using GCP JSON credentials
 - [x] **INFRA-02**: User can see accurate score breakdowns on contact profiles (all 5 dimensions show real values, not 0)
 
 ### Queue UX
@@ -68,7 +68,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 4 | Pending |
+| INFRA-01 | Phase 4 | Complete |
 | INFRA-02 | Phase 4 | Complete |
 | QUEUE-01 | Phase 4 | Complete |
 | QUEUE-02 | Phase 4 | Complete |

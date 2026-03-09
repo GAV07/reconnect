@@ -22,7 +22,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 **Milestone Goal:** Make the tool smarter about surfacing network insights, give users control over queue prioritization, and add AI-powered contact search — while fixing infra gaps and removing Streamlit.
 
-- [ ] **Phase 4: Foundation Fixes + Queue UX** - Fix score breakdown bug and add queue sort/filter controls
+- [x] **Phase 4: Foundation Fixes + Queue UX** - Fix score breakdown bug and add queue sort/filter controls (completed 2026-03-09)
 - [ ] **Phase 5: Dashboard Intelligence** - Health score insights and demographic charts across enriched contacts
 - [ ] **Phase 6: CLI + Gmail OAuth + Streamlit Removal** - Full CLI parity, Gmail OAuth send path, delete Streamlit
 
@@ -73,6 +73,6 @@ Plans:
 | 1. Infrastructure Foundations | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 2. Email Reliability | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
-| 4. Foundation Fixes + Queue UX | 2/3 | In Progress|  | - |
+| 4. Foundation Fixes + Queue UX | 3/3 | Complete   | 2026-03-09 | - |
 | 5. Dashboard Intelligence | v1.1 | 0/? | Not started | - |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Network Intelligence
-status: planning
-stopped_at: Completed 04-02-PLAN.md — Queue sort/filter controls live in PWA
-last_updated: "2026-03-09T18:25:00.000Z"
-last_activity: 2026-03-09 — Queue filter controls verified in PWA
+status: executing
+stopped_at: "Paused at Task 2 checkpoint: user must authorize Gmail OAuth via browser (04-03-PLAN.md)"
+last_updated: "2026-03-09T19:22:03.060Z"
+last_activity: 2026-03-09 — Plan 02 complete (queue sort/filter controls live in PWA)
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 67
 ---
 
@@ -45,6 +45,7 @@ Progress: [██████░░░░] 67%
 | 04 | 02 | 20 min | 2 | 2 |
 
 *Updated after each plan completion*
+| Phase 04 P03 | 1 | 1 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,9 @@ Recent decisions affecting current work:
 - [Phase 04-foundation-fixes-queue-ux]: TDD scaffold uses @pytest.mark.skip stubs for future plans so test file serves as VALIDATION mapping without CI failures
 - [Phase 04-02]: Sort field is reconnect_score (not priority_score) — priority_score is stale/legacy; reconnect_score is the live composite
 - [Phase 04-02]: Industry filter is client-side only — raw_enrichment is JSON, PostgREST cannot filter on nested JSON without a generated column
+- [Phase 04-03]: get_session imported at module level in gmail.py so tests can patch src.integrations.gmail.get_session directly
+- [Phase 04-03]: OAuth tokens stored in local GmailCredentials table only — never synced to Supabase (security boundary)
+- [Phase 04-03]: OAuth-first fallback: is_oauth_configured() checked before is_gmail_configured() in pipeline and email_digest
 
 ### Pending Todos
 
@@ -73,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T18:25:00.000Z
-Stopped at: Completed 04-02-PLAN.md — Queue sort/filter controls live in PWA
+Last session: 2026-03-09T19:22:03.059Z
+Stopped at: Paused at Task 2 checkpoint: user must authorize Gmail OAuth via browser (04-03-PLAN.md)
 Resume file: None
