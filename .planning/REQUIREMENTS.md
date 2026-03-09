@@ -18,10 +18,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **EMAIL-01**: Email digest sends via Gmail App Password + `smtplib` (replaces unconfigured OAuth flow)
 - [ ] **EMAIL-02**: Email card layout uses table-based HTML (not Flexbox) for Gmail mobile compatibility
 - [ ] **EMAIL-03**: Email action buttons are 44px+ tap targets with 600px max-width and 16px+ font
-- [ ] **EMAIL-04**: "View full profile" links use query parameters (`?view=contact&id=123`) that survive Gmail's redirect chain
+- [x] **EMAIL-04**: "View full profile" links use query parameters (`?view=contact&id=123`) that survive Gmail's redirect chain
 - [ ] **EMAIL-05**: "Open LinkedIn" direct link included per contact in email digest
-- [ ] **EMAIL-06**: "Yes" action auto-queues contact for outreach (no extra step needed)
-- [ ] **EMAIL-07**: Action Edge Function uses GET/POST split — GET shows confirmation page, POST executes action — preventing Gmail scanner token consumption
+- [x] **EMAIL-06**: "Yes" action auto-queues contact for outreach (no extra step needed)
+- [x] **EMAIL-07**: Action Edge Function uses GET/POST split — GET shows confirmation page, POST executes action — preventing Gmail scanner token consumption
 
 ### PWA Profile
 
@@ -79,10 +79,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EMAIL-01 | Phase 1 | Complete |
 | EMAIL-02 | Phase 2 | Pending |
 | EMAIL-03 | Phase 2 | Pending |
-| EMAIL-04 | Phase 2 | Pending |
+| EMAIL-04 | Phase 2 | Complete |
 | EMAIL-05 | Phase 2 | Pending |
-| EMAIL-06 | Phase 2 | Pending |
-| EMAIL-07 | Phase 2 | Pending |
+| EMAIL-06 | Phase 2 | Complete |
+| EMAIL-07 | Phase 2 | Complete |
 | PROFILE-01 | Phase 3 | Pending |
 | PROFILE-02 | Phase 3 | Pending |
 | PROFILE-03 | Phase 3 | Pending |
