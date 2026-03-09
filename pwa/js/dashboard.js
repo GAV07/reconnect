@@ -1,5 +1,129 @@
 /* Dashboard page — network health, opportunities, data quality */
 
+// Phase 5: Dashboard Intelligence sections
+
+function buildHealthBreakdownSection(breakdown) {
+  if (!breakdown || !breakdown.components) return '';
+
+  const components = breakdown.components;
+  const insights = breakdown.insights || [];
+
+  let html = '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">HEALTH INSIGHTS</h3>';
+
+  // Per-component insight rows
+  for (const [key, comp] of Object.entries(components)) {
+    if (!comp || !comp.insight) continue;
+    const v = comp.value || 0;
+    const color = v >= 70 ? 'var(--success)' : v >= 40 ? 'var(--warning)' : 'var(--danger)';
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:var(--text-secondary);">
+      <span style="width:8px; height:8px; border-radius:50%; background:${color}; flex-shrink:0;"></span>
+      ${escapeHtml(comp.insight)}
+    </div>`;
+  }
+
+  // Top-level suggestions box (max 2 items)
+  if (insights.length > 0) {
+    const topInsights = insights.slice(0, 2);
+    html += `<div style="background:var(--bg); border-radius:8px; padding:12px; margin-top:8px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:6px;">SUGGESTIONS</div>
+      ${topInsights.map(i => '<div style="font-size:13px; color:var(--text-secondary); padding:4px 0;">• ' + escapeHtml(i) + '</div>').join('')}
+    </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function buildIndustryDistributionSection(industries) {
+  if (!industries || industries.length === 0) return '';
+
+  // Separate known vs unknown
+  const known = industries.filter(i => i.industry !== 'Unknown');
+  const unknown = industries.filter(i => i.industry === 'Unknown');
+  const ordered = [...known, ...unknown];
+
+  const maxPct = ordered.length > 0 ? (ordered[0].pct || 1) : 1;
+
+  let html = '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">INDUSTRY (enriched contacts)</h3>';
+
+  for (const item of ordered) {
+    const isUnknown = item.industry === 'Unknown';
+    const barWidth = Math.round((item.pct / maxPct) * 100);
+    const labelStyle = isUnknown ? 'color:var(--text-muted);' : '';
+    html += `
+      <div class="funnel-stage">
+        <div class="funnel-label" style="width:140px; ${labelStyle}">${escapeHtml(item.industry)}</div>
+        <div class="funnel-bar"><div class="funnel-fill" style="width:${barWidth}%;${isUnknown ? ' opacity:0.5;' : ''}"></div></div>
+        <div class="funnel-count">${item.count} (${item.pct}%)</div>
+      </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function buildRoleSenioritySection(mix) {
+  if (!mix) return '';
+
+  let html = '';
+
+  // Top Roles sub-section
+  if (mix.roles && mix.roles.length > 0) {
+    const roles = mix.roles.slice(0, 8);
+    const maxCount = roles[0].count || 1;
+    html += '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">TOP ROLES</h3>';
+    for (const role of roles) {
+      const barWidth = Math.round((role.count / maxCount) * 100);
+      html += `
+        <div class="funnel-stage">
+          <div class="funnel-label">${escapeHtml(role.keyword)}</div>
+          <div class="funnel-bar"><div class="funnel-fill" style="width:${barWidth}%"></div></div>
+          <div class="funnel-count">${role.count}</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Seniority Mix sub-section
+  if (mix.seniority && mix.seniority.length > 0) {
+    const tiers = mix.seniority;
+    const maxCount = Math.max(...tiers.map(t => t.count)) || 1;
+    html += '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">SENIORITY MIX</h3>';
+    for (const tier of tiers) {
+      const barWidth = Math.round((tier.count / maxCount) * 100);
+      html += `
+        <div class="funnel-stage">
+          <div class="funnel-label">${escapeHtml(tier.tier)}</div>
+          <div class="funnel-bar"><div class="funnel-fill" style="width:${barWidth}%"></div></div>
+          <div class="funnel-count">${tier.count}</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function buildScoreTierSection(tiers) {
+  if (!tiers || tiers.length === 0) return '';
+
+  let html = '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">SCORE TIERS (scored contacts)</h3>';
+
+  for (const tier of tiers) {
+    const tierLower = (tier.tier || '').toLowerCase();
+    const barColor = tierLower.startsWith('high') ? 'var(--success)' : tierLower.startsWith('medium') ? 'var(--warning)' : 'var(--danger)';
+    html += `
+      <div class="funnel-stage">
+        <div class="funnel-label">${escapeHtml(tier.tier)}</div>
+        <div class="funnel-bar"><div class="funnel-fill" style="width:${tier.pct}%; background:${barColor};"></div></div>
+        <div class="funnel-count">${tier.count} (${tier.pct}%)</div>
+      </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
 function buildFunnelSection(quality) {
   const stages = [
     { label: 'Imported', count: quality.total_contacts || 0 },
@@ -138,6 +262,12 @@ async function renderDashboard(container) {
 
   // Enrichment Status (VIEW-02)
   html += buildEnrichmentStatusSection(quality);
+
+  // Phase 5: Dashboard Intelligence sections
+  html += buildHealthBreakdownSection(snapshot.health_breakdown || null);
+  html += buildIndustryDistributionSection(snapshot.industry_distribution || []);
+  html += buildRoleSenioritySection(snapshot.role_seniority_mix || null);
+  html += buildScoreTierSection(snapshot.score_tier_distribution || []);
 
   // Opportunity Alerts
   if (alerts.length > 0) {
