@@ -247,9 +247,46 @@ Respond in JSON format:
 Score each dimension honestly - most contacts will NOT max out every dimension. If there's no clear reason to reconnect, give low dimension scores and explain why."""
 
 
+def _load_weight_overrides() -> dict[str, float]:
+    """Load scoring weight multipliers from user preferences."""
+    from src.database.models import UserPreference
+
+    overrides = {}
+    try:
+        with get_session() as session:
+            from sqlmodel import select as sel
+            prefs = session.exec(
+                sel(UserPreference)
+                .where(UserPreference.pref_type == "scoring_weight")
+                .where(UserPreference.is_active == True)
+            ).all()
+            for pref in prefs:
+                try:
+                    overrides[pref.pref_key] = float(pref.pref_value)
+                except (ValueError, TypeError):
+                    pass
+    except Exception:
+        pass
+    return overrides
+
+
+def _apply_overrides(dimension_scores: dict[str, int], overrides: dict[str, float]) -> float:
+    """Apply weight overrides to dimension scores and return adjusted total."""
+    if not overrides:
+        return sum(dimension_scores.values())
+
+    total = 0.0
+    for dim, score in dimension_scores.items():
+        multiplier = overrides.get(dim, 1.0)
+        total += score * multiplier
+    return total
+
+
 def score_connection(connection_id: str) -> Optional[ScoreResult]:
     """
     Score a single connection using LLM.
+
+    Applies user preference weight overrides if available.
 
     Args:
         connection_id: UUID of the connection to score
@@ -259,6 +296,9 @@ def score_connection(connection_id: str) -> Optional[ScoreResult]:
     """
     if not settings.openai_api_key:
         return None
+
+    # Load weight overrides from user preferences
+    weight_overrides = _load_weight_overrides()
 
     with get_session() as session:
         connection = session.get(Connection, connection_id)
@@ -293,9 +333,9 @@ def score_connection(connection_id: str) -> Optional[ScoreResult]:
 
             dimension_scores = data.get("dimension_scores", {})
 
-            # Compute total from dimensions if available, otherwise use raw score
+            # Compute total from dimensions, applying weight overrides
             if dimension_scores:
-                computed_total = sum(dimension_scores.values())
+                computed_total = _apply_overrides(dimension_scores, weight_overrides)
             else:
                 computed_total = float(data.get("score", 0))
 
@@ -358,6 +398,69 @@ def score_connections_batch(
             progress_callback(i + 1, total)
 
     return results
+
+
+def find_contacts_missing_dimension_scores() -> list[str]:
+    """
+    Find contacts that have been scored and enriched but are missing dimension_scores.
+
+    These contacts were scored before the 5-dimension rubric was introduced, so their
+    score_reasoning JSON either lacks the 'dimension_scores' key or has an empty dict.
+    The fix is to re-score them with the current rubric.
+
+    Returns:
+        List of connection IDs that need rescoring (scored + enriched + broken dimension_scores).
+        Contacts with enriched_at=None are always excluded.
+    """
+    with get_session() as session:
+        from sqlmodel import select
+
+        query = (
+            select(Connection)
+            .where(Connection.reconnect_score.isnot(None))
+            .where(Connection.enriched_at.isnot(None))
+            .where(Connection.score_reasoning.isnot(None))
+        )
+        connections = session.exec(query).all()
+
+    missing = []
+    for conn in connections:
+        # Double-check enriched_at guard (handles mock objects that return truthy None)
+        if conn.enriched_at is None:
+            continue
+        try:
+            reasoning = json.loads(conn.score_reasoning)
+        except (json.JSONDecodeError, TypeError):
+            # Malformed JSON — skip rather than crash
+            continue
+
+        dimension_scores = reasoning.get("dimension_scores")
+        # Missing key or empty dict both indicate this contact needs rescoring
+        if not dimension_scores:
+            missing.append(conn.id)
+
+    return missing
+
+
+def rescore_missing_dimensions() -> dict:
+    """
+    Re-score all contacts that have missing or empty dimension_scores.
+
+    Identifies contacts via find_contacts_missing_dimension_scores() and passes
+    them to score_connections_batch() to update their score_reasoning with full
+    5-dimension breakdowns. This fixes the score breakdown display bug (INFRA-02)
+    where contact profile pages show 0 in all dimension bars.
+
+    Returns:
+        Dict with results: {"rescored": 0, "message": "..."} if nothing to do,
+        or score_connections_batch() result dict {"scored": N, "failed": N, "errors": [...]}
+    """
+    ids_to_rescore = find_contacts_missing_dimension_scores()
+
+    if not ids_to_rescore:
+        return {"rescored": 0, "message": "All contacts have dimension scores"}
+
+    return score_connections_batch(ids_to_rescore)
 
 
 def get_top_connections(limit: int = 20) -> list[tuple[Connection, dict]]:
