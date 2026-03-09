@@ -29,8 +29,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. All email links (View Profile, Open LinkedIn, action buttons) point to the Netlify domain, not Supabase Storage
 **Plans:** 2/2 plans complete
 Plans:
-- [ ] 01-01-PLAN.md — Config surgery + Gmail smtplib rewrite + test scaffold + package cleanup
-- [ ] 01-02-PLAN.md — Netlify deploy fix + service worker fix + email digest URL update + human verify
+- [x] 01-01-PLAN.md — Config surgery + Gmail smtplib rewrite + test scaffold + package cleanup
+- [x] 01-02-PLAN.md — Netlify deploy fix + service worker fix + email digest URL update + human verify
 
 ### Phase 2: Email Reliability
 **Goal**: Email actions work correctly in Gmail on mobile and desktop without trust-breaking failures
@@ -64,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-08 |
+| 1. Infrastructure Foundations | 2/2 | Complete   | 2026-03-09 |
 | 2. Email Reliability | 0/TBD | Not started | - |
 | 3. PWA Feature Completeness | 0/TBD | Not started | - |
