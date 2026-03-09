@@ -1,5 +1,103 @@
 /* Contact detail page — view enrichment data + generate drafts */
 
+function buildProfessionalContextSection(conn) {
+  const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+  const role = escapeHtml(conn.current_role || '');
+  const company = escapeHtml(conn.current_company || '');
+  const industry = escapeHtml(enrichment.company_industry || enrichment.companyIndustry || '');
+  const headline = escapeHtml(enrichment.headline || '');
+  const experiences = enrichment.experiences || enrichment.experience || [];
+  const prevRoles = experiences.slice(1, 3).map(e =>
+    escapeHtml(`${e.title || ''} at ${e.company || e.companyName || ''}`.trim())
+  );
+
+  let html = '<div class="detail-section"><h3>Professional Context</h3>';
+  if (role) html += `<div class="info-row"><span class="info-label">Role</span><span class="info-value">${role}</span></div>`;
+  if (company) html += `<div class="info-row"><span class="info-label">Company</span><span class="info-value">${company}</span></div>`;
+  if (industry) html += `<div class="info-row"><span class="info-label">Industry</span><span class="info-value">${industry}</span></div>`;
+  if (headline) html += `<div class="info-row"><span class="info-label">Headline</span><span class="info-value">${headline}</span></div>`;
+  if (prevRoles.length > 0) {
+    html += `<div class="info-row"><span class="info-label">Career Path</span><span class="info-value">${prevRoles.join(', ')}</span></div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function buildConnectionStrengthSection(conn) {
+  const messageCount = conn.message_count || 0;
+  const lastDate = conn.last_message_date
+    ? new Date(conn.last_message_date).toLocaleDateString()
+    : 'Never';
+  const status = escapeHtml(conn.conversation_status || 'unknown');
+  const engagementScore = conn.engagement_score != null ? Math.round(conn.engagement_score) : null;
+  const endorsementCount = conn.endorsement_count || 0;
+  const hasRecommendation = conn.has_recommendation || false;
+  const summary = conn.conversation_summary
+    ? escapeHtml(conn.conversation_summary.slice(0, 120))
+    : null;
+
+  let html = '<div class="detail-section"><h3>Connection Strength</h3>';
+  html += `<div class="info-row"><span class="info-label">Messages</span><span class="info-value">${messageCount}</span></div>`;
+  html += `<div class="info-row"><span class="info-label">Last Contact</span><span class="info-value">${lastDate}</span></div>`;
+  html += `<div class="info-row"><span class="info-label">Conversation</span><span class="info-value">${status}</span></div>`;
+  if (engagementScore != null) {
+    html += `<div class="info-row"><span class="info-label">Engagement</span><span class="info-value">${engagementScore}</span></div>`;
+  }
+  if (endorsementCount > 0) {
+    html += `<div class="info-row"><span class="info-label">Endorsements</span><span class="info-value">${endorsementCount}</span></div>`;
+  }
+  if (hasRecommendation) {
+    html += `<div class="info-row"><span class="info-label">Recommendation</span><span class="info-value">Yes</span></div>`;
+  }
+  if (summary) {
+    html += `<div class="info-row"><span class="info-label">Summary</span><span class="info-value">${summary}</span></div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function buildEnrichmentSection(conn) {
+  const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+  const location = escapeHtml(conn.location || enrichment.location || '');
+  const headline = escapeHtml(enrichment.headline || '');
+  const emailStatus = conn.email ? 'Available' : 'Missing';
+  const linkedinUrl = conn.linkedin_url || '';
+  const completeness = conn.data_completeness_score;
+  const missingFields = conn.missing_data_fields;
+  const enrichedAt = conn.enriched_at
+    ? new Date(conn.enriched_at).toLocaleDateString()
+    : null;
+
+  let chipHtml = '';
+  if (completeness != null) {
+    const pct = Math.round(completeness);
+    let color;
+    if (pct >= 80) color = 'var(--success)';
+    else if (pct >= 50) color = 'var(--warning)';
+    else color = 'var(--danger)';
+    chipHtml = `<span class="enrichment-chip" style="background: ${color}20; color: ${color}">${pct}% Complete</span>`;
+  }
+
+  let html = '<div class="detail-section"><h3>Enrichment Status</h3>';
+  if (chipHtml) html += `<div class="info-row"><span class="info-label">Completeness</span><span class="info-value">${chipHtml}</span></div>`;
+  if (location) html += `<div class="info-row"><span class="info-label">Location</span><span class="info-value">${location}</span></div>`;
+  if (headline) html += `<div class="info-row"><span class="info-label">Headline</span><span class="info-value">${headline}</span></div>`;
+  html += `<div class="info-row"><span class="info-label">Email</span><span class="info-value">${emailStatus}</span></div>`;
+  if (linkedinUrl) {
+    html += `<div class="info-row"><span class="info-label">LinkedIn</span><span class="info-value"><a href="${escapeHtml(linkedinUrl)}" target="_blank">Connected</a></span></div>`;
+  } else {
+    html += `<div class="info-row"><span class="info-label">LinkedIn</span><span class="info-value">Not linked</span></div>`;
+  }
+  if (missingFields && missingFields.length > 0) {
+    html += `<div class="info-row"><span class="info-label">Missing</span><span class="info-value">${escapeHtml(missingFields.join(', '))}</span></div>`;
+  }
+  if (enrichedAt) {
+    html += `<div class="info-row"><span class="info-label">Enriched</span><span class="info-value">${enrichedAt}</span></div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 async function renderContact(container, connectionId) {
   if (!db || !connectionId) {
     container.innerHTML = '<div class="empty-state"><p>Contact not found.</p></div>';
@@ -135,6 +233,9 @@ async function renderContact(container, connectionId) {
 
       ${hooksHtml}
       ${factorsHtml}
+      ${buildProfessionalContextSection(conn)}
+      ${buildConnectionStrengthSection(conn)}
+      ${buildEnrichmentSection(conn)}
       ${draftHtml}
       ${linksHtml}
 
