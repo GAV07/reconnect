@@ -14,11 +14,10 @@ async function renderQueue(container) {
     return;
   }
 
-  // Dynamic query builder — QUEUE-01/02: sort and status are server-side
+  // Dynamic query builder — status is server-side, sort is client-side (uses reconnect_score from connections)
   let query = db
     .from('outreach_queue')
-    .select('*, connections(*)')
-    .order('priority_score', { ascending: queueFilters.sortAscending });
+    .select('*, connections(*)');
 
   if (queueFilters.statusFilter) {
     query = query.eq('status', queueFilters.statusFilter);
@@ -31,6 +30,15 @@ async function renderQueue(container) {
     console.error('Queue fetch error:', error);
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Failed to load queue.</p></div>';
     return;
+  }
+
+  // Sort by reconnect_score from the joined connection (matches what's displayed)
+  if (items) {
+    items.sort((a, b) => {
+      const scoreA = a.connections?.reconnect_score || a.connections?.pre_score || 0;
+      const scoreB = b.connections?.reconnect_score || b.connections?.pre_score || 0;
+      return queueFilters.sortAscending ? scoreA - scoreB : scoreB - scoreA;
+    });
   }
 
   // QUEUE-03: Client-side industry filter on raw_enrichment
