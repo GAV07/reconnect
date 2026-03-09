@@ -533,6 +533,53 @@ body {
 .mb-4 { margin-bottom: 16px; }
 .hidden { display: none; }
 
+/* Queue filter bar */
+.queue-filters {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.queue-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.queue-filters label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #666);
+  font-weight: 600;
+}
+.queue-filters select,
+.queue-filters .sort-toggle {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.queue-filters select:focus {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: 1px;
+}
+.card-status-badge {
+  display: inline-block;
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.status-approved { background: #dcfce7; color: #166534; }
+.status-sent { background: #dbeafe; color: #1e40af; }
+.status-skipped { background: #f3f4f6; color: #6b7280; }
+.status-pending_review { background: #fef3c7; color: #92400e; }
+
 /* Responsive — larger screens get some padding */
 @media (min-width: 481px) {
   .app-shell {
