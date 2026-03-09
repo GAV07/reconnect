@@ -1,5 +1,53 @@
 /* Dashboard page — network health, opportunities, data quality */
 
+function buildFunnelSection(quality) {
+  const stages = [
+    { label: 'Imported', count: quality.total_contacts || 0 },
+    { label: 'Scored', count: quality.scored || 0 },
+    { label: 'Reviewed', count: quality.reviewed || 0 },
+    { label: 'Reached Out', count: quality.reached_out || 0 },
+    { label: 'Connected', count: quality.connected || 0 },
+  ];
+  const max = stages[0].count || 1;
+
+  let html = '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">PIPELINE FUNNEL</h3>';
+  for (const stage of stages) {
+    const pct = Math.round((stage.count / max) * 100);
+    html += `
+      <div class="funnel-stage">
+        <div class="funnel-label">${stage.label}</div>
+        <div class="funnel-bar"><div class="funnel-fill" style="width:${pct}%"></div></div>
+        <div class="funnel-count">${stage.count}</div>
+      </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function buildEnrichmentStatusSection(quality) {
+  const enriched = quality.enriched || 0;
+  const needEnrichment = quality.need_enrichment || 0;
+  const total = quality.total_contacts || 0;
+  const enrichedPct = quality.enriched_pct || 0;
+
+  let html = '<div class="detail-section mt-4"><h3 style="font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">ENRICHMENT STATUS</h3>';
+  html += '<div class="metric-grid">';
+  html += `<div class="metric-card"><div class="metric-label">Enriched</div><div class="metric-value" style="color: var(--success);">${enriched}</div><div class="metric-sub">${enrichedPct}% of ${total}</div></div>`;
+  html += `<div class="metric-card"><div class="metric-label">Need Enrichment</div><div class="metric-value" style="color: ${needEnrichment > 0 ? 'var(--warning)' : 'var(--success)'};">${needEnrichment}</div><div class="metric-sub">${total > 0 ? Math.round((needEnrichment / total) * 100) : 0}% of ${total}</div></div>`;
+  html += '</div>';
+
+  // Email coverage sub-section
+  const hasEmail = quality.has_email || 0;
+  const needEmail = quality.need_email || 0;
+  html += '<div class="metric-grid" style="margin-top: 12px;">';
+  html += `<div class="metric-card"><div class="metric-label">Have Email</div><div class="metric-value">${hasEmail}</div><div class="metric-sub">${quality.email_pct || 0}%</div></div>`;
+  html += `<div class="metric-card"><div class="metric-label">Need Email</div><div class="metric-value">${needEmail}</div></div>`;
+  html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
 async function renderDashboard(container) {
   if (!db) {
     container.innerHTML = '<div class="empty-state"><p>Supabase not configured.</p></div>';
@@ -84,6 +132,12 @@ async function renderDashboard(container) {
         </div>
       </div>
     </div>`;
+
+  // Pipeline Funnel (VIEW-01)
+  html += buildFunnelSection(quality);
+
+  // Enrichment Status (VIEW-02)
+  html += buildEnrichmentStatusSection(quality);
 
   // Opportunity Alerts
   if (alerts.length > 0) {
