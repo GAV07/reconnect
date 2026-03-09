@@ -40,12 +40,9 @@ def test_gmail_config_fields(mock_settings):
 
 
 def test_netlify_toml():
-    """netlify.toml has no build command and has SPA redirect rule.
-
-    NOTE: This test will fail until Plan 02 creates netlify.toml correctly.
-    """
+    """netlify.toml publishes pwa/ dir and has SPA redirect rule."""
     content = open("netlify.toml").read()
-    assert "command" not in content, "netlify.toml should not have a build command"
+    assert 'publish = "pwa"' in content, "netlify.toml must publish pwa/ directory"
     assert 'from = "/*"' in content, "netlify.toml must have SPA redirect rule"
 
 
