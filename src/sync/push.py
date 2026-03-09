@@ -8,13 +8,16 @@ from sqlmodel import Session, SQLModel, select
 
 from src.database.engine import init_db
 from src.database.models import (
+    ActionToken,
     Connection,
+    DashboardSnapshot,
     EngagementSignal,
-    GmailCredentials,
     OutreachLog,
     OutreachQueueItem,
     SyncMetadata,
     UserContent,
+    UserFeedback,
+    UserPreference,
     UserProfile,
 )
 from src.sync.engines import get_cloud_engine, get_local_engine
@@ -37,6 +40,8 @@ CONNECTION_SYNC_FIELDS = [
     # Engagement fields
     "engagement_score", "last_engagement_date", "engagement_direction",
     "endorsement_count", "has_recommendation",
+    # PWA overhaul fields
+    "user_priority", "data_completeness_score", "missing_data_fields",
 ]
 
 
@@ -96,9 +101,12 @@ def push_to_cloud() -> dict[str, Any]:
         "connections": 0,
         "queue_items": 0,
         "outreach_logs": 0,
-        "gmail_credentials": 0,
         "engagement_signals": 0,
         "user_content": 0,
+        "action_tokens": 0,
+        "user_feedback": 0,
+        "user_preferences": 0,
+        "dashboard_snapshots": 0,
     }
 
     # Get last push timestamp from local DB
@@ -172,13 +180,7 @@ def push_to_cloud() -> dict[str, Any]:
                     _upsert_record(cloud_session, OutreachLog, data)
                     stats["outreach_logs"] += 1
 
-            # 5. Push GmailCredentials (needed for sending from cloud)
-            with Session(local_engine, expire_on_commit=False) as local_session:
-                creds = local_session.get(GmailCredentials, 1)
-                if creds:
-                    data = _record_to_dict(creds)
-                    _upsert_record(cloud_session, GmailCredentials, data)
-                    stats["gmail_credentials"] = 1
+            # 5. GmailCredentials removed -- OAuth tokens stay local only (security)
 
             # 6. Push EngagementSignals
             with Session(local_engine, expire_on_commit=False) as local_session:
@@ -203,6 +205,42 @@ def push_to_cloud() -> dict[str, Any]:
                     data = _record_to_dict(content)
                     _upsert_record(cloud_session, UserContent, data)
                     stats["user_content"] += 1
+
+            # 8. Push ActionTokens (new, unexpired)
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(ActionToken)
+                if last_push_at:
+                    query = query.where(ActionToken.created_at > last_push_at)
+                tokens = local_session.exec(query).all()
+
+                for token in tokens:
+                    data = _record_to_dict(token)
+                    _upsert_record(cloud_session, ActionToken, data, pk_field="token")
+                    stats["action_tokens"] += 1
+
+            # 9. Push UserPreferences
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(UserPreference)
+                if last_push_at:
+                    query = query.where(UserPreference.created_at > last_push_at)
+                prefs = local_session.exec(query).all()
+
+                for pref in prefs:
+                    data = _record_to_dict(pref)
+                    _upsert_record(cloud_session, UserPreference, data)
+                    stats["user_preferences"] += 1
+
+            # 10. Push DashboardSnapshots
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(DashboardSnapshot)
+                if last_push_at:
+                    query = query.where(DashboardSnapshot.created_at > last_push_at)
+                snapshots = local_session.exec(query).all()
+
+                for snapshot in snapshots:
+                    data = _record_to_dict(snapshot)
+                    _upsert_record(cloud_session, DashboardSnapshot, data)
+                    stats["dashboard_snapshots"] += 1
 
             cloud_session.commit()
 

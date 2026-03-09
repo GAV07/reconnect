@@ -184,27 +184,97 @@ class TestInfra02ScoreBreakdown:
 
 
 # ---------------------------------------------------------------------------
-# INFRA-01: Gmail OAuth configuration stubs
-# (implemented in plan 02)
+# INFRA-01: Gmail OAuth configuration (implemented in plan 03)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Implemented in plan 02")
 def test_oauth_not_configured():
     """is_oauth_configured() returns False when no GmailCredentials row exists."""
-    pass
+    from contextlib import contextmanager
+
+    @contextmanager
+    def mock_get_session_none():
+        session = MagicMock()
+        session.get.return_value = None
+        yield session
+
+    with patch("src.integrations.gmail.get_session", mock_get_session_none):
+        from src.integrations.gmail import is_oauth_configured
+        result = is_oauth_configured()
+
+    assert result is False, "is_oauth_configured() must return False when no GmailCredentials row"
 
 
-@pytest.mark.skip(reason="Implemented in plan 02")
 def test_oauth_send_email_mock():
     """oauth_send_html_email() calls Gmail API with base64-encoded MIMEMultipart."""
-    pass
+    mock_creds = MagicMock()
+    mock_creds.expired = False
+
+    mock_message = MagicMock()
+    mock_message.execute.return_value = {"id": "msg-123"}
+
+    mock_messages = MagicMock()
+    mock_messages.send.return_value = mock_message
+
+    mock_users = MagicMock()
+    mock_users.messages.return_value = mock_messages
+
+    mock_service = MagicMock()
+    mock_service.users.return_value = mock_users
+
+    with patch("src.integrations.gmail._load_oauth_credentials", return_value=mock_creds):
+        with patch("src.integrations.gmail.build", return_value=mock_service):
+            from src.integrations.gmail import oauth_send_html_email
+            result = oauth_send_html_email("to@test.com", "Subject", "<h1>Test</h1>")
+
+    # Assert send was called with userId='me' and a body dict containing 'raw'
+    send_call = mock_messages.send.call_args
+    assert send_call is not None, "service.users().messages().send() was not called"
+    call_kwargs = send_call.kwargs if send_call.kwargs else {}
+    call_args = send_call.args if send_call.args else ()
+    # send(userId='me', body={'raw': ...})
+    # kwargs may be positional in some mock setups — check all
+    all_args = {**{str(i): v for i, v in enumerate(call_args)}, **call_kwargs}
+    assert "userId" in all_args or "me" in str(all_args), (
+        f"send() must be called with userId='me', got: {send_call}"
+    )
+    body_arg = all_args.get("body") or all_args.get("1")
+    assert body_arg is not None and "raw" in (body_arg if isinstance(body_arg, dict) else {}), (
+        f"send() must be called with body dict containing 'raw' key, got: {body_arg}"
+    )
+    assert result["sent"] is True
+    assert result["message_id"] == "msg-123"
 
 
-@pytest.mark.skip(reason="Implemented in plan 02")
 def test_no_gmail_creds_in_push():
-    """push_to_cloud() does NOT include gmail_credentials in sync payload."""
-    pass
+    """push_to_cloud() does NOT include gmail_credentials in sync payload.
+
+    Reads the push.py source to verify GmailCredentials is not imported
+    and gmail_credentials is not in the stats dict initialization.
+    """
+    import pathlib
+    import re
+
+    push_source = pathlib.Path("/Users/gavin/Developer/reconnect/src/sync/push.py").read_text()
+
+    # Check GmailCredentials is not imported (must not appear in an import statement)
+    import_lines = [
+        line for line in push_source.splitlines()
+        if line.strip().startswith("from ") or line.strip().startswith("import ")
+    ]
+    import_block = "\n".join(import_lines)
+    assert "GmailCredentials" not in import_block, (
+        "GmailCredentials should be removed from push.py import statements (security: tokens stay local)"
+    )
+
+    # Check gmail_credentials is not in stats dict initialization (no active key, only comments OK)
+    active_stats_lines = [
+        line for line in push_source.splitlines()
+        if '"gmail_credentials"' in line and not line.strip().startswith("#")
+    ]
+    assert len(active_stats_lines) == 0, (
+        f"gmail_credentials key should be removed from stats dict in push.py, found: {active_stats_lines}"
+    )
 
 
 # ---------------------------------------------------------------------------

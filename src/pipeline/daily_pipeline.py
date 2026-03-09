@@ -228,6 +228,66 @@ def run_daily_pipeline(
                 run.completed_at = datetime.utcnow()
                 session.add(run)
 
+        # Step 7: Compute data completeness scores
+        try:
+            from src.llm.data_analyzer import analyze_all_connections
+
+            completeness_result = analyze_all_connections()
+            results["data_completeness"] = completeness_result
+            steps_completed.append("data_completeness")
+        except Exception as dc_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Data completeness analysis failed (non-fatal): %s", dc_error
+            )
+            results["data_completeness"] = {"error": str(dc_error)}
+
+        # Step 8: Process feedback signals → update scoring weights
+        try:
+            from src.pipeline.feedback_processor import process_feedback
+
+            feedback_result = process_feedback()
+            results["feedback"] = feedback_result
+            steps_completed.append("feedback")
+        except Exception as fb_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Feedback processing failed (non-fatal): %s", fb_error
+            )
+            results["feedback"] = {"error": str(fb_error)}
+
+        # Step 9: Plan tomorrow's enrichment budget
+        try:
+            from src.pipeline.enrichment_planner import plan_enrichment
+
+            enrichment_plan = plan_enrichment()
+            results["enrichment_plan"] = enrichment_plan
+            steps_completed.append("enrichment_plan")
+        except Exception as ep_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Enrichment planning failed (non-fatal): %s", ep_error
+            )
+            results["enrichment_plan"] = {"error": str(ep_error)}
+
+        # Step 10: Compute and save dashboard snapshot
+        try:
+            from src.services.dashboard_service import (
+                compute_dashboard_snapshot,
+                save_dashboard_snapshot,
+            )
+
+            snapshot = compute_dashboard_snapshot()
+            save_dashboard_snapshot(snapshot)
+            results["dashboard_snapshot"] = {"computed": True}
+            steps_completed.append("dashboard_snapshot")
+        except Exception as ds_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Dashboard snapshot failed (non-fatal): %s", ds_error
+            )
+            results["dashboard_snapshot"] = {"error": str(ds_error)}
+
         # Optional: sync to cloud if Supabase is configured
         if settings.supabase_db_url:
             try:
@@ -252,11 +312,12 @@ def run_daily_pipeline(
                 )
                 results["sync"] = {"error": str(sync_error)}
 
-        # Send email digest (non-fatal)
+        # Send email digest (non-fatal) -- OAuth first, App Password fallback
         from src.integrations.email_digest import send_digest_email
-        from src.integrations.gmail import is_gmail_configured
+        from src.integrations.gmail import is_gmail_configured, is_oauth_configured
 
-        if is_gmail_configured():
+        email_configured = is_oauth_configured() or is_gmail_configured()
+        if email_configured:
             try:
                 digest_result = send_digest_email(results)
                 results["email_digest"] = digest_result
@@ -264,7 +325,6 @@ def run_daily_pipeline(
                     steps_completed.append("email_digest")
             except Exception as digest_error:
                 import logging
-
                 logging.getLogger(__name__).warning(
                     "Email digest failed (non-fatal): %s", digest_error
                 )

@@ -333,10 +333,16 @@ def send_digest_email(pipeline_results: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Dict with sent status, recipient, and contact count
     """
-    from src.integrations.gmail import get_user_email, is_gmail_configured, send_html_email
+    from src.integrations.gmail import (
+        get_user_email,
+        is_gmail_configured,
+        is_oauth_configured,
+        oauth_send_html_email,
+        send_html_email,
+    )
     settings = get_settings()
 
-    if not is_gmail_configured():
+    if not is_oauth_configured() and not is_gmail_configured():
         return {"sent": False, "reason": "Gmail not configured"}
 
     # Determine recipient
@@ -368,7 +374,10 @@ def send_digest_email(pipeline_results: dict[str, Any]) -> dict[str, Any]:
     html_body = _build_digest_html(contacts, pipeline_results, top_n)
 
     try:
-        result = send_html_email(recipient, subject, html_body)
+        if is_oauth_configured():
+            result = oauth_send_html_email(recipient, subject, html_body)
+        else:
+            result = send_html_email(recipient, subject, html_body)
         return {
             "sent": True,
             "recipient": recipient,
