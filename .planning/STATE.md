@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: verifying
 stopped_at: Completed 02-01-PLAN.md (email card table layout, tap targets, deep links — all 5 tests pass)
-last_updated: "2026-03-09T01:23:46.016Z"
+last_updated: "2026-03-09T03:10:38.172Z"
 last_activity: 2026-03-09 — Completed 02-02 (GET/POST split on action Edge Function, PWA deep link bridge — human-verify pending)
 progress:
   total_phases: 3
