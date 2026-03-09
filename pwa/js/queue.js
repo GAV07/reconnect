@@ -54,7 +54,8 @@ async function renderQueue(container) {
       : '';
 
     html += `
-      <div class="queue-card" data-item-id="${item.id}" data-connection-id="${conn.id}">
+      <div class="queue-card" data-item-id="${item.id}" data-connection-id="${conn.id}"
+           onclick="if(event.target.closest('.card-actions'))return; navigate('#/contact/${conn.id}')" style="cursor:pointer;">
         <div class="card-header">
           <div>
             <div class="name">${nameHtml}</div>
@@ -113,7 +114,13 @@ async function queueAction(itemId, connectionId, action) {
       queueOfflineAction({ itemId, connectionId, action, timestamp: Date.now() });
     }
 
-    // Remove card from DOM
+    // If approve, navigate to contact detail for draft generation
+    if (action === 'approve') {
+      navigate(`#/contact/${connectionId}?queue_item=${itemId}`);
+      return;
+    }
+
+    // Remove card from DOM (only for skip/snooze — approve navigates away)
     card.style.transition = 'all 0.3s ease';
     card.style.maxHeight = '0';
     card.style.overflow = 'hidden';
@@ -121,7 +128,8 @@ async function queueAction(itemId, connectionId, action) {
     card.style.margin = '0';
     setTimeout(() => {
       card.remove();
-      // Update count
+      // Only update DOM if still on queue page
+      if (!window.location.hash.includes('/queue') && window.location.hash !== '' && window.location.hash !== '#/queue') return;
       const remaining = document.querySelectorAll('.queue-card').length;
       const headerSub = document.querySelector('.app-header .subtitle');
       if (headerSub) headerSub.textContent = remaining > 0 ? `${remaining} contacts to review` : 'Queue cleared!';
@@ -133,11 +141,6 @@ async function queueAction(itemId, connectionId, action) {
           </div>`;
       }
     }, 300);
-
-    // If approve, navigate to contact detail for draft generation
-    if (action === 'approve') {
-      navigate(`#/contact/${connectionId}?queue_item=${itemId}`);
-    }
   } catch (err) {
     console.error('Action error:', err);
     card.style.opacity = '1';
