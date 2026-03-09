@@ -3,6 +3,7 @@ phase: 02-email-reliability
 plan: 01
 subsystem: email
 tags: [email, html, mobile, gmail, tap-targets, table-layout, tdd]
+requirements_completed: [EMAIL-02, EMAIL-03, EMAIL-04, EMAIL-05, EMAIL-06]
 
 # Dependency graph
 requires:

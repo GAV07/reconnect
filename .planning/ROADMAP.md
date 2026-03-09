@@ -45,7 +45,7 @@ Plans:
   6. Gmail scanner pre-fetching the action URL does not consume the token or execute the action prematurely
 **Plans:** 2/2 plans complete
 Plans:
-- [ ] 02-01-PLAN.md — Table-based email card HTML rewrite + tap targets + profile deep links + LinkedIn buttons
+- [x] 02-01-PLAN.md — Table-based email card HTML rewrite + tap targets + profile deep links + LinkedIn buttons
 - [x] 02-02-PLAN.md — Edge Function GET/POST split + PWA deep link bridge + production deploy (deployed, awaiting human-verify)
 
 ### Phase 3: PWA Feature Completeness
@@ -60,8 +60,8 @@ Plans:
   5. Clicking an email deep link (e.g., `?view=contact&id=123`) opens the PWA and navigates to the correct contact page
 **Plans:** 3/3 plans complete
 Plans:
-- [ ] 03-01-PLAN.md — Backend data layer update (funnel counts in dashboard snapshot) + test scaffold
-- [ ] 03-02-PLAN.md — Contact profile sections (professional context, connection strength, enrichment status)
+- [x] 03-01-PLAN.md — Backend data layer update (funnel counts in dashboard snapshot) + test scaffold
+- [x] 03-02-PLAN.md — Contact profile sections (professional context, connection strength, enrichment status)
 - [ ] 03-03-PLAN.md — Dashboard funnel + enrichment status views + feedback history + deploy + human verify
 
 ## Progress

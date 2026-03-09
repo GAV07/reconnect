@@ -3,6 +3,7 @@ phase: 01-infrastructure-foundations
 plan: "01"
 subsystem: infra
 tags: [gmail, smtplib, pytest, config, email]
+requirements_completed: [EMAIL-01, DEPLOY-03]
 
 # Dependency graph
 requires: []

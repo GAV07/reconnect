@@ -3,6 +3,7 @@ phase: 03-pwa-feature-completeness
 plan: "03"
 subsystem: ui
 tags: [pwa, javascript, dashboard, feedback, queue, vanilla-js, netlify]
+requirements_completed: [VIEW-01, VIEW-02, VIEW-03]
 
 # Dependency graph
 requires:

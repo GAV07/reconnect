@@ -3,6 +3,7 @@ phase: 03-pwa-feature-completeness
 plan: 01
 subsystem: testing, database
 tags: [pytest, sqlmodel, dashboard, funnel, tdd, monkeypatch]
+requirements_completed: [VIEW-01, VIEW-02]
 
 # Dependency graph
 requires:

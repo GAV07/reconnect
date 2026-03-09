@@ -3,6 +3,7 @@ phase: 02-email-reliability
 plan: "02"
 subsystem: api
 tags: [supabase, edge-functions, deno, pwa, vanilla-js, email]
+requirements_completed: [EMAIL-07, VIEW-04]
 
 # Dependency graph
 requires:

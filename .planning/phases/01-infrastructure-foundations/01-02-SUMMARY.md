@@ -3,6 +3,7 @@ phase: 01-infrastructure-foundations
 plan: 02
 subsystem: infra
 tags: [netlify, pwa, service-worker, email-digest, edge-functions]
+requirements_completed: [DEPLOY-01, DEPLOY-02, DEPLOY-03]
 
 # Dependency graph
 requires:
