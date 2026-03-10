@@ -67,7 +67,10 @@ Plans:
   2. `streamlit` and `plotly` are removed from requirements.txt and `src/ui/` is deleted
   3. Running `reconnect --help` shows all available subcommands with descriptions
   4. LaunchAgent runs daily pipeline via `reconnect pipeline run` without Streamlit dependency
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 06-01-PLAN.md — Build CLI with Click (all command groups, entry point, tests)
+- [ ] 06-02-PLAN.md — Delete Streamlit/scripts, clean references, update LaunchAgent
 
 ## Progress
 
@@ -78,4 +81,4 @@ Plans:
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | 2/2 | Complete   | 2026-03-09 | - |
-| 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/? | Not started | - |
+| 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 0/2 | Not started | - |
