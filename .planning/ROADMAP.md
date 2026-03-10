@@ -24,7 +24,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 - [x] **Phase 4: Foundation Fixes + Queue UX** - Fix score breakdown bug and add queue sort/filter controls (completed 2026-03-09)
 - [x] **Phase 5: Dashboard Intelligence** - Health score insights and demographic charts across enriched contacts (completed 2026-03-09)
-- [ ] **Phase 6: CLI + Gmail OAuth + Streamlit Removal** - Full CLI parity, Gmail OAuth send path, delete Streamlit
+- [x] **Phase 6: CLI + Gmail OAuth + Streamlit Removal** - Full CLI parity, Gmail OAuth send path, delete Streamlit (completed 2026-03-10)
 
 ## Phase Details
 
@@ -81,4 +81,4 @@ Plans:
 | 3. PWA Feature Completeness | v1.0 | 3/3 | Complete | 2026-03-09 |
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | 2/2 | Complete   | 2026-03-09 | - |
-| 6. CLI + Gmail OAuth + Streamlit Removal | 1/2 | In Progress|  | - |
+| 6. CLI + Gmail OAuth + Streamlit Removal | 2/2 | Complete   | 2026-03-10 | - |
