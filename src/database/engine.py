@@ -19,7 +19,7 @@ def _create_local_engine() -> Engine:
         url,
         echo=settings.debug,
         connect_args={
-            "check_same_thread": False,  # Required for Streamlit
+            "check_same_thread": False,  # Allow multi-thread access
             "timeout": 30,  # Busy timeout
         },
     )

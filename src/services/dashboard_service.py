@@ -1,4 +1,4 @@
-"""Dashboard computation service — shared by pipeline and Streamlit.
+"""Dashboard computation service — shared by pipeline and PWA.
 
 Computes network health, opportunity alerts, feedback insights, and
 data quality metrics. Pipeline pushes results to Supabase as a
