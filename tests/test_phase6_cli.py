@@ -6,6 +6,7 @@ Uses CliRunner to invoke commands without subprocess overhead.
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -245,3 +246,47 @@ def test_reset_queue_function():
     assert mock_item_2.status == "skipped"
     assert mock_item_1.skip_reason == "Queue reset via CLI"
     assert mock_item_2.skip_reason == "Queue reset via CLI"
+
+
+# ── CLI-02 Static cleanup verification ───────────────────────────────────────
+
+
+def test_no_streamlit_imports():
+    """CLI-02: No streamlit imports anywhere in src/ (src/ui/ is deleted)."""
+    result = subprocess.run(
+        ["grep", "-r", "streamlit", "src/"],
+        capture_output=True, text=True,
+        cwd="/Users/gavin/Developer/reconnect"
+    )
+    assert result.returncode != 0, f"Found streamlit references:\n{result.stdout}"
+
+
+def test_no_plotly_imports():
+    """CLI-02: No plotly imports anywhere in src/."""
+    result = subprocess.run(
+        ["grep", "-r", "plotly", "src/"],
+        capture_output=True, text=True,
+        cwd="/Users/gavin/Developer/reconnect"
+    )
+    assert result.returncode != 0, f"Found plotly references:\n{result.stdout}"
+
+
+def test_ui_deleted():
+    """CLI-02: src/ui/ directory does not exist."""
+    assert not os.path.exists("/Users/gavin/Developer/reconnect/src/ui"), "src/ui/ still exists"
+
+
+def test_scripts_deleted():
+    """CLI-02: scripts/ directory does not exist."""
+    assert not os.path.exists("/Users/gavin/Developer/reconnect/scripts"), "scripts/ still exists"
+
+
+def test_launchagent_uses_cli():
+    """CLI-02: LaunchAgent plist calls reconnect CLI binary directly."""
+    plist_path = os.path.expanduser(
+        "~/Library/LaunchAgents/com.reconnect.daily-pipeline.plist"
+    )
+    with open(plist_path) as f:
+        content = f.read()
+    assert ".venv/bin/reconnect" in content, "LaunchAgent not updated to CLI binary"
+    assert "run_scheduled.sh" not in content, "LaunchAgent still references old shell script"
