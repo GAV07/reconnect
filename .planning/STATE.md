@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Network Intelligence
-status: completed
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-09T23:49:40.490Z"
-last_activity: 2026-03-09 — Plan 03 complete (Gmail OAuth authorized, INFRA-01 satisfied)
+status: in_progress
+stopped_at: "Completed 06-01-PLAN.md"
+last_updated: "2026-03-10T00:12:00Z"
+last_activity: 2026-03-10 — Plan 01 complete (CLI built, CLI-01 satisfied)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 67
+  total_plans: 7
+  completed_plans: 6
+  percent: 78
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Phase 4 — Foundation Fixes + Queue UX
+**Current focus:** Phase 6 — CLI + Gmail OAuth + Streamlit Removal
 
 ## Current Position
 
-Phase: 4 of 6 (Foundation Fixes + Queue UX)
-Plan: 3 of 3 complete
-Status: Phase 4 complete
-Last activity: 2026-03-09 — Plan 03 complete (Gmail OAuth authorized, INFRA-01 satisfied)
+Phase: 6 of 6 (CLI + Gmail OAuth + Streamlit Removal)
+Plan: 1 of 2 complete
+Status: Phase 6 in progress
+Last activity: 2026-03-10 — Plan 01 complete (CLI built, CLI-01 satisfied)
 
-Progress: [██████░░░░] 67%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v1.1)
-- Average duration: 16 min
-- Total execution time: 31 min
+- Total plans completed: 6 (v1.1)
+- Average duration: 9 min
+- Total execution time: 52 min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -49,6 +49,7 @@ Progress: [██████░░░░] 67%
 | Phase 05 P01 | 3 | 2 tasks | 2 files |
 | Phase 05 P02 | 5 | 1 tasks | 1 files |
 | Phase 05 P02 | 15 | 2 tasks | 1 files |
+| Phase 06 P01 | 3 | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,10 @@ Recent decisions affecting current work:
 - [Phase 05-02]: Used var(--bg) for suggestion box background — var(--bg-secondary) not defined in app.css
 - [Phase 05-dashboard-intelligence]: Used var(--bg) for suggestion box background — var(--bg-secondary) does not exist in app.css
 - [Phase 05-dashboard-intelligence]: buildRoleSenioritySection returns 2 separate detail-section divs (not one wrapper) — keeps mobile layout consistent with existing sections
+- [Phase 06-01]: reset_queue() added to queue_generator.py (not inline in CLI) for testability and module cohesion
+- [Phase 06-01]: Lazy imports inside each Click command body keep CLI startup fast (no heavy pipeline imports at module load)
+- [Phase 06-01]: import json as _json inside queue_stats() avoids name collision with --json Click option alias
+- [Phase 06-01]: Exit 0 even when pipeline steps fail — only exit 1 on init_db() failure, matching existing run_pipeline.py behavior
 
 ### Pending Todos
 
@@ -80,11 +85,11 @@ None yet.
 ### Blockers/Concerns
 
 - ~~Score breakdown bug~~ RESOLVED in 04-01: all 139 contacts rescored with 5-dimension breakdowns
-- Streamlit review.py crashes on import (removed OAuth refs) — do not depend on Streamlit; delete safely only after CLI parity confirmed in Phase 6
+- ~~Streamlit review.py crashes on import~~ WILL BE RESOLVED in 06-02: src/ui/ deleted entirely
 - Gmail OAuth GCP consent screen: must be published (or add test user) before OAuth tokens are used in production — tokens expire after 7 days in Testing mode
 
 ## Session Continuity
 
-Last session: 2026-03-09T23:49:40.474Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-cli-gmail-oauth-streamlit-removal/06-CONTEXT.md
+Last session: 2026-03-10T00:12:00Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: .planning/phases/06-cli-gmail-oauth-streamlit-removal/06-01-SUMMARY.md

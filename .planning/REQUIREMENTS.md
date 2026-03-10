@@ -27,7 +27,7 @@ Requirements for v1.1 Network Intelligence milestone. Each maps to roadmap phase
 
 ### CLI + Streamlit Removal
 
-- [ ] **CLI-01**: User can run pipeline operations via CLI (pipeline run, queue reset, queue stats, contacts import, contacts score, gmail auth, sync push/pull)
+- [x] **CLI-01**: User can run pipeline operations via CLI (pipeline run, queue reset, queue stats, contacts import, contacts score, gmail auth, sync push/pull)
 - [ ] **CLI-02**: Streamlit UI and dependencies fully removed after CLI parity confirmed
 
 ## v1.2+ Requirements
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-02 | Phase 5 | Complete |
 | DASH-03 | Phase 5 | Complete |
 | DASH-04 | Phase 5 | Complete |
-| CLI-01 | Phase 6 | Pending |
+| CLI-01 | Phase 6 | Complete |
 | CLI-02 | Phase 6 | Pending |
 
 **Coverage:**
