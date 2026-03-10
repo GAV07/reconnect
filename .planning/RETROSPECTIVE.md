@@ -45,6 +45,54 @@
 
 ---
 
+## Milestone: v1.1 — Network Intelligence
+
+**Shipped:** 2026-03-10
+**Phases:** 3 | **Plans:** 7
+
+### What Was Built
+- Score breakdown fix — rescored 139 contacts with accurate 5-dimension scores
+- Queue sort/filter controls — sort by score, filter by status and industry in PWA
+- Gmail OAuth send path with App Password fallback for daily email digests
+- Dashboard intelligence — health breakdown with insights, industry distribution, role/seniority mix, score tiers
+- `reconnect` CLI with Click — 5 command groups (pipeline, queue, contacts, gmail, sync), 9 commands
+- Streamlit removal — 23 files deleted, LaunchAgent updated to call CLI directly
+
+### What Worked
+- TDD approach (RED/GREEN commits) caught bugs early and provided clear verification evidence
+- Client-side sort/filter for queue was simpler and more accurate than server-side PostgREST approach (reconnect_score is in joined row)
+- Lazy imports in CLI commands kept `reconnect --help` startup instant
+- Phase verification (gsd-verifier) caught stale .pyc files that would have broken grep checks
+- 3-source cross-reference (VERIFICATION + SUMMARY + REQUIREMENTS) gave high confidence in audit
+
+### What Was Inefficient
+- SUMMARY.md frontmatter `one_liner` field missing from all plans — summary-extract returns None
+- ROADMAP.md Progress table format inconsistency (Phase 5/6 rows had misaligned columns)
+- Phase 04 VERIFICATION had `human_needed` status but all code was verified — the 4 human items were about live browser testing that's hard to avoid
+
+### Patterns Established
+- reconnect_score (not priority_score) as the canonical composite score field
+- OAuth-first with App Password fallback — check is_oauth_configured() before is_gmail_configured()
+- OAuth tokens local-only — never sync GmailCredentials to Supabase (security boundary)
+- Client-side filtering on raw_enrichment JSON with dual-key extraction (company_industry || companyIndustry)
+- Lazy imports inside Click command bodies for fast CLI startup
+- import json as _json to avoid name collision with Click option aliases
+- buildXxxSection() functions with null-guard early return for graceful degradation on stale snapshots
+
+### Key Lessons
+1. Client-side sort/filter beats server-side when the data comes from joins (PostgREST .order() on stale columns is wrong)
+2. Dual-key extraction is necessary when enrichment data has inconsistent field naming across providers
+3. Streamlit should have been removed earlier — the broken admin UI was tech debt from v1.0
+4. SUMMARY.md frontmatter needs consistent `one_liner` field for milestone-level reporting
+5. Nyquist validation (VALIDATION.md) was created but never completed — need to either commit to it or skip
+
+### Cost Observations
+- Sessions: ~4 (research + plan + execute per phase, milestone audit + completion)
+- Notable: Entire milestone completed in 1 day; ~3 min average per plan execution
+- Model mix: Sonnet for executors/verifier/integration-checker, orchestrator context stayed lean (~10-15%)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -52,7 +100,12 @@
 | Milestone | Phases | Plans | Key Change |
 |-----------|--------|-------|------------|
 | v1.0 | 3 | 7 | Initial milestone — established planning/execution workflow |
+| v1.1 | 3 | 7 | TDD commits, 3-source requirement cross-reference, CLI replaces Streamlit |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. (Pending — need multiple milestones to verify patterns)
+1. buildXxxSection() composable HTML pattern works well for both email (v1.0) and PWA dashboard (v1.1)
+2. get_settings() call-time pattern continues to enable clean testing — adopted in gmail.py (v1.1) too
+3. raw_enrichment dual-key unwrap needed in every consumer — defensive pattern is essential
+4. SUMMARY.md frontmatter needs to be consistent from the start — backfilling is painful
+5. ~3 min/plan execution time is stable across both milestones — good velocity benchmark
