@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from src.config import settings
 from src.database.engine import get_session
-from src.database.models import Connection, OutreachQueueItem, UserProfile
+from src.database.models import Connection, OutreachQueueItem, UserPreference, UserProfile
 
 
 @dataclass
@@ -97,6 +97,13 @@ def is_contact_excluded(connection: Connection) -> ExclusionResult:
             reason="No email or LinkedIn URL"
         )
 
+    # Rule 5: User marked as "never suggest"
+    if hasattr(connection, "user_priority") and connection.user_priority == "never":
+        return ExclusionResult(
+            excluded=True,
+            reason="User marked as never suggest"
+        )
+
     return ExclusionResult(excluded=False)
 
 
@@ -140,6 +147,9 @@ def generate_queue_item(
     Returns:
         OutreachQueueItem ready for review
     """
+    # Compute why_today hook
+    why_today = _compute_why_today(connection)
+
     return OutreachQueueItem(
         connection_id=connection.id,
         channel=channel,
@@ -147,7 +157,29 @@ def generate_queue_item(
         draft_subject=f"Reconnecting - {user_profile.name or 'Hi'}" if channel == "email" else None,
         priority_score=connection.reconnect_score or connection.pre_score or 50,
         status="pending_review",
+        why_today=why_today,
     )
+
+
+def reset_queue() -> dict:
+    """Mark all pending_review and approved items as skipped.
+
+    Returns:
+        Dict with count of items reset: {"reset": N}
+    """
+    with get_session() as session:
+        items = session.exec(
+            select(OutreachQueueItem)
+            .where(OutreachQueueItem.status.in_(["pending_review", "approved"]))
+        ).all()
+        count = 0
+        for item in items:
+            item.status = "skipped"
+            item.skip_reason = "Queue reset via CLI"
+            item.reviewed_at = datetime.utcnow()
+            session.add(item)
+            count += 1
+    return {"reset": count}
 
 
 def expire_stale_queue_items(max_age_days: int = 7) -> int:
@@ -175,6 +207,102 @@ def expire_stale_queue_items(max_age_days: int = 7) -> int:
             count += 1
 
     return count
+
+
+def _compute_why_today(connection: Connection) -> Optional[str]:
+    """Compute a time-sensitive reason to reach out today."""
+    import json
+
+    reasons = []
+
+    # Check for recent job change from enrichment
+    enrichment = connection.raw_enrichment or {}
+    if "data" in enrichment and isinstance(enrichment["data"], dict):
+        enrichment = enrichment["data"]
+
+    join_year = enrichment.get("current_company_join_year")
+    join_month = enrichment.get("current_company_join_month")
+    if join_year and join_month:
+        try:
+            job_start = datetime(int(join_year), int(join_month), 1)
+            months = (datetime.utcnow() - job_start).days / 30
+            if months < 6:
+                reasons.append(f"Changed jobs {months:.0f} months ago")
+        except (ValueError, TypeError):
+            pass
+
+    # Check for recent activity
+    if connection.activity_log and len(connection.activity_log) > 0:
+        latest = connection.activity_log[0]
+        content = latest.get("content", "")[:80]
+        if content:
+            reasons.append(f"Recent post: {content}")
+
+    # Extract hooks from score_reasoning
+    if connection.score_reasoning:
+        try:
+            reasoning = json.loads(connection.score_reasoning)
+            hooks = reasoning.get("conversation_hooks", [])
+            if isinstance(hooks, list):
+                for hook in hooks[:1]:
+                    if hook and str(hook) not in str(reasons):
+                        reasons.append(str(hook))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Stale high-value connection
+    if connection.reconnect_score and connection.reconnect_score >= 70:
+        if connection.last_contacted_at:
+            days = (datetime.utcnow() - connection.last_contacted_at).days
+            if days > 90:
+                reasons.append(f"High-value connection, last contact {days} days ago")
+        elif connection.last_message_date:
+            days = (datetime.utcnow() - connection.last_message_date).days
+            if days > 90:
+                reasons.append(f"Haven't connected in {days} days")
+
+    return reasons[0] if reasons else None
+
+
+def _get_scoring_weight_multipliers() -> dict[str, float]:
+    """Load scoring weight multipliers from user preferences."""
+    multipliers = {}
+    with get_session() as session:
+        prefs = session.exec(
+            select(UserPreference)
+            .where(UserPreference.pref_type == "scoring_weight")
+            .where(UserPreference.is_active == True)
+        ).all()
+        for pref in prefs:
+            try:
+                multipliers[pref.pref_key] = float(pref.pref_value)
+            except (ValueError, TypeError):
+                pass
+    return multipliers
+
+
+def _apply_weight_multipliers(connection: Connection, multipliers: dict[str, float]) -> float:
+    """Apply user preference weight multipliers to a connection's score."""
+    import json
+
+    base_score = connection.reconnect_score or connection.pre_score or 0
+    if not multipliers or not connection.score_reasoning:
+        return base_score
+
+    try:
+        reasoning = json.loads(connection.score_reasoning)
+        dims = reasoning.get("dimension_scores", {})
+        if not dims:
+            return base_score
+
+        adjusted = 0
+        for dim_name, dim_score in dims.items():
+            multiplier = multipliers.get(dim_name, 1.0)
+            adjusted += dim_score * multiplier
+
+        return adjusted
+    except (json.JSONDecodeError, TypeError):
+        return base_score
 
 
 def generate_daily_queue(limit: Optional[int] = None) -> dict:
@@ -205,10 +333,20 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
         "exclusion_reasons": {},
     }
 
+    # Load scoring weight multipliers from user preferences
+    multipliers = _get_scoring_weight_multipliers()
+
     with get_session() as session:
         user_profile = session.get(UserProfile, 1)
         if not user_profile:
             user_profile = UserProfile(id=1, name="")
+
+        # First: include "always" priority contacts (if not on cooldown)
+        always_contacts = session.exec(
+            select(Connection)
+            .where(Connection.user_priority == "always")
+            .where(Connection.reconnect_score.isnot(None))
+        ).all()
 
         # Get top-scored connections - only those with a full reconnect_score
         query = (
@@ -221,8 +359,26 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
 
         candidates = session.exec(query).all()
 
+        # Merge always-priority contacts to the front
+        always_ids = {c.id for c in always_contacts}
+        merged = list(always_contacts)
+        for c in candidates:
+            if c.id not in always_ids:
+                merged.append(c)
+
+        # Apply weight multipliers and re-sort (always contacts stay at top)
+        if multipliers:
+            for conn in merged:
+                if conn.id not in always_ids:
+                    conn._adjusted_score = _apply_weight_multipliers(conn, multipliers)
+                else:
+                    conn._adjusted_score = 999  # Always contacts sort first
+            merged.sort(key=lambda c: getattr(c, "_adjusted_score", 0), reverse=True)
+
         added = 0
-        for conn in candidates:
+        company_counts: dict[str, int] = {}  # For diversification
+
+        for conn in merged:
             if added >= limit:
                 break
 
@@ -235,6 +391,17 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
                     stats["exclusion_reasons"].get(reason, 0) + 1
                 )
                 continue
+
+            # Diversification: max 2 contacts from same company
+            if conn.current_company:
+                company_key = conn.current_company.lower().strip()
+                if company_counts.get(company_key, 0) >= 2:
+                    stats["excluded"] += 1
+                    stats["exclusion_reasons"]["Company diversity limit"] = (
+                        stats["exclusion_reasons"].get("Company diversity limit", 0) + 1
+                    )
+                    continue
+                company_counts[company_key] = company_counts.get(company_key, 0) + 1
 
             # Determine channel and create queue item
             channel = determine_channel(conn)
