@@ -112,6 +112,16 @@ None — no external service configuration required. The `reconnect` binary is a
 - Ready for Phase 6 Plan 02: Streamlit cleanup (delete src/ui/, remove config.py get_streamlit_secrets(), update LaunchAgent plist)
 - The `reset_queue()` function is now in the right module for the CLI to call cleanly
 
+## Self-Check: PASSED
+
+- FOUND: src/cli.py
+- FOUND: src/pipeline/queue_generator.py (with reset_queue())
+- FOUND: tests/test_phase6_cli.py (14 tests passing)
+- FOUND: 06-01-SUMMARY.md
+- FOUND commit: 54241d0 (RED phase)
+- FOUND commit: 1889422 (GREEN phase)
+- FOUND commit: 07ffb32 (metadata/docs)
+
 ---
 *Phase: 06-cli-gmail-oauth-streamlit-removal*
 *Completed: 2026-03-10*
