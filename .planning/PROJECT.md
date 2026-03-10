@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (LaunchAgent @ 8AM) that scores contacts, generates an actionable email digest, and syncs data to a PWA where you can triage, review profiles, and track your outreach pipeline.
+A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (CLI @ 8AM via LaunchAgent) that scores contacts, computes dashboard intelligence, generates an actionable email digest, and syncs data to a PWA where you can triage, review profiles, explore network demographics, and track your outreach pipeline.
 
 ## Core Value
 
@@ -20,7 +20,6 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - ✓ Bidirectional sync (local SQLite → Supabase PostgreSQL) — existing
 - ✓ Edge Functions for action tokens (approve/skip/snooze) — existing
 - ✓ Email digest HTML generation — existing
-- ✓ Streamlit admin UI (contacts, dashboard, review, opportunities) — existing
 - ✓ PWA deployed on Netlify with SPA routing — v1.0
 - ✓ Service worker with root-relative paths for Netlify — v1.0
 - ✓ pwa_url config + all references updated to Netlify domain — v1.0
@@ -37,21 +36,21 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - ✓ Enrichment status view — v1.0
 - ✓ Feedback history view — v1.0
 - ✓ Deep link bridge (query params → hash route) — v1.0
+- ✓ Accurate score breakdowns (all 5 dimensions show real values) — v1.1
+- ✓ Gmail OAuth send path with GCP credentials + App Password fallback — v1.1
+- ✓ Queue sort by composite score (ascending/descending) — v1.1
+- ✓ Queue filter by status (pending/approved/sent) — v1.1
+- ✓ Queue filter by industry — v1.1
+- ✓ Dashboard health score breakdown with actionable insights — v1.1
+- ✓ Dashboard industry distribution chart — v1.1
+- ✓ Dashboard role/seniority mix — v1.1
+- ✓ Dashboard score tier distribution — v1.1
+- ✓ `reconnect` CLI with Click (pipeline, queue, contacts, gmail, sync) — v1.1
+- ✓ Streamlit UI + plotly dependencies fully removed — v1.1
 
 ### Active
 
-#### Current Milestone: v1.1 Network Intelligence
-
-**Goal:** Make the tool smarter about surfacing network insights, give users control over queue prioritization, and add AI-powered contact search — while fixing infra gaps and removing Streamlit.
-
-**Target features:**
-- Gmail OAuth (replace App Password workaround with GCP credentials)
-- Fix score breakdown bug (profile shows 0 in all 5 scoring dimensions)
-- Queue filtering/sorting (score sort, industry filter, status filter)
-- Dashboard health score breakdown (what drives it, actionable insights)
-- Dashboard demographic charts (industry distribution, role/seniority mix, score tier distribution)
-- AI contact search ("Who in my network knows about X?" against enriched data)
-- Streamlit removal + CLI commands for pipeline operations
+(No active requirements — define in next milestone via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -59,37 +58,42 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - Real-time chat or messaging — not a communication tool, surfaces who to reach out to
 - OAuth/social login for PWA — single-user tool, anon key + action tokens sufficient
 - Draft outreach from email — email is for triage only; drafts handled in PWA contact page
-- Contact import in PWA — import is a pipeline concern; keep in Python pipeline / Streamlit
 - Bulk actions — let "Never Suggest" per contact handle this
 - Push notifications — redundant with email (daily email IS the push notification)
 - Calendar integration — daily email is the reminder mechanism
 - Social graph visualization — impressive to demo, not useful in daily workflow
-- Geographic distribution — interesting but not priority; defer to v1.2+
 - Broader AI questions (life/personal) — start with professional enriched data only
-- Pipeline controls in PWA — CLI sufficient for now, PWA admin panel deferred
-- Company size demographics — not selected for v1.1
 
 ## Context
 
-**Current State (post v1.0):**
-- ~6,200 LOC across Python (pipeline, sync, services), JavaScript (PWA), TypeScript (Edge Functions)
-- Tech stack: Python + SQLModel + SQLite (local), Supabase PostgreSQL + PostgREST + Edge Functions (cloud), Vanilla JS PWA on Netlify
-- All 18 v1.0 requirements shipped and verified
-- Pipeline runs daily via LaunchAgent, email digest lands in Gmail, PWA live on Netlify
+**Current State (post v1.1):**
+- ~12,800 LOC across Python (10,687 — pipeline, CLI, sync, services), JavaScript/CSS/HTML (2,131 — PWA)
+- Tech stack: Python + SQLModel + SQLite (local), Supabase PostgreSQL + PostgREST + Edge Functions (cloud), Vanilla JS PWA on Netlify, Click CLI
+- 35 v1.0+v1.1 requirements shipped and verified across 6 phases
+- Pipeline runs daily via LaunchAgent → `reconnect pipeline run`, email digest via Gmail OAuth, PWA live on Netlify
+- Streamlit admin UI fully replaced by `reconnect` CLI (5 command groups, 9 commands)
 
 **Known Tech Debt:**
-- `src/ui/views/review.py` references removed OAuth functions — Streamlit admin UI crashes on import
-- `test_netlify_toml` test asserts no `command` but commit added echo build command
+- `datetime.utcnow()` deprecated in Python 3.12+ (pre-existing, several files)
+- Pydantic v2 `class Config` style deprecated in src/config.py
+- Stale fallback URL `http://localhost:8501` in email_digest.py line 289 (never reached in production)
+- Gmail OAuth GCP consent screen must be published (or add test user) before tokens work beyond 7 days
 - Edge Function uses relative path `/functions/v1/action` (works but brittle)
-- RLS status of Supabase tables unverified for public exposure
+
+**Potential v1.2+ Features:**
+- AI contact search ("Who in my network knows about X?")
+- Geographic distribution of contacts
+- Company size tier distribution
+- Pipeline controls in PWA admin panel
 
 ## Constraints
 
 - **Hosting**: PWA on Netlify, backend on Supabase — no additional infra
 - **Email**: Must work in Gmail (mobile + desktop) — table-based HTML, no CSS flexbox
 - **Auth**: Single-user tool — anon key + action tokens, no multi-tenant auth
-- **Pipeline**: Daily batch (not real-time) — LaunchAgent @ 8AM
+- **Pipeline**: Daily batch (not real-time) — LaunchAgent @ 8AM via CLI
 - **Budget**: Minimal — free tiers of Netlify + Supabase
+- **Admin**: CLI-only — no web admin UI (Streamlit removed)
 
 ## Key Decisions
 
@@ -101,10 +105,15 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | Query parameter deep links (not hash fragments) | Hash fragments stripped by Gmail redirect chain — query params survive | ✓ Good — email → PWA profile navigation works |
 | Table-based email HTML | Gmail strips CSS flexbox on mobile — table role=presentation is bulletproof | ✓ Good — renders correctly on all clients |
 | Email Yes auto-queues for outreach | Reduces friction — one tap to act, no extra steps | ✓ Good — streamlines daily triage |
-| No draft outreach from email | Keep email simple (triage only), handle drafts in PWA | ✓ Good — clear separation of concerns |
 | Profile page shows AI rationale | Transparency builds trust in scoring — user wants to know why | ✓ Good — 5-dimension breakdown is actionable |
 | get_settings() at call time | Module-level singleton breaks monkeypatching — call-time pattern enables testing | ✓ Good — adopted across gmail.py and email_digest.py |
 | raw_enrichment dual-key unwrap | Enrichment pipeline returns nested `data` wrapper or flat object — handle both | ✓ Good — defensive, no crashes on either shape |
+| Client-side queue sort on reconnect_score | priority_score is stale/legacy; reconnect_score in joined connections row is the live composite | ✓ Good — accurate, no stale data |
+| Client-side industry filter | raw_enrichment is JSON; PostgREST can't filter nested JSON without generated columns | ✓ Good — works for current data volume |
+| OAuth tokens local-only | GmailCredentials never synced to Supabase — security boundary | ✓ Good — tokens stay on machine |
+| OAuth-first with App Password fallback | is_oauth_configured() checked before is_gmail_configured() everywhere | ✓ Good — smooth migration path |
+| Click CLI replacing Streamlit | Streamlit was broken (import crashes), CLI is lighter and automatable via LaunchAgent | ✓ Good — 9 commands cover all operations |
+| Lazy imports in CLI commands | Heavy pipeline imports only loaded when command runs, keeps `reconnect --help` instant | ✓ Good — fast startup |
 
 ---
-*Last updated: 2026-03-09 after v1.1 milestone started*
+*Last updated: 2026-03-10 after v1.1 milestone completed*
