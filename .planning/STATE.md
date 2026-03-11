@@ -1,35 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Network Intelligence
-status: complete
-stopped_at: Milestone v1.1 shipped
-last_updated: "2026-03-10"
-last_activity: 2026-03-10 — Milestone v1.1 archived and tagged
+milestone: v1.2
+milestone_name: Intent-Driven Triage
+status: active
+stopped_at: null
+last_updated: "2026-03-11"
+last_activity: 2026-03-11 — Milestone v1.2 started
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-10)
+See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Milestone v1.1 complete — ready for next milestone
+**Current focus:** Milestone v1.2 Intent-Driven Triage
 
 ## Current Position
 
-Milestone: v1.1 Network Intelligence — SHIPPED
-Phases: 6 of 6 complete (all milestones through v1.1)
-Status: Complete
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-11 — Milestone v1.2 started
 
 ## Accumulated Context
 
@@ -45,9 +44,11 @@ None.
 ### Blockers/Concerns
 
 - Gmail OAuth GCP consent screen: must be published (or add test user) before OAuth tokens work beyond 7 days in Testing mode
+- Email digest has never sent — neither OAuth nor App Password configured in .env
+- Conversation starters always empty — activity_log (LinkedIn posts) never populated by enrichment pipeline
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Milestone v1.1 shipped
+Last session: 2026-03-11
+Stopped at: Defining requirements for v1.2
 Resume file: None

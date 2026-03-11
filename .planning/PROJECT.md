@@ -50,7 +50,18 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 
 ### Active
 
-(No active requirements — define in next milestone via `/gsd:new-milestone`)
+<!-- v1.2 Intent-Driven Triage — see REQUIREMENTS.md for full REQ-IDs -->
+
+- [ ] Email digest actually sends (fix config gap, keep Telegram as backup)
+- [ ] Profile key factors show meaningful content with fallbacks when enrichment is sparse
+- [ ] Conversation starters populated from alternative data sources (not just activity_log)
+- [ ] 7 interest signals (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE) replace Reach Out / Skip / Snooze
+- [ ] Signal-driven system actions: cadence re-queuing, resource prompts, tone matching, tagging, archive
+- [ ] User goals profile (current projects/interests inform WARM_LEAD identification)
+- [ ] Contact notes (free-form, visible on queue cards + profile)
+- [ ] Signal-informed rescoring (triage patterns improve future scoring)
+- [ ] Draft tone adaptation (signal drives AI message tone)
+- [ ] Queue card enrichment (mini key-factors, industry, last interaction for informed triage)
 
 ### Out of Scope
 
@@ -65,6 +76,20 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - Broader AI questions (life/personal) — start with professional enriched data only
 
 ## Context
+
+## Current Milestone: v1.2 Intent-Driven Triage
+
+**Goal:** Replace score-only queue decisions with a qualitative signal system that captures *why* you'd reach out, drives messaging tone, schedules follow-ups, and learns from your patterns — while fixing email delivery and enriching sparse profiles.
+
+**Target features:**
+- Email digest fix + Telegram backup
+- Profile enrichment (key factors fallbacks, conversation starters from alternative sources)
+- 7 interest signals replacing Reach Out / Skip / Snooze
+- Full signal system actions (cadence re-queuing, resource prompts, tone matching, archive, tags)
+- User goals profile (current projects/interests inform matching)
+- Contact notes (free-form, visible on queue + profile)
+- Signal-informed rescoring (learning from triage patterns)
+- Queue card enrichment (more context for informed signal choices)
 
 **Current State (post v1.1):**
 - ~12,800 LOC across Python (10,687 — pipeline, CLI, sync, services), JavaScript/CSS/HTML (2,131 — PWA)
@@ -116,4 +141,4 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | Lazy imports in CLI commands | Heavy pipeline imports only loaded when command runs, keeps `reconnect --help` instant | ✓ Good — fast startup |
 
 ---
-*Last updated: 2026-03-10 after v1.1 milestone completed*
+*Last updated: 2026-03-11 after v1.2 milestone started*
