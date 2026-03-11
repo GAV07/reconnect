@@ -1,600 +1,455 @@
-# Stack Research
+# Stack Research: v1.2 Intent-Driven Triage
 
-**Domain:** Personal networking PWA + Python pipeline — v1.1 additions
-**Researched:** 2026-03-09
-**Confidence:** HIGH (verified with official docs and PyPI)
-**Scope:** NEW capabilities only — dashboard charts, AI search, Gmail OAuth, queue filtering, CLI
+**Domain:** Personal networking tool — intent signal system, cadence scheduling, goals profile, contact notes, signal-informed rescoring, draft tone adaptation, queue card enrichment
+**Researched:** 2026-03-11
+**Confidence:** HIGH — all findings based on direct codebase inspection and installed package verification
 
 ---
 
-## Context
+## Context: What Already Exists (Do Not Re-Implement)
 
-This is additive research on top of a working v1.0 system. The existing stack is locked:
-Python + SQLModel + SQLite, Supabase PostgreSQL + PostgREST + Edge Functions (Deno),
-Vanilla JS PWA on Netlify, OpenAI `gpt-4o-mini`, Gmail App Password + smtplib.
+The v1.2 stack additions are incremental. The validated existing stack is:
 
-**This document covers only what needs to change or be added for v1.1.**
+| Layer | Technology | Verified Version |
+|-------|------------|-----------------|
+| Python pipeline | Python 3.11+, Click, SQLModel, SQLAlchemy, OpenAI | SQLModel 0.0.31, OpenAI 2.15.0, Click 8.3.1 |
+| Database (local) | SQLite via SQLAlchemy | - |
+| Database (cloud) | Supabase PostgreSQL + PostgREST | - |
+| PWA | Vanilla JS, Supabase JS Client v2 (CDN) | - |
+| LLM | OpenAI gpt-4o-mini | - |
+| Edge Functions | Deno + TypeScript on Supabase | - |
+| Sync | Bidirectional SQLite to Supabase via psycopg2 | psycopg2-binary 2.9+ |
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies — New Additions
+### Core Technologies
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Chart.js | 4.5.1 | PWA dashboard charts (bar, pie, doughnut) | Most popular vanilla-JS-compatible charting library (2M+ weekly npm downloads). Zero-dependency, 48KB gzipped (tree-shakes to ~14KB for single chart types). Works via CDN script tag — no build step. Integrates by calling `new Chart(canvas, config)`. V4 API is stable with no breaking changes since 4.0. |
-| click | 8.3.1 | Python CLI commands to replace Streamlit admin | Best CLI framework for subcommand-based tools (like `git`). Decorator-based, composable groups, automatic `--help` generation. Significantly less boilerplate than argparse for multi-command tools. Already in ecosystem — no conflict with existing deps. |
-| google-api-python-client | 2.192.0 | Gmail API (OAuth2 send mail) | Official Google-maintained library. Required to call the Gmail `messages.send` endpoint. Works with the standard `InstalledAppFlow` → `token.json` pattern. Pinned to `>=2.100.0` is fine — semver minor bumps are backward-compatible. |
-| google-auth-oauthlib | 1.3.0 | OAuth2 browser flow for Gmail credential setup | Provides `InstalledAppFlow` used for the one-time browser auth dance. Stores refresh token in `token.json`. After initial setup, `creds.refresh(Request())` handles silent renewal — no browser interaction needed on subsequent pipeline runs. |
-| google-auth | 2.49.0 | OAuth2 credential management and token refresh | Core credential plumbing used by both `google-auth-oauthlib` and `google-api-python-client`. Handles token refresh via `creds.refresh(Request())`. Installed transitively — list explicitly in requirements.txt for version pinning. |
+**No new Python libraries required for any v1.2 feature.**
 
-### Supporting Libraries — New Additions
+Every v1.2 feature maps to existing capabilities. The table below shows the analysis:
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| google-auth-httplib2 | 0.2.0 | HTTP transport adapter for google-api-python-client | Required by `googleapiclient.discovery.build()`. Installed as a transitive dep but pin explicitly. |
-| pgvector (Supabase extension) | built-in on Supabase | Vector similarity search for AI contact search | No Python package needed — enable via SQL migration: `CREATE EXTENSION IF NOT EXISTS vector;`. Already available on all Supabase hosted plans. |
-| openai (existing) | >=1.10.0 | Generate embeddings via `text-embedding-3-small` | Already in requirements.txt. The existing `openai.OpenAI` client handles both completions (scoring) and embeddings (search). No new package. |
+| Feature | Approach | Why No New Library Needed |
+|---------|----------|--------------------------|
+| 7 intent signals | New `intent_signal` TEXT column on `outreach_queue` | String enum stored in existing column; SQLModel Optional[str] field |
+| Signal actions (ARCHIVE, cadence) | New `requeue_after` DATE column + pipeline step | Pure datetime arithmetic; daily LaunchAgent is the scheduler |
+| User goals profile | `UserProfile.goals` Text already exists; add PWA editing form | Pull sync addition handles PWA edits flowing back to pipeline |
+| Contact notes | `Connection.notes` Text already exists; add PWA editing UI | Field + sync already in place; only missing is PWA write path |
+| Signal-informed rescoring | Extend `feedback_processor.py` to consume signal types | `UserPreference` weight system already built; add signal pattern branch |
+| Draft tone adaptation | Pass `intent_signal` in POST body to `draft/index.ts` | Function already accepts POST body parameters; add optional field |
+| Queue card enrichment | Parse `key_factors` from `score_reasoning` JSON in `queue.js` | JSON already returned in joined query; client-side parse only |
 
-### Development Tools — Unchanged
+### Supporting Libraries
+
+None needed. All supporting functionality is covered by:
+
+- `json` (stdlib) — parsing `score_reasoning` for key_factors display
+- `datetime` (stdlib) — cadence `requeue_after` date computation
+- `collections.Counter` (stdlib) — signal pattern analysis in feedback_processor
+
+### Development Tools
+
+No changes to existing tooling. The existing setup covers all v1.2 work:
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| pytest | Test pipeline logic | Existing. Add tests for CLI commands via Click's `CliRunner`. |
-| python-dotenv | .env loading | Existing. No change. |
-| LaunchAgent plist | Daily scheduling | Existing. No change. |
+| pytest | Tests for new pipeline steps | Existing patterns apply |
+| ruff | Linting for new Python files | Existing config |
+| Supabase CLI | Deploy updated `draft` Edge Function | `supabase functions deploy draft` |
 
 ---
 
-## Feature-by-Feature Stack Decisions
+## Database Schema Changes
 
-### 1. Dashboard Charts (PWA — Vanilla JS)
+These are the only schema changes needed. All follow existing migration patterns (psycopg2 direct apply).
 
-**Technology:** Chart.js 4.5.1 via CDN
+### outreach_queue — Two New Columns
 
-**CDN script tag** (add to `pwa/index.html`):
-```html
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+```sql
+-- Intent signal captured during triage
+ALTER TABLE outreach_queue ADD COLUMN IF NOT EXISTS intent_signal TEXT;
+-- Values: 'WARM_LEAD' | 'NURTURE' | 'VALUE_DROP' | 'SYNERGY' | 'RECONNECT' | 'FUTURE_PIVOT' | 'ARCHIVE'
+
+-- Cadence: when this contact should re-appear in queue (NULL = no auto-requeue)
+ALTER TABLE outreach_queue ADD COLUMN IF NOT EXISTS requeue_after DATE;
+
+CREATE INDEX IF NOT EXISTS idx_queue_requeue
+  ON outreach_queue(requeue_after)
+  WHERE requeue_after IS NOT NULL;
 ```
 
-**Why Chart.js over alternatives:**
-- Works with a `<canvas>` element — no DOM framework needed
-- Bar charts for industry distribution, doughnut/pie for score tiers, all via same API
-- CDN UMD bundle works without `import` statements — compatible with existing non-module JS
-- Chart.js 4.x requires a `<canvas>` container div with explicit dimensions for mobile — critical for PWA
+**Why signal lives on queue item, not connection:** Triage signal is a decision made at a point in time, not a permanent contact property. The same contact can receive NURTURE today and WARM_LEAD in 6 months. Storing on queue items preserves full signal history. The `user_feedback` table (existing) records the signal event; the queue item column drives system behavior (cadence, tone).
 
-**Usage pattern** (in `dashboard.js`):
-```javascript
-function buildIndustryChart(data) {
-  const canvas = document.getElementById('industry-chart');
-  // Destroy existing chart instance to avoid "Canvas is already in use" error
-  const existing = Chart.getChart(canvas);
-  if (existing) existing.destroy();
+### connections — No Schema Changes
 
-  new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: data.labels,
-      datasets: [{ data: data.values, backgroundColor: '#0a66c2' }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } }
-    }
-  });
+`Connection.notes` (Text, line 86 of models.py) already exists and is already in `CONNECTION_SYNC_FIELDS` in `push.py` (line 35). No Python model change needed — only PWA editing UI.
+
+### user_feedback — No Schema Changes
+
+`extra_data` (JSONB, maps to `metadata` column) stores signal context. Add `'intent_signal'` as a new `feedback_type` value — this is purely a string convention, no schema constraint to change.
+
+### action_tokens — No Changes for v1.2
+
+Signal assignment is a PWA-only action. The email digest retains simple approve/skip/snooze. Adding 7 signal buttons to email would overwhelm the digest format and violate the email-as-notification constraint. Signals are assigned in the PWA queue card — users tap a signal after reviewing the contact in the app.
+
+### SQLModel Model Change
+
+Add two optional fields to `OutreachQueueItem` in `src/database/models.py`:
+
+```python
+# Intent signal (v1.2)
+intent_signal: Optional[str] = None  # 'WARM_LEAD' | 'NURTURE' | ... | 'ARCHIVE'
+requeue_after: Optional[datetime] = Field(default=None, index=True)
+```
+
+---
+
+## Python Pipeline Changes
+
+### New file: src/pipeline/signal_actions.py
+
+Handles cadence computation and ARCHIVE side effects. Pure Python, no new dependencies.
+
+Signal cadence table (fixed per-signal, not configurable per v1.2 scope):
+
+```python
+SIGNAL_CADENCES: dict[str, int] = {
+    "NURTURE": 90,       # Re-appear after 90 days
+    "VALUE_DROP": 60,    # Check back in 60 days
+    "SYNERGY": 45,       # Resource sharing — re-check soon
+    "RECONNECT": 120,    # Long-range reconnect
+    "FUTURE_PIVOT": 180, # Dormant — check in 6 months
+    # WARM_LEAD: no auto-requeue (user drives urgently)
+    # ARCHIVE: sets user_priority='never', blocks queue permanently
 }
 ```
 
-**Data source:** `dashboard_snapshots.snapshot_data` JSONB field. The Python pipeline
-(daily_pipeline.py Step 7 / dashboard snapshot) needs to compute and store `industry_distribution`,
-`role_distribution`, and `score_tier_distribution` arrays. No new Supabase API calls needed —
-data already flows through the snapshot mechanism.
-
-**HTML container pattern** (required for Chart.js responsive behavior):
-```html
-<div style="position:relative; height:180px;">
-  <canvas id="industry-chart"></canvas>
-</div>
-```
-
-### 2. AI-Powered Contact Search
-
-**Architecture decision:** Edge Function handles embedding + search, NOT the PWA directly.
-
-**Why Edge Function (not PWA → OpenAI directly):**
-- The PWA's anon key cannot safely call OpenAI API (key would be exposed in browser JS)
-- Supabase Edge Functions already have `OPENAI_API_KEY` as a secret — reuse this
-- The Edge Function can generate the embedding and call `match_connections` RPC in one hop
-
-**Architecture:**
-```
-PWA (query text)
-  → POST /functions/v1/search (Supabase Edge Function, --no-verify-jwt)
-    → OpenAI text-embedding-3-small API (generates query embedding)
-    → Supabase RPC: match_connections(query_embedding, threshold, count)
-      → pgvector cosine similarity against connections.embedding column
-    → Returns ranked contacts to PWA
-```
-
-**Python pipeline responsibility:** Generate and store embeddings for all enriched connections
-during the daily pipeline run (new pipeline step). Use existing `openai.OpenAI` client:
+Run as a new daily pipeline step (step 11 or between steps 4 and 5 in queue generation):
 
 ```python
-from openai import OpenAI
+def apply_signal_actions(queue_item_id: int, signal: str) -> dict:
+    """Apply side effects when a signal is assigned to a queue item."""
+    with get_session() as session:
+        item = session.get(OutreachQueueItem, queue_item_id)
+        item.intent_signal = signal
+        item.status = _signal_to_status(signal)
 
-client = OpenAI(api_key=settings.openai_api_key)
+        cadence_days = SIGNAL_CADENCES.get(signal)
+        if cadence_days:
+            item.requeue_after = (datetime.utcnow() + timedelta(days=cadence_days)).date()
 
-def embed_connection(text: str) -> list[float]:
-    response = client.embeddings.create(
-        input=text,
-        model="text-embedding-3-small",
-        dimensions=512  # Reduce from 1536 — same pricing, ~3x faster search, negligible accuracy loss
-    )
-    return response.data[0].embedding
+        if signal == "ARCHIVE":
+            conn = session.get(Connection, item.connection_id)
+            if conn:
+                conn.user_priority = "never"
+                session.add(conn)
+
+        session.add(item)
+    return {"signal": signal, "requeue_after": item.requeue_after}
+
+
+def _signal_to_status(signal: str) -> str:
+    """Map signal to queue item status."""
+    if signal == "WARM_LEAD":
+        return "approved"
+    elif signal == "ARCHIVE":
+        return "skipped"
+    else:
+        return "skipped"  # Cadenced signals exit queue until requeue_after
 ```
 
-**Embedding text composition** (concatenate enriched fields into a single string for embedding):
+### queue_generator.py — Cadence Re-queuing
+
+Add cadence check at top of `generate_daily_queue()`. No library needed — pure SQL date comparison:
+
 ```python
-def build_search_text(conn: Connection) -> str:
-    parts = [
-        conn.name or "",
-        conn.current_role or "",
-        conn.current_company or "",
-        conn.headline or "",
-        conn.about_summary or "",
-        " ".join(conn.skills or []),
-        conn.industry or "",
-    ]
-    return " | ".join(p for p in parts if p)
+from datetime import date
+
+# Include contacts past their requeue_after date
+requeue_due = session.exec(
+    select(OutreachQueueItem)
+    .where(OutreachQueueItem.requeue_after <= date.today())
+    .where(OutreachQueueItem.intent_signal.in_(
+        ["NURTURE", "VALUE_DROP", "SYNERGY", "RECONNECT", "FUTURE_PIVOT"]
+    ))
+).all()
 ```
 
-**Database changes required:**
-```sql
--- Enable pgvector (if not already enabled)
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
+These contacts bypass the `min_queue_score` threshold — they were already evaluated and given an explicit intent signal by the user.
 
--- Add embedding column to connections table
-ALTER TABLE connections ADD COLUMN IF NOT EXISTS embedding extensions.vector(512);
+### feedback_processor.py — Signal Pattern Analysis
 
--- HNSW index for fast cosine similarity
-CREATE INDEX IF NOT EXISTS connections_embedding_hnsw
-  ON connections USING hnsw (embedding extensions.vector_cosine_ops);
+Extend `_derive_weight_adjustments()` to consume `intent_signal` from queue items. No new library — same `Counter` pattern already used:
 
--- RPC function for search
-CREATE OR REPLACE FUNCTION match_connections(
-  query_embedding extensions.vector(512),
-  match_threshold float DEFAULT 0.5,
-  match_count int DEFAULT 10
-)
-RETURNS TABLE(
-  id uuid,
-  name text,
-  current_role text,
-  current_company text,
-  reconnect_score int,
-  similarity float
-)
-LANGUAGE sql
-AS $$
-  SELECT
-    id, name, current_role, current_company, reconnect_score,
-    1 - (embedding <=> query_embedding) AS similarity
-  FROM connections
-  WHERE embedding IS NOT NULL
-    AND 1 - (embedding <=> query_embedding) > match_threshold
-  ORDER BY embedding <=> query_embedding ASC
-  LIMIT match_count;
-$$;
+```python
+# Map signals to dimension weight hints
+SIGNAL_WEIGHT_HINTS = {
+    "WARM_LEAD": {"goal_alignment": 1.2},      # User cares about goal fit
+    "NURTURE": {"conversation_hooks": 0.8},    # Hooks less important for nurture
+    "ARCHIVE": {"industry_overlap": 1.1},      # User filters by relevance
+    "VALUE_DROP": {"mutual_value": 1.1},       # User cares about value exchange
+}
 ```
 
-**Edge Function (Deno TypeScript):**
+Apply hints when a signal has appeared 3+ times in the last 30 days. Single occurrences are noise.
+
+### src/sync/pull.py — Add user_profile Pull
+
+This is required for PWA-edited goals to reach the pipeline's scoring prompts. Currently `pull.py` only fetches `user_feedback` and `action_tokens` from Supabase. Add:
+
+```python
+def _pull_user_profile(local_session, cloud_session) -> int:
+    """Pull user_profile row from cloud (user may update goals in PWA)."""
+    cloud_profile = cloud_session.get(UserProfile, 1)
+    if not cloud_profile:
+        return 0
+    local_profile = local_session.get(UserProfile, 1)
+    if local_profile:
+        # Overwrite only goals/interests — don't clobber inferred fields
+        local_profile.goals = cloud_profile.goals
+        local_profile.interests = cloud_profile.interests
+        local_session.add(local_profile)
+    return 1
+```
+
+**Note on authoritative source:** Goals and interests are user-managed via PWA. Inferred fields (`inferred_industry`, `inferred_expertise`, etc.) are pipeline-managed. The pull only overwrites user-managed fields.
+
+---
+
+## Edge Function Changes
+
+### draft/index.ts — Signal-Aware Tone Adaptation
+
+Add `intent_signal` to `DraftRequest` interface and `buildDraftPrompt()`. Zero new Deno dependencies.
+
 ```typescript
-// supabase/functions/search/index.ts
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import OpenAI from 'https://esm.sh/openai@4'
-
-Deno.serve(async (req) => {
-  const { query } = await req.json()
-  const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') })
-
-  const embRes = await openai.embeddings.create({
-    input: query,
-    model: 'text-embedding-3-small',
-    dimensions: 512,
-  })
-  const embedding = embRes.data[0].embedding
-
-  const sb = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
-  const { data, error } = await sb.rpc('match_connections', {
-    query_embedding: embedding,
-    match_threshold: 0.5,
-    match_count: 10,
-  })
-
-  return Response.json({ results: data, error })
-})
-```
-
-**PWA fetch call** (in a new `search.js` or inside `app.js`):
-```javascript
-async function searchContacts(query) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query })
-  })
-  return res.json()
+interface DraftRequest {
+  queue_item_id: number;
+  channel?: string;
+  intent_signal?: string;  // NEW in v1.2
 }
 ```
 
-**Note:** No API key needed in the PWA request because the Edge Function is deployed with
-`--no-verify-jwt`. The query text is the only sensitive data and is acceptable to transmit
-over HTTPS.
+Replace the two-option `toneGuideline` with a signal-indexed map:
 
-**Embedding dimensions:** Use 512 (not the 1536 default). Pricing is identical per OpenAI docs
-($0.02/1M tokens regardless of dimensions). 512d vectors search ~3x faster with pgvector HNSW
-indexing. Accuracy difference is negligible for contact name/role/skill matching.
+```typescript
+const SIGNAL_TONE: Record<string, string> = {
+  WARM_LEAD:    "Lead with their recent activity or role change. Be direct and specific about wanting to collaborate.",
+  NURTURE:      "Keep it warm and low-pressure. No ask — just checking in and sharing something useful.",
+  VALUE_DROP:   "Reference a specific resource or insight relevant to their current work. Lead with the value.",
+  SYNERGY:      "Focus on one concrete collaboration angle. Propose something specific, not vague 'connecting'.",
+  RECONNECT:    "Acknowledge the gap since you last connected. Keep it genuine, not apologetic.",
+  FUTURE_PIVOT: "Plant a seed. No immediate ask — just keeping the relationship warm for future opportunities.",
+};
 
-### 3. Gmail OAuth (Replace App Password)
+// In buildDraftPrompt():
+const signalGuidance = intent_signal && SIGNAL_TONE[intent_signal]
+  ? `Signal context: ${SIGNAL_TONE[intent_signal]}`
+  : "";
 
-**Technology:** `google-api-python-client` + `google-auth-oauthlib` + `google-auth`
-
-**When the one-time browser flow runs:** First pipeline execution after adding credentials.
-The `InstalledAppFlow.run_local_server(port=0)` opens a browser tab, completes OAuth, and
-saves `token.json`. All subsequent runs call `creds.refresh(Request())` silently.
-
-**Standard pattern** (HIGH confidence — from Google official quickstart, verified 2026):
-```python
-import base64
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from pathlib import Path
-
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-TOKEN_PATH = Path("data/gmail_token.json")
-CREDS_PATH = Path("data/gmail_credentials.json")  # GCP OAuth client secret
-
-
-def get_gmail_service():
-    """Get authenticated Gmail API service, refreshing token if needed."""
-    creds = None
-    if TOKEN_PATH.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_PATH), SCOPES)
-            creds = flow.run_local_server(port=0)
-        TOKEN_PATH.write_text(creds.to_json())
-
-    return build('gmail', 'v1', credentials=creds)
-
-
-def send_html_email(to: str, subject: str, html_body: str) -> dict:
-    """Send HTML email via Gmail API OAuth."""
-    service = get_gmail_service()
-    msg = MIMEMultipart('alternative')
-    msg['To'] = to
-    msg['Subject'] = subject
-    msg.attach(MIMEText(html_body, 'html'))
-
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    result = service.users().messages().send(
-        userId='me',
-        body={'raw': raw}
-    ).execute()
-    return {'message_id': result.get('id', '')}
+const channelTone = channel === "linkedin"
+  ? "Use casual LinkedIn DM tone"
+  : "Use professional but warm email tone";
 ```
 
-**GCP setup required (one-time):**
-1. Google Cloud Console → APIs & Services → Enable Gmail API
-2. Create OAuth 2.0 Client ID (Desktop application type)
-3. Download JSON → save as `data/gmail_credentials.json`
-4. Add `data/gmail_token.json` and `data/gmail_credentials.json` to `.gitignore`
-
-**Config changes to `src/config.py`:**
-```python
-gmail_credentials_path: str = "data/gmail_credentials.json"
-gmail_token_path: str = "data/gmail_token.json"
-# Keep existing gmail_app_password as fallback until OAuth confirmed working
-```
-
-**Scope needed:** `https://www.googleapis.com/auth/gmail.send` — narrowest scope that
-permits sending. Do NOT use `https://mail.google.com/` (full mailbox access, triggers
-Google security warnings).
-
-### 4. Queue Filtering/Sorting (PWA — Vanilla JS)
-
-**Technology:** Pure vanilla JS — no library needed.
-
-**Pattern:** Fetch all pending items once, store in a module-level array, re-render on
-filter/sort change. Do NOT re-fetch from Supabase on every filter change — the queue is
-≤50 items.
-
-```javascript
-// In queue.js — store items at module scope
-let _queueItems = []
-
-async function renderQueue(container) {
-  // Fetch once
-  const { data } = await db.from('outreach_queue')
-    .select('*, connections(*)')
-    .in('status', ['pending_review'])
-    .order('priority_score', { ascending: false })
-  _queueItems = data || []
-  renderFilteredQueue(container)
-}
-
-function renderFilteredQueue(container) {
-  const sortBy = document.getElementById('queue-sort')?.value || 'score'
-  const filterIndustry = document.getElementById('queue-filter-industry')?.value || 'all'
-
-  let items = [..._queueItems]
-
-  // Filter
-  if (filterIndustry !== 'all') {
-    items = items.filter(i => i.connections?.industry === filterIndustry)
-  }
-
-  // Sort
-  if (sortBy === 'score') {
-    items.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
-  } else if (sortBy === 'name') {
-    items.sort((a, b) => (a.connections?.name || '').localeCompare(b.connections?.name || ''))
-  }
-
-  // Re-render cards
-  container.innerHTML = items.map(renderQueueCard).join('')
-}
-```
-
-**UI controls pattern** (add above queue card list in `renderQueue`):
-```javascript
-const controls = `
-  <div class="queue-controls">
-    <select id="queue-sort" onchange="renderFilteredQueue(document.getElementById('app-content'))">
-      <option value="score">Sort: Score</option>
-      <option value="name">Sort: Name</option>
-    </select>
-    <select id="queue-filter-industry" onchange="renderFilteredQueue(document.getElementById('app-content'))">
-      <option value="all">All Industries</option>
-      ${industries.map(i => `<option value="${i}">${i}</option>`).join('')}
-    </select>
-  </div>`
-```
-
-**Industry values for filter:** Derive from `_queueItems` at render time — `[...new Set(_queueItems.map(i => i.connections?.industry).filter(Boolean))]`.
-
-**No library needed** — Array `.filter()`, `.sort()`, and `.localeCompare()` cover all requirements. Adding List.js or similar would be over-engineering for a ≤50-item list.
-
-### 5. CLI Commands (Replace Streamlit Admin)
-
-**Technology:** Click 8.3.1
-
-**Why Click over argparse:** The pipeline already has natural subcommand grouping (`pipeline run`, `pipeline status`, `contacts list`, `contacts score`). Click's `@click.group()` / `@click.command()` decorator pattern maps exactly to this structure with automatic `--help` generation. Argparse requires manual `add_subparsers()` scaffolding for the same result. Typer is also reasonable but adds a pyproject.toml dependency; Click is more widely known in the Python ecosystem.
-
-**Proposed CLI structure:**
-```
-reconnect
-├── pipeline run          # Run full daily pipeline
-├── pipeline status       # Show last run results
-├── contacts list         # List top-scored contacts
-├── contacts score        # Re-score specific contacts
-├── contacts search       # Run embedding search (Python-side, useful for debugging)
-├── sync push             # Manual push to Supabase
-├── sync pull             # Manual pull from Supabase
-└── email test            # Send test digest email
-```
-
-**Entry point pattern** (create `src/cli.py`):
-```python
-import click
-from src.pipeline.daily_pipeline import run_daily_pipeline
-from src.sync.push import push_to_supabase
-
-@click.group()
-def cli():
-    """Reconnect networking pipeline CLI."""
-
-@cli.group()
-def pipeline():
-    """Pipeline operations."""
-
-@pipeline.command()
-@click.option('--skip-enrichment', is_flag=True, help='Skip Apify enrichment step')
-@click.option('--skip-email', is_flag=True, help='Skip digest email')
-def run(skip_enrichment, skip_email):
-    """Run the full daily pipeline."""
-    result = run_daily_pipeline(skip_enrichment=skip_enrichment)
-    click.echo(f"Pipeline completed: {result['status']}")
-
-@cli.group()
-def sync():
-    """Sync operations."""
-
-@sync.command('push')
-def sync_push():
-    """Push local SQLite changes to Supabase."""
-    result = push_to_supabase()
-    click.echo(f"Pushed {result.get('pushed', 0)} records")
-```
-
-**Invocation after `pip install -e .`:**
-```bash
-reconnect pipeline run
-reconnect pipeline run --skip-enrichment
-reconnect sync push
-reconnect email test
-```
-
-**pyproject.toml entry point:**
-```toml
-[project.scripts]
-reconnect = "src.cli:cli"
-```
-
-**Streamlit removal:** Delete `src/ui/` directory entirely after CLI covers:
-- Manual pipeline trigger
-- Sync status
-- Contact list/score review (can use PWA instead)
-
-The v1.1 PWA covers all contact review/feedback use cases. The Streamlit UI is the only thing
-requiring `streamlit>=1.30.0` and `plotly>=5.18.0` — both can be dropped from requirements.txt.
+Deploy via: `supabase functions deploy draft`
 
 ---
 
-## Installation Changes
+## PWA Changes
 
-### Python — Add to requirements.txt
+### queue.js — Signal Picker + Card Enrichment
 
-```
-# Gmail OAuth (replacing App Password)
-google-api-python-client>=2.192.0
-google-auth-oauthlib>=1.3.0
-google-auth>=2.49.0
-google-auth-httplib2>=0.2.0
+**Signal picker:** Replace three-button action row (Reach Out / Skip / Snooze) with a signal selector. The Supabase JS client v2 (already loaded via CDN) handles the PATCH directly:
 
-# CLI (replacing Streamlit)
-click>=8.3.1
-```
+```javascript
+async function assignSignal(itemId, connectionId, signal) {
+  const cadenceDays = {
+    NURTURE: 90, VALUE_DROP: 60, SYNERGY: 45,
+    RECONNECT: 120, FUTURE_PIVOT: 180
+  };
 
-### Python — Remove from requirements.txt
+  const requeueAfter = cadenceDays[signal]
+    ? new Date(Date.now() + cadenceDays[signal] * 86400000).toISOString().split('T')[0]
+    : null;
 
-```
-# Remove after Streamlit deletion confirmed working
-streamlit>=1.30.0
-plotly>=5.18.0
-```
+  const updateData = {
+    intent_signal: signal,
+    status: signal === 'WARM_LEAD' ? 'approved' : 'skipped',
+    reviewed_at: new Date().toISOString(),
+    ...(requeueAfter && { requeue_after: requeueAfter }),
+  };
 
-### PWA — Add to pwa/index.html
+  await db.from('outreach_queue').update(updateData).eq('id', itemId);
 
-```html
-<!-- Add before app scripts, after existing Supabase CDN script -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-```
+  if (signal === 'ARCHIVE') {
+    await db.from('connections').update({ user_priority: 'never' }).eq('id', connectionId);
+  }
 
-### Supabase — New SQL Migration
-
-```sql
--- supabase/migrations/[timestamp]_embeddings.sql
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
-
-ALTER TABLE connections ADD COLUMN IF NOT EXISTS embedding extensions.vector(512);
-
-CREATE INDEX IF NOT EXISTS connections_embedding_hnsw
-  ON connections USING hnsw (embedding extensions.vector_cosine_ops);
-
-CREATE OR REPLACE FUNCTION match_connections(
-  query_embedding extensions.vector(512),
-  match_threshold float DEFAULT 0.5,
-  match_count int DEFAULT 10
-)
-RETURNS TABLE(id uuid, name text, current_role text, current_company text, reconnect_score int, similarity float)
-LANGUAGE sql AS $$
-  SELECT id, name, current_role, current_company, reconnect_score,
-         1 - (embedding <=> query_embedding) AS similarity
-  FROM connections
-  WHERE embedding IS NOT NULL
-    AND 1 - (embedding <=> query_embedding) > match_threshold
-  ORDER BY embedding <=> query_embedding ASC
-  LIMIT match_count;
-$$;
+  if (signal === 'WARM_LEAD') {
+    navigate(`#/contact/${connectionId}?queue_item=${itemId}`);
+  }
+}
 ```
 
-### New Supabase Edge Function
+**Queue card enrichment — key factors:** `score_reasoning` is already returned in the `select('*, connections(*)')` query. Parse client-side:
 
+```javascript
+const reasoning = JSON.parse(conn.score_reasoning || '{}');
+const keyFactors = (reasoning.key_factors || []).slice(0, 2);
+const keyFactorsHtml = keyFactors.length
+  ? `<div class="key-factors">${keyFactors.map(f => `<span class="factor-chip">${escapeHtml(f)}</span>`).join('')}</div>`
+  : '';
 ```
-supabase/functions/search/index.ts
+
+No additional API call. Data is already in the joined response.
+
+**Queue card enrichment — industry chip and last interaction:** Both fields are already in the joined query. Add to card HTML:
+
+```javascript
+const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+const industry = escapeHtml(enrichment.company_industry || enrichment.companyIndustry || '');
+const industryHtml = industry ? `<span class="industry-chip">${industry}</span>` : '';
+
+const lastContact = conn.last_contacted_at || conn.last_message_date;
+const lastInteractionHtml = lastContact
+  ? `<span class="last-interaction">Last: ${new Date(lastContact).toLocaleDateString()}</span>`
+  : '';
 ```
-Deploy with: `supabase functions deploy search --no-verify-jwt`
+
+**Notes on card:** `conn.notes` is already in the joined response. Display truncated:
+
+```javascript
+const notesHtml = conn.notes
+  ? `<div class="card-notes">${escapeHtml(conn.notes.slice(0, 120))}${conn.notes.length > 120 ? '…' : ''}</div>`
+  : '';
+```
+
+### contact.js — Notes Editing
+
+PostgREST PATCH directly from the PWA contact detail page. No Edge Function needed — no server-side secret required for a plain text update:
+
+```javascript
+async function saveContactNotes(connectionId, notes) {
+  const { error } = await db
+    .from('connections')
+    .update({ notes, updated_at: new Date().toISOString() })
+    .eq('id', connectionId);
+  return !error;
+}
+```
+
+The anon key with appropriate RLS policy handles this. The existing RLS for queue status updates (already in `queue.js`) demonstrates the same pattern is workable.
+
+### preferences.js or new goals-form in contact/profile section
+
+User goals profile editing. Fetch `user_profile` (id=1) and PATCH:
+
+```javascript
+async function saveUserGoals(goals, interests) {
+  const { error } = await db
+    .from('user_profile')
+    .update({ goals, interests, updated_at: new Date().toISOString() })
+    .eq('id', 1);
+  return !error;
+}
+```
+
+The pipeline will pull this on next sync via the new `_pull_user_profile()` function in `pull.py`.
+
+---
+
+## What NOT to Add
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| APScheduler or Celery | Cadence re-queuing is daily batch, not real-time. A scheduling library adds operational complexity for a single-user local tool. | LaunchAgent already runs the pipeline at 8AM. Cadence check is a `requeue_after <= today` SQL query inside `generate_daily_queue()`. |
+| React or Vue in PWA | Signal picker is 7 buttons — a UI extension, not a UI rewrite. Framework adoption requires build tooling and breaks the Netlify git-push deployment model. | Extend `queue.js` with `renderSignalPicker()`. Same vanilla JS pattern used for existing card actions. |
+| Semantic embeddings / pgvector for signal learning | Signal-informed rescoring does not need semantic similarity. Pattern analysis on signal string values + dimension score weights is sufficient for v1.2. | Extend `feedback_processor.py` with Counter-based signal pattern analysis (already used for skip/approval patterns). |
+| SQLite full-text search | Contact notes search is not in v1.2 scope. | Defer to v1.3 if AI contact search feature is scoped. |
+| Separate signals table | Over-engineering for 7 string values. A TEXT column on `outreach_queue` with an index is sufficient. Signal history is preserved by the queue item records themselves. | `outreach_queue.intent_signal TEXT` column. |
+| New Edge Function for notes | Notes are plain text. No server-side secret is needed for a PATCH via PostgREST with anon key + RLS. | Direct PostgREST PATCH from PWA. |
+| Redis or caching layer | Draft generation is per-demand, low-frequency. Draft is cached in `outreach_queue.draft_message` after first generation. | Existing draft caching in queue table row. |
 
 ---
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Chart.js 4.x via CDN | D3.js | D3 when you need fully custom SVG visualizations with complex transitions. For bar/pie/doughnut charts from JSON data, D3 is 10x more code for the same result. |
-| Chart.js 4.x via CDN | Highcharts | Highcharts when the project is commercial and needs IE11 support. Free for non-commercial but requires attribution. Chart.js is MIT with no restrictions. |
-| Chart.js 4.x via CDN | uPlot | uPlot when rendering time-series data with thousands of points at 60fps. For distributions of ≤50 categories, Chart.js is simpler. |
-| Click 8.x | argparse (stdlib) | argparse when adding any external dependency is prohibited (e.g., locked corporate environments). Click requires one `pip install` but saves significant boilerplate for multi-subcommand CLIs. |
-| Click 8.x | Typer | Typer if the codebase already uses Pydantic models everywhere and type-hint-driven CLI generation is preferred. Typer is essentially Click with type hints — either works fine. Click is more widely documented. |
-| Edge Function for search | PWA calls OpenAI directly | Only if the OpenAI key can be safely exposed (never for browser-accessible apps). Embedding in an Edge Function keeps the key server-side. |
-| pgvector + RPC | Supabase full-text search (tsvector) | Full-text search when queries are keyword-based (e.g., `WHERE name ILIKE '%smith%'`). For semantic queries like "who works in fintech AI" where the words don't literally appear in the data, pgvector is necessary. Consider offering both: keyword search falls back to `ILIKE`, semantic search uses the embedding RPC. |
-| InstalledAppFlow token.json | Service Account | Service accounts for server-to-server scenarios where no human user is involved. Gmail send on behalf of a personal Gmail account requires a user OAuth flow — service accounts only work with Google Workspace (GSuite) accounts. |
-
----
-
-## What NOT to Use
-
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| React/Vue/Svelte in PWA | Requires a build pipeline (Vite/Webpack), breaks the zero-build Netlify deploy, adds framework-specific syntax overhead for a single-user app with 4 pages | Continue with vanilla JS + `innerHTML` templating |
-| LangChain for embeddings | Adds 20+ transitive dependencies for a feature that's 5 lines with `openai` directly | `openai.OpenAI().embeddings.create()` directly |
-| Streamlit after v1.1 | `src/ui/views/review.py` already crashes on import (OAuth functions removed). Adding Streamlit complexity when the CLI + PWA covers all use cases. | Click CLI for pipeline ops, PWA for contact review |
-| `text-embedding-ada-002` | Older, more expensive, lower quality than `text-embedding-3-small`. Being deprecated. | `text-embedding-3-small` |
-| 1536 dimensions for pgvector | Default dimension but unnecessary for contact search. Increases storage and query time with no accuracy benefit at this dataset size (≤10K contacts). | 512 dimensions — same pricing, 3x faster HNSW search |
-| Full mailbox OAuth scope | `https://mail.google.com/` triggers Google's "This app wants access to your Google Account" security warning. Excessive permission for send-only use case. | `https://www.googleapis.com/auth/gmail.send` |
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| Signal on `outreach_queue` item | Signal on `connections` table as current_signal | Queue item signal is a triage decision, not a permanent contact state. History is preserved per item. Storing on connection would lose the time dimension. |
+| Cadence via `requeue_after DATE` computed at signal-assignment time | Separate `contact_cadences` table | Unnecessary complexity for fixed cadences. `requeue_after = today + SIGNAL_CADENCES[signal]` at assignment time is explicit and self-contained. |
+| Extend `draft/index.ts` with optional `intent_signal` param | New `draft-v2` Edge Function | Cold start overhead doubled for no benefit. The existing function is clean TypeScript — adding an optional parameter is straightforward. |
+| PWA writes notes directly via PostgREST | Notes via Edge Function | Edge Functions are for operations requiring server-side secrets (OpenAI key, service role key). A notes PATCH requires neither. |
+| Inline signal picker on queue card | Modal overlay for signal selection | Modal hides contact context while the user is choosing. Inline picker keeps name/role/score visible during signal assignment — better UX for a decision-support tool. |
+| Pull `user_profile` in `sync/pull.py` | PWA goals editing is CLI-only | PWA goals editing is more accessible during the daily triage workflow. Pull sync is the correct data flow pattern for user-initiated changes that need to reach the pipeline. |
 
 ---
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| Chart.js@4.5.1 | All modern browsers, Supabase JS@2 CDN | UMD bundle works without ES modules. Chart.js 4.x dropped IE11 support — acceptable for a modern PWA. |
-| google-api-python-client@2.192.0 | google-auth>=2.14.1, google-auth-oauthlib>=0.5.0 | All three must be updated together — mixing very old google-auth with new google-api-python-client causes import errors. Pin all three. |
-| click@8.3.1 | Python 3.8+, pydantic-settings 2.x | No conflicts with existing dependencies. Click does not interact with Pydantic. |
-| openai>=1.10.0 (existing) | embeddings API (text-embedding-3-small) | Already installed. The embeddings endpoint has been stable since openai v1.0. No version change needed. |
-| pgvector (Supabase hosted) | Supabase hosted plans (free and pro) | pgvector is pre-installed on all Supabase hosted instances. Only `CREATE EXTENSION` needed, no server access. |
+All v1.2 changes work within existing installed versions. No version changes needed.
+
+| Package | Current Version | v1.2 Requirement | Compatible |
+|---------|----------------|-------------------|-----------|
+| sqlmodel | 0.0.31 | Optional[str] and Optional[datetime] fields | Yes |
+| openai | 2.15.0 | No change | Yes |
+| click | 8.3.1 | No change | Yes |
+| pydantic-settings | 2.12.5 | No change | Yes |
+| psycopg2-binary | 2.9+ | New ALTER TABLE migrations | Yes |
+| Supabase JS Client | v2 (CDN) | PATCH on connections + user_profile | Yes — `.update()` works on any table with RLS |
+| Deno (Supabase-managed) | v1.x | Optional parameter in DraftRequest | Yes |
 
 ---
 
-## Confidence Assessment
+## Installation
 
-| Area | Confidence | Source |
-|------|------------|--------|
-| Chart.js 4.5.1 CDN pattern | HIGH | jsDelivr CDN listing + Chart.js official docs |
-| Gmail OAuth Python pattern | HIGH | Google official quickstart (verified 2026), PyPI package versions confirmed |
-| google-auth package versions | HIGH | PyPI: google-auth 2.49.0 (Mar 6, 2026), google-auth-oauthlib 1.3.0 (Feb 27, 2026), google-api-python-client 2.192.0 (Mar 5, 2026) |
-| pgvector Supabase availability | HIGH | Supabase official docs, pre-installed on all hosted plans |
-| text-embedding-3-small 512 dimensions | HIGH | OpenAI docs confirm `dimensions` parameter, pricing identical, no accuracy penalty at this scale |
-| RPC via supabase-js rpc() for vector search | HIGH | Supabase official semantic search docs + OpenAI cookbook |
-| Click 8.3.1 | HIGH | PyPI confirmed, released Nov 15, 2025 |
-| Edge Function search architecture | MEDIUM | Supabase Edge Functions docs + pgvector RPC pattern — confirmed working pattern but specific integration not tested against this codebase |
-| 512 vs 1536 dimensions tradeoff | MEDIUM | OpenAI community forum + multiple blog sources — no official benchmark for contact-scale datasets |
+**No new pip packages.** No new npm packages. No new Deno imports.
+
+The only deployment action required for v1.2:
+
+```bash
+# Deploy updated draft Edge Function after modifying intent_signal support
+supabase functions deploy draft
+```
+
+And apply the SQL migration via psycopg2 (consistent with existing migration approach):
+
+```sql
+-- New file: supabase/migrations/20260311000000_intent_signals.sql
+ALTER TABLE outreach_queue ADD COLUMN IF NOT EXISTS intent_signal TEXT;
+ALTER TABLE outreach_queue ADD COLUMN IF NOT EXISTS requeue_after DATE;
+CREATE INDEX IF NOT EXISTS idx_queue_requeue
+  ON outreach_queue(requeue_after)
+  WHERE requeue_after IS NOT NULL;
+```
+
+---
+
+## Integration Points Summary
+
+| Feature | Python Pipeline | Supabase DB | Edge Function | PWA (JS) |
+|---------|----------------|-------------|---------------|----------|
+| Intent signals | `signal_actions.py` (new) | `outreach_queue.intent_signal` | `draft/index.ts` receives signal | `queue.js` signal picker |
+| Cadence re-queuing | `queue_generator.py` checks `requeue_after` | `outreach_queue.requeue_after` | — | Shows requeue badge on card |
+| User goals profile | `scoring.py` reads `UserProfile.goals` | `user_profile.goals` (existing) | — | New goals editing form |
+| Contact notes | No change needed | `connections.notes` (existing) | — | Notes textarea + save button |
+| Signal-informed rescoring | `feedback_processor.py` signal patterns | `user_preferences` (existing) | — | — |
+| Draft tone adaptation | — | Signal read by draft function | `draft/index.ts` signal→tone map | Passes `intent_signal` in POST body |
+| Queue card enrichment | — | `score_reasoning` JSON (existing) | — | `queue.js` client-side parse |
 
 ---
 
 ## Sources
 
-- [Chart.js Installation Docs](https://www.chartjs.org/docs/latest/getting-started/installation.html) — CDN installation pattern, Canvas API
-- [Chart.js on jsDelivr](https://www.jsdelivr.com/package/npm/chart.js?path=dist) — Version 4.5.1 confirmed current
-- [google-auth-oauthlib on PyPI](https://pypi.org/project/google-auth-oauthlib/) — Version 1.3.0, released 2026-02-27
-- [google-auth on PyPI](https://pypi.org/project/google-auth/) — Version 2.49.0, released 2026-03-06
-- [google-api-python-client on PyPI](https://pypi.org/project/google-api-python-client/) — Version 2.192.0, released 2026-03-05
-- [Gmail API Python Quickstart](https://developers.google.com/workspace/gmail/api/quickstart/python) — InstalledAppFlow token.json pattern
-- [Supabase pgvector Docs](https://supabase.com/docs/guides/database/extensions/pgvector) — Extension setup, HNSW indexing
-- [Supabase Semantic Search Docs](https://supabase.com/docs/guides/ai/semantic-search) — match_documents RPC pattern, supabase-js rpc() usage
-- [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings) — text-embedding-3-small, dimensions parameter
-- [OpenAI text-embedding-3-small Model Page](https://platform.openai.com/docs/models/text-embedding-3-small) — 1536 default, pricing $0.02/1M tokens
-- [OpenAI Embeddings Pricing](https://costgoat.com/pricing/openai-embeddings) — Confirmed dimension-independent pricing
-- [Click 8.3.1 on PyPI](https://pypi.org/project/click/) — Version 8.3.1, released 2025-11-15
-- [Click Entry Points Docs](https://click.palletsprojects.com/en/stable/entry-points/) — pyproject.toml scripts pattern
+- Direct codebase inspection: `src/database/models.py`, `src/pipeline/queue_generator.py`, `src/pipeline/feedback_processor.py`, `src/llm/scoring.py`, `src/sync/push.py`, `src/sync/pull.py`, `pwa/js/queue.js`, `pwa/js/contact.js`, `supabase/functions/draft/index.ts`, `supabase/functions/action/index.ts`, `src/config.py`, `requirements.txt`
+- Installed package versions verified directly: sqlmodel 0.0.31, openai 2.15.0, click 8.3.1, pydantic 2.12.5
+- Existing migration pattern confirmed: `supabase/migrations/20260305000000_pwa_overhaul.sql` — psycopg2 direct apply
+- PostgREST PATCH pattern confirmed: `queue.js` lines 183-194 demonstrate existing direct DB writes via supabase-js `.update()`
+- Signal cadence values: networking domain judgment; no external source required for fixed day constants
 
 ---
 
-*Stack research for: Reconnect v1.1 — dashboard charts, AI search, Gmail OAuth, queue filtering, CLI*
-*Researched: 2026-03-09*
+*Stack research for: Reconnect v1.2 Intent-Driven Triage*
+*Researched: 2026-03-11*

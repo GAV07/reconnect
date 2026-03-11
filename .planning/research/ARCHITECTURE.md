@@ -1,464 +1,425 @@
 # Architecture Research
 
-**Domain:** Personal networking CRM — v1.1 Network Intelligence milestone
-**Researched:** 2026-03-09
-**Confidence:** HIGH (all findings from direct source-code inspection, no speculation)
+**Domain:** Personal networking tool — intent signal system integration (v1.2)
+**Researched:** 2026-03-11
+**Confidence:** HIGH (all analysis derived from direct codebase inspection, no speculation)
 
----
+## Standard Architecture
 
-## System Overview
+### System Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     LOCAL MACHINE (macOS)                        │
-├──────────────────────────────────────────────────────────────────┤
-│  LaunchAgent @ 8AM                                               │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              daily_pipeline.py (10 steps)               │    │
-│  │  import → prescore → enrich → score → queue →           │    │
-│  │  data_completeness → feedback → enrichment_plan →       │    │
-│  │  dashboard_snapshot → sync → email_digest               │    │
-│  └────────────────────────┬────────────────────────────────┘    │
-│                           │ push/pull                           │
-│  ┌────────────┐            │           ┌──────────────────────┐ │
-│  │ SQLite DB  │◄───────────┘           │  src/integrations/   │ │
-│  │ (primary)  │                        │  gmail.py (smtplib)  │ │
-│  └────────────┘                        └──────────────────────┘ │
-│                                                                  │
-│  CLI (new — replaces Streamlit pipeline controls)                │
-│  src/cli.py: pipeline, sync, import, rescore, reset-queue        │
-└──────────────────────────────────┬───────────────────────────────┘
-                                   │ push.py / pull.py
-                                   │ (SQLAlchemy to postgres)
-┌──────────────────────────────────▼───────────────────────────────┐
-│                        SUPABASE (cloud)                          │
-├──────────────────────────────────────────────────────────────────┤
-│  PostgreSQL (11 tables)          Edge Functions (Deno)           │
-│  ┌──────────────────────┐      ┌────────────────────────────┐   │
-│  │ connections          │      │ action (GET/POST)           │   │
-│  │ outreach_queue       │      │ draft  (POST → OpenAI)      │   │
-│  │ dashboard_snapshots  │      │ feedback (POST)             │   │
-│  │ action_tokens        │      │ search  (POST → OpenAI) NEW │   │
-│  │ user_feedback        │      └────────────────────────────┘   │
-│  │ user_preferences     │                                        │
-│  │ gmail_credentials    │      PostgREST (auto REST API)         │
-│  │ user_profile         │      ┌────────────────────────────┐   │
-│  │ + 3 more tables      │      │ GET /connections            │   │
-│  └──────────────────────┘      │ GET /outreach_queue         │   │
-│                                │ GET /dashboard_snapshots    │   │
-│                                │ PATCH /outreach_queue       │   │
-│                                │ PATCH /connections          │   │
-│                                └────────────────────────────┘   │
-│  Realtime subscriptions (postgres_changes on outreach_queue)     │
-└──────────────────────────────────┬───────────────────────────────┘
-                                   │ @supabase/supabase-js
-┌──────────────────────────────────▼───────────────────────────────┐
-│                  PWA (Vanilla JS on Netlify)                     │
-├──────────────────────────────────────────────────────────────────┤
-│  app.js (hash router + supabase init)                            │
-│  queue.js     — PostgREST direct, PATCH for actions, Realtime    │
-│  contact.js   — PostgREST direct, calls /functions/v1/draft      │
-│  dashboard.js — reads dashboard_snapshots JSON blob              │
-│  preferences.js — PostgREST PATCH on user_preferences            │
-│  search.js    (NEW) — calls /functions/v1/search Edge Function   │
-│  push.js / offline.js / service-worker.js                        │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         LOCAL MACHINE (macOS)                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│  LaunchAgent (8AM)                                                        │
+│      │                                                                    │
+│      ▼                                                                    │
+│  reconnect pipeline run (Click CLI)                                       │
+│      │                                                                    │
+│      ▼                                                                    │
+│  daily_pipeline.py (10 steps + email digest)                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │ import   │→ │ prescore │→ │ enrich   │→ │  score   │→ │  queue   │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │complete- │→ │ feedback │→ │  enrich  │→ │dashboard │→ │ sync +   │  │
+│  │ ness     │  │ proc.    │  │  plan    │  │ snapshot │  │ digest   │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│                                                                           │
+│  SQLite (source of truth for all pipeline data)                           │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │ connections · outreach_queue · user_profile · user_feedback       │   │
+│  │ user_preferences · action_tokens · dashboard_snapshots            │   │
+│  │ contact_signals (NEW) · contact_notes (NEW) · + more              │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                    SYNC (bidirectional, end of pipeline)                  │
+│  push.py → Supabase PostgreSQL ← pull.py (actions, signals, notes)       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE (Cloud)                                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  PostgreSQL (mirror of local SQLite, minus gmail_credentials)             │
+│                                                                           │
+│  PostgREST API ◄──────────────────────────────── PWA (anon key)          │
+│  (reads + writes for signals, notes, queue actions)                       │
+│                                                                           │
+│  Edge Functions                                                           │
+│  ┌──────────────────┐  ┌───────────────────┐  ┌──────────────────┐      │
+│  │ action/index.ts  │  │ draft/index.ts    │  │feedback/index.ts │      │
+│  │ (email triage    │  │ (OpenAI draft gen │  │ (user_feedback + │      │
+│  │  action tokens)  │  │  + signal tone)   │  │  priority writes)│      │
+│  └──────────────────┘  └───────────────────┘  └──────────────────┘      │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         PWA (Netlify)                                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Vanilla JS SPA — hash-based routing                                      │
+│  ┌──────────┐  ┌───────────┐  ┌─────────────┐  ┌───────────────────┐   │
+│  │ queue.js │  │contact.js │  │dashboard.js │  │ preferences.js    │   │
+│  │ (signal  │  │(profile + │  │(analytics)  │  │(scoring weights + │   │
+│  │ selector)│  │ notes +   │  │             │  │  user goals)      │   │
+│  │          │  │ sig hist) │  │             │  │                   │   │
+│  └──────────┘  └───────────┘  └─────────────┘  └───────────────────┘   │
+│                                                                           │
+│  All reads: PostgREST (anon key)                                          │
+│  Writes: PostgREST direct for signals, notes, queue updates               │
+│          Edge Functions for drafts (needs OPENAI_API_KEY secret)         │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Responsibilities
+
+| Component | Current Responsibility | v1.2 Addition |
+|-----------|------------------------|---------------|
+| `daily_pipeline.py` | Orchestrates 10 pipeline steps | Runs signal-based rescore pass in Step 8 |
+| `llm/scoring.py` | LLM-based contact scoring, 5 dimensions | Accepts signal context; applies signal nudges to prompt |
+| `pipeline/queue_generator.py` | Selects and creates OutreachQueueItem rows | Respects cadence (cadence_due_at); boosts WARM_LEAD priority; computes mini_key_factors |
+| `pipeline/feedback_processor.py` | Analyzes approve/skip patterns, derives weight adjustments | Analyzes signal patterns; triggers selective rescoring |
+| `sync/push.py` | Pushes SQLite to Supabase | Includes contact_signals, contact_notes, new connection fields |
+| `sync/pull.py` | Pulls review actions from Supabase | Pulls signals, notes, latest_signal/cadence_due_at updates |
+| `services/signal_service.py` | (does not exist) | NEW: canonical signal → action + cadence mapping |
+| `supabase/functions/draft/index.ts` | Generates drafts via OpenAI | Accepts `signal` param; injects tone guidance into prompt |
+| `supabase/functions/action/index.ts` | Email triage token handler | No change needed (signal triage happens in PWA, not email) |
+| `supabase/functions/feedback/index.ts` | Records user_feedback | No change needed (signal writes go direct to PostgREST) |
+| `pwa/js/queue.js` | Queue cards, approve/skip/snooze | 7-option signal selector; enriched card context (mini_key_factors, notes) |
+| `pwa/js/contact.js` | Contact profile, AI rationale | Shows contact notes; signal history panel |
+| `pwa/js/preferences.js` | Scoring weight preferences | Adds user goals/projects editing form |
+| `database/models.py` | SQLModel table definitions | New: ContactSignal, ContactNote; modified: Connection, OutreachQueueItem, UserProfile |
+
+---
+
+## New vs Modified Components
+
+### New Tables Required
+
+#### `contact_signals` (new table)
+
+Core of the intent signal system. Replaces binary approve/skip/snooze with 7 named signals. Stored as a history — a contact can change signals over time.
+
+```sql
+CREATE TABLE contact_signals (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id TEXT NOT NULL REFERENCES connections(id),
+    queue_item_id INTEGER REFERENCES outreach_queue(id),
+    -- NULL for signals applied directly from profile page
+    signal        TEXT NOT NULL,
+    -- WARM_LEAD | NURTURE | VALUE_DROP | SYNERGY
+    -- | RECONNECT | FUTURE_PIVOT | ARCHIVE
+    context       TEXT,          -- Free-form note at decision time
+    signaled_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_signals_connection ON contact_signals(connection_id, signaled_at DESC);
+CREATE INDEX idx_signals_signal ON contact_signals(signal);
+```
+
+**Why new table, not a field on `connections`:** Signals are a time-series. A contact is NURTURE today and WARM_LEAD after they post about a topic matching your goals. The history is auditable and enables signal-pattern analysis in `feedback_processor.py`.
+
+**Sync direction:** PWA writes → Supabase (via PostgREST, same pattern as user_feedback). Pull to local SQLite on next pipeline run.
+
+#### `contact_notes` (new table)
+
+Free-form notes per contact. Visible on queue cards (truncated) and profile pages (full text).
+
+```sql
+CREATE TABLE contact_notes (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id TEXT NOT NULL REFERENCES connections(id),
+    text          TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_notes_connection ON contact_notes(connection_id);
+```
+
+**Why new table, not `connections.notes`:** The `Connection` model already has a `notes` column (TEXT) but it is not pushed to Supabase in `push.py` and is not synced. Creating a separate `contact_notes` table makes notes first-class, syncable, and queryable from the PWA independently of the full connections row.
+
+**Sync direction:** Bidirectional. PWA writes notes → Supabase. Pull.py pulls notes to local SQLite so the LLM scoring prompt can reference them.
+
+### Modified Tables
+
+#### `connections` — new columns
+
+| Column | Type | Null | Purpose |
+|--------|------|------|---------|
+| `latest_signal` | TEXT | YES | Cached most-recent signal (avoids aggregation JOIN in queue generation) |
+| `latest_signal_at` | TIMESTAMPTZ | YES | When `latest_signal` was last set |
+| `cadence_due_at` | TIMESTAMPTZ | YES | Next eligible queue-entry date (set by signal system; NULL = always eligible) |
+
+**Why `latest_signal` cache:** Queue generation (`is_contact_excluded()`) and queue sorting both need to know a contact's current signal. A subquery on `contact_signals` per connection adds JOIN complexity to the hottest pipeline path. Denormalization is safe at single-user scale.
+
+**`cadence_due_at` replaces per-signal skip cooldowns.** It is set deterministically by `signal_service.py` when a signal is applied. NURTURE → NOW() + 30d. WARM_LEAD → NOW() + 7d. ARCHIVE → NULL (contact is excluded via `user_priority = 'never'` instead).
+
+#### `outreach_queue` — new columns
+
+| Column | Type | Null | Purpose |
+|--------|------|------|---------|
+| `signal` | TEXT | YES | Signal assigned when this queue item was triaged |
+| `signal_context` | TEXT | YES | Note attached to the signal decision |
+| `mini_key_factors` | TEXT | YES | Pre-computed 1-2 sentence summary for queue card (avoids parsing score_reasoning JSON in the browser) |
+
+**Why `mini_key_factors` in the queue table:** Queue card enrichment requires showing key factors. Computing them from `score_reasoning` (a nested JSON blob) in the browser means either exposing full enrichment JSON to the client or adding complex JS parsing. Pre-computing a plain-text summary in the Python queue generator is simpler and keeps the PWA lightweight.
+
+#### `user_profile` — new columns
+
+The existing `goals` (TEXT) and `interests` (TEXT) columns are already used in `build_scoring_prompt()`. v1.2 adds structured goals alongside them so the signal rescoring step can make precise matches without parsing free-form text.
+
+| Column | Type | Null | Purpose |
+|--------|------|------|---------|
+| `current_projects` | TEXT | YES | What the user is working on right now (informs WARM_LEAD matching) |
+| `goals_structured` | JSON | YES | Array of `{goal, domain, urgency}` for LLM-readable matching |
+
+**Why not just extend the existing `goals` field:** `goals` is a free-form string read by the existing scoring prompt. Changing its format breaks existing scoring calibration. Adding structured goals alongside it gives the signal rescoring step precise criteria without disrupting the working scoring prompt.
+
+---
+
+## Signal Flow Architecture
+
+### Signal Lifecycle
+
+```
+User opens queue card in PWA
+        |
+        v
+Selects one of 7 signals (with optional context note)
+
+Signal → Status + Cadence mapping (signal_service.py canonical map):
+
+  WARM_LEAD    → status: approved,       cadence: NOW() + 7d,  priority boost: +10
+  NURTURE      → status: pending_review, cadence: NOW() + 30d, priority boost: 0
+  VALUE_DROP   → status: skipped,        cadence: NOW() + 90d, priority boost: -5
+  SYNERGY      → status: approved,       cadence: NOW() + 14d, priority boost: +5
+  RECONNECT    → status: approved,       cadence: NOW() + 14d, priority boost: 0
+  FUTURE_PIVOT → status: pending_review, cadence: NOW() + 60d, priority boost: 0
+  ARCHIVE      → status: skipped,        cadence: NULL,        user_priority: 'never'
+
+        |
+        v
+PWA writes (PostgREST — same pattern as existing user_feedback writes):
+
+  INSERT INTO contact_signals (connection_id, queue_item_id, signal, context)
+  UPDATE outreach_queue SET signal=?, signal_context=?, status=?, reviewed_at=NOW()
+  UPDATE connections SET latest_signal=?, latest_signal_at=?, cadence_due_at=?
+     (for ARCHIVE also: user_priority = 'never')
+
+        |
+        v
+Next pipeline run (8AM)
+
+  pull.py: pulls contact_signals, contact_notes, latest_signal/cadence_due_at updates
+
+  Step 6 — queue_generator.py:
+    is_contact_excluded() Rule 6: cadence_due_at > NOW() → excluded
+    is_contact_excluded() Rule 7: latest_signal = 'ARCHIVE' → excluded
+    generate_queue_item(): WARM_LEAD contacts → priority_score += 10
+    generate_queue_item(): computes mini_key_factors from score_reasoning JSON
+
+  Step 8 — feedback_processor.py (extended):
+    Reads contact_signals from last 30 days
+    Identifies NURTURE contacts where reconnect_score < 40 as rescore candidates
+    Derives signal-pattern weight adjustments
+    Calls score_connections_batch() for flagged candidates
+
+  Step 5 — scoring.py (when rescoring flagged contacts):
+    build_scoring_prompt() includes latest_signal and signal context
+    WARM_LEAD adds explicit note to LLM prompt to boost goal_alignment assessment
+
+  push.py: pushes updated connections (latest_signal, cadence_due_at) back to Supabase
+```
+
+### Draft Tone Adaptation Flow
+
+```
+PWA: User clicks "Generate Draft" on queue card
+        |
+        v
+POST /functions/v1/draft
+{
+  "queue_item_id": 123,
+  "channel": "email",
+  "signal": "WARM_LEAD",         // new parameter
+  "signal_context": "Met at conf, can intro to my CTO"
+}
+        |
+        v
+draft/index.ts buildDraftPrompt() extended:
+
+  signal → tone guidance injected at end of prompt:
+
+    WARM_LEAD    → "This is a warm lead. Be direct and reference the specific opportunity."
+    NURTURE      → "This is a nurture touch. Share something valuable, make no explicit ask."
+    SYNERGY      → "Clear collaboration potential. Propose a concrete next step."
+    RECONNECT    → "You have shared history. Be casual and reference it briefly."
+    FUTURE_PIVOT → "Person is in career transition. Be forward-looking and supportive."
+    (VALUE_DROP, ARCHIVE → no draft generated; PWA disables draft button for these)
+
+  If signal_context provided, inject as additional context line in prompt.
+
+        |
+        v
+Returns draft with signal-appropriate tone
+```
+
+### Signal-Informed Rescoring Flow
+
+```
+feedback_processor.py (daily, extended Step 8):
+
+  1. Query contact_signals WHERE signaled_at > NOW() - 30d
+  2. Group by signal type:
+
+     WARM_LEAD signals → extract their domains/industries
+       if >40% are in "AI/ML", boost goal_alignment weight for that domain
+       (writes to user_preferences as scoring_weight override — existing mechanism)
+
+     ARCHIVE signals → ensure user_priority = 'never' on those connections
+       (defense: PWA sets this, pipeline confirms)
+
+     NURTURE signals where reconnect_score < 40 → flag for rescore
+       (low-scored contact was worth nurturing → maybe score was wrong)
+
+  3. Write weight adjustments to user_preferences (existing _upsert_scoring_weight())
+
+  4. For flagged NURTURE contacts: call score_connections_batch(ids, signal_context=True)
+     score_connection() extended: reads latest_signal + context, appends to prompt
 ```
 
 ---
 
-## Component Responsibilities
+## Data Flow Changes
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `daily_pipeline.py` | Orchestrates all 10 pipeline steps | SQLite, all src/* modules |
-| `src/services/dashboard_service.py` | Computes snapshot blob pushed to Supabase | SQLite (read) |
-| `src/sync/push.py` | SQLite → Supabase PostgreSQL (delta push) | Both DBs via SQLAlchemy |
-| `src/sync/pull.py` | Supabase → SQLite (queue actions, feedback) | Both DBs via SQLAlchemy |
-| `src/llm/scoring.py` | LLM scoring per contact, 5-dimension rubric | SQLite, OpenAI API |
-| `src/llm/opportunity_match.py` | LLM contact search (batch, text → matches) | SQLite, OpenAI API |
-| `src/integrations/gmail.py` | Sends email digest via smtplib App Password | SMTP |
-| `supabase/functions/draft/` | On-demand draft via OpenAI (edge) | Supabase PostgreSQL, OpenAI |
-| `supabase/functions/action/` | Processes email action tokens (GET confirm, POST execute) | Supabase PostgreSQL |
-| `supabase/functions/feedback/` | Records user_priority and feedback signals | Supabase PostgreSQL |
-| `pwa/js/dashboard.js` | Renders DashboardSnapshot blob — no live queries | Supabase PostgREST |
-| `pwa/js/queue.js` | Fetches queue + PATCH actions, Realtime subscription | Supabase PostgREST + Realtime |
-| `pwa/js/contact.js` | Fetches contact detail, calls /functions/v1/draft | Supabase PostgREST + Edge Fn |
+### Push Changes (local → Supabase)
 
----
+`push.py` currently pushes: connections, outreach_queue, dashboard_snapshots, action_tokens.
 
-## Feature Integration Analysis
+New additions:
+- `contact_signals` — push signals created locally (CLI triage, if any)
+- `contact_notes` — push notes created locally
+- New fields on connections: `latest_signal`, `latest_signal_at`, `cadence_due_at`
 
-### 1. Dashboard Charts (industry distribution, role mix, score tier)
+No changes to `outreach_queue` push (new columns are nullable, existing upsert logic handles them).
 
-**Current state:** `pwa/js/dashboard.js` reads a single `dashboard_snapshots` row from Supabase (JSON blob). The snapshot contains `network_health`, `opportunity_alerts`, `data_quality`, `feedback_insights`. The PWA renders counts and bars from this blob — no live aggregation queries. Snapshot is computed by `src/services/dashboard_service.py:compute_dashboard_snapshot()` at pipeline step 10.
+### Pull Changes (Supabase → local)
 
-**Integration approach:** Extend the snapshot blob. Do not add live PostgREST aggregation queries to the PWA.
+`pull.py` currently pulls: outreach_queue status changes, outreach_log, connection.last_contacted_at/user_priority, user_feedback, user_preferences.
 
-**New data to add to snapshot in `dashboard_service.py`:**
+New additions:
+- `contact_signals` created in PWA — INSERT if not exists (same pattern as user_feedback)
+- `contact_notes` created in PWA — INSERT if not exists
+- `connections.latest_signal` and `cadence_due_at` — cloud wins (same rule as user_priority)
+
+**Conflict resolution principle:** User-intent data (signals, notes, priorities) comes from the PWA and cloud wins. Pipeline-computed data (scores, enrichment, completeness) comes from local and local wins.
+
+### Queue Generator Changes
+
 ```python
-# In compute_dashboard_snapshot(), add:
-snapshot["demographics"] = compute_demographics()
-snapshot["health_insights"] = compute_health_insights(health, quality)
+# queue_generator.py — is_contact_excluded() gets two new rules:
 
-def compute_demographics() -> dict:
-    # industry_distribution: group connections by
-    #   raw_enrichment->>'company_industry' (postgres JSON operator)
-    #   or fall back to a Python-side groupby on fetched rows
-    # role_mix: bucket current_role into keywords
-    #   (founder/ceo/cto/vp/director/manager/engineer/designer/analyst)
-    # score_tier_distribution: bucket reconnect_score into 0-20/20-40/40-60/60-80/80-100
-    # top_companies: top 10 current_company by count
-    ...
+# Rule 6: Signal-based cadence not yet due
+if connection.cadence_due_at and connection.cadence_due_at > now:
+    return ExclusionResult(
+        excluded=True,
+        reason=f"Cadence not due until {connection.cadence_due_at.date()}"
+    )
 
-def compute_health_insights(health: dict, quality: dict) -> list[dict]:
-    # Returns actionable "why is this score low?" messages
-    insights = []
-    if quality["enriched_pct"] < 30:
-        insights.append({"type": "warning", "message": "Only X% enriched — run pipeline with enrichment to improve score"})
-    if health["components"]["email_coverage_pct"] < 40:
-        insights.append({"type": "info", "message": "X contacts missing email — run Find Emails"})
-    ...
+# Rule 7: Archived (belt-and-suspenders with user_priority = 'never')
+if connection.latest_signal == 'ARCHIVE':
+    return ExclusionResult(excluded=True, reason="Archived by user signal")
+
+# generate_queue_item() gets two additions:
+
+# 1. WARM_LEAD priority boost
+from src.services.signal_service import SIGNAL_ACTIONS
+priority_boost = SIGNAL_ACTIONS.get(connection.latest_signal, {}).get("priority_boost", 0)
+queue_item.priority_score = (connection.reconnect_score or 50) + priority_boost
+
+# 2. mini_key_factors pre-computation
+queue_item.mini_key_factors = _compute_mini_key_factors(connection)
+
+def _compute_mini_key_factors(connection: Connection) -> Optional[str]:
+    if not connection.score_reasoning:
+        return None
+    try:
+        reasoning = json.loads(connection.score_reasoning)
+        factors = reasoning.get("key_factors", [])
+        if factors:
+            return "; ".join(factors[:2])  # First 2 key factors
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return None
 ```
 
-**PWA rendering in `dashboard.js`:** Read `snapshot.demographics` and render:
-- Score tier distribution: CSS progress-bar style (same pattern as existing funnel bars — `buildFunnelSection()`)
-- Industry distribution: horizontal bar list with percentages
-- Role mix: keyword count list
-- Health insights: alert cards above the health score
+### PWA Changes
 
-No external chart library required. The existing funnel bar pattern in `dashboard.js` is sufficient for all these visualizations.
+**queue.js — signal selector replaces 3 buttons:**
 
-**What changes:**
-- `src/services/dashboard_service.py` — add `compute_demographics()`, `compute_health_insights()`, include in snapshot dict
-- `pwa/js/dashboard.js` — add rendering functions for demographics sections and insight cards
-- No new API endpoints, no new DB tables, no migration needed
-
-**Confidence:** HIGH — snapshot pattern is established and syncs to Supabase via `push.py`.
-
----
-
-### 2. AI Contact Search ("Who in my network knows about X?")
-
-**Current state:** `src/llm/opportunity_match.py:find_matches()` already implements this — batches contacts to gpt-4o-mini, filters by relevance score. It runs locally against SQLite. Streamlit's "Ask My Network" page wraps it. This logic needs to move to the PWA as an Edge Function.
-
-**Integration approach:** New Edge Function `search`, NOT pgvector.
-
-**Why not pgvector:** Enabling pgvector requires extension enable + embedding generation pipeline + sync column + ongoing cost. At hundreds to low thousands of contacts, the existing batch LLM approach (50 contacts/call, gpt-4o-mini) is simpler, cheaper, and already proven. Revisit at 5k+ contacts where batching latency becomes unacceptable.
-
-**New Edge Function `supabase/functions/search/index.ts`:**
-```typescript
-// POST { query: "Who knows about fundraising?" }
-// 1. Fetch all connections with name + role or company set
-//    SELECT id, name, current_role, current_company, location FROM connections
-//    WHERE current_role IS NOT NULL OR current_company IS NOT NULL
-// 2. Batch into groups of 50
-// 3. For each batch: call OpenAI gpt-4o-mini with prompt from _build_batch_prompt()
-// 4. Collect matches where score >= 60, sort by score desc
-// Returns: { matches: [{ connection_id, name, score, reason }] }
-```
-
-Port `_build_batch_prompt()` and the OpenAI call pattern from `opportunity_match.py` to TypeScript. Mirrors the `draft` Edge Function structure exactly (uses service role key to read all DB tables, calls OpenAI, returns JSON).
-
-**PWA integration:** New `pwa/js/search.js` module. Add `#/search` route to `app.js` and a nav item. The search page is a text input + button that calls the Edge Function and renders result cards linking to `#/contact/{id}`.
-
-**What changes:**
-- NEW `supabase/functions/search/index.ts` — port `opportunity_match.py` logic to TypeScript
-- NEW `pwa/js/search.js` — search UI component, calls Edge Function
-- `pwa/js/app.js` — add `'/search': { module: 'search', title: 'Search' }` route
-- `pwa/index.html` — add `<script src="js/search.js">` and nav item
-- No DB changes, no migration needed
-
-**Confidence:** HIGH — mirrors existing `draft` Edge Function pattern. OpenAI key already set as Supabase secret.
-
----
-
-### 3. Gmail OAuth (replace App Password + smtplib)
-
-**Current state:** `src/integrations/gmail.py` uses `smtplib.SMTP_SSL` with a 16-char App Password. The `GmailCredentials` table (id=1 singleton) already has `access_token`, `refresh_token`, `client_id`, `client_secret`, `scopes`, `expiry` columns — the schema was designed for OAuth from the start.
-
-**Integration approach:** Add OAuth send path alongside the existing App Password path. Keep App Password as fallback — zero regression risk.
-
-**OAuth setup flow (one-time, developer runs manually):**
-1. GCP project → OAuth credentials → `client_id` + `client_secret` → save to `.env` as `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET`
-2. Run: `python -m src.cli auth gmail`
-   - Builds auth URL, opens browser, listens on `localhost:8080` for callback
-   - Exchanges code for tokens via `google-auth-oauthlib`
-   - Saves `access_token`, `refresh_token`, `expiry` to `GmailCredentials` row id=1 in SQLite
-
-**Pipeline send flow:**
-```python
-# src/integrations/gmail.py — updated is_gmail_configured()
-def is_gmail_configured() -> bool:
-    s = get_settings()
-    if s.gmail_app_password and s.gmail_sender_email:
-        return True  # App Password path (existing)
-    # Check OAuth path
-    with get_session() as session:
-        creds = session.get(GmailCredentials, 1)
-        return bool(creds and creds.refresh_token)
-
-# New: send_html_email_oauth()
-def send_html_email_oauth(to, subject, html_body, text_body=None):
-    # Load from GmailCredentials row
-    # Build google.oauth2.credentials.Credentials object
-    # Auto-refresh if expiry < now + 5min (credentials.refresh(Request()))
-    # Save refreshed tokens back to GmailCredentials table
-    # Call Gmail API: service.users().messages().send()
-```
-
-**Token storage security note:** `push.py` currently syncs the `gmail_credentials` table to Supabase. This must be removed — OAuth refresh tokens in a shared DB are a security risk. The tokens are only needed by the local pipeline; there is no cloud use case.
-
-**New dependencies:**
-```
-google-auth>=2.0
-google-auth-oauthlib>=1.0
-google-api-python-client>=2.0
-```
-
-**What changes:**
-- `src/integrations/gmail.py` — add `send_html_email_oauth()`, update `is_gmail_configured()` to check both paths, add token refresh-and-save logic
-- `src/config.py` — add `gmail_client_id: str = ""` and `gmail_client_secret: str = ""`
-- NEW `src/cli/auth.py` — OAuth dance (build URL, run local callback server, save tokens)
-- `src/sync/push.py` — remove `gmail_credentials` from sync payload (security fix)
-- `.env` — add `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET` when configuring
-
-**Confidence:** HIGH — `GmailCredentials` table already designed for this. `google-auth` library is the standard Python OAuth2 approach.
-
----
-
-### 4. Queue Filtering/Sorting
-
-**Current state:** `pwa/js/queue.js` fetches `outreach_queue` with a hardcoded query:
 ```javascript
-.from('outreach_queue')
-.select('*, connections(*)')
-.eq('status', 'pending_review')
-.order('priority_score', { ascending: false })
+// Replace the Approve / Skip / Snooze button group with:
+const SIGNAL_ACTIONS = {
+  WARM_LEAD:    { status: 'approved',       cadenceDays: 7,   label: 'Warm Lead',    emoji: '🔥' },
+  NURTURE:      { status: 'pending_review', cadenceDays: 30,  label: 'Nurture',      emoji: '🌱' },
+  VALUE_DROP:   { status: 'skipped',        cadenceDays: 90,  label: 'Value Drop',   emoji: '📉' },
+  SYNERGY:      { status: 'approved',       cadenceDays: 14,  label: 'Synergy',      emoji: '⚡' },
+  RECONNECT:    { status: 'approved',       cadenceDays: 14,  label: 'Reconnect',    emoji: '🔗' },
+  FUTURE_PIVOT: { status: 'pending_review', cadenceDays: 60,  label: 'Future Pivot', emoji: '🎯' },
+  ARCHIVE:      { status: 'skipped',        cadenceDays: null, label: 'Archive',     emoji: '📦' },
+};
+
+async function applySignal(queueItemId, connectionId, signal, context) {
+  const action = SIGNAL_ACTIONS[signal];
+  const now = new Date();
+  const cadenceDueAt = action.cadenceDays
+    ? new Date(now.getTime() + action.cadenceDays * 86400000).toISOString()
+    : null;
+
+  // Write signal record
+  await db.from('contact_signals').insert({
+    connection_id: connectionId,
+    queue_item_id: queueItemId,
+    signal,
+    context: context || null,
+  });
+
+  // Update queue item
+  await db.from('outreach_queue').update({
+    signal,
+    signal_context: context || null,
+    status: action.status,
+    reviewed_at: now.toISOString(),
+  }).eq('id', queueItemId);
+
+  // Update connection cache
+  const connUpdate = {
+    latest_signal: signal,
+    latest_signal_at: now.toISOString(),
+    cadence_due_at: cadenceDueAt,
+  };
+  if (signal === 'ARCHIVE') connUpdate.user_priority = 'never';
+  await db.from('connections').update(connUpdate).eq('id', connectionId);
+}
 ```
-No filtering UI exists. The `connections` table has `current_company`, `current_role`, and `reconnect_score` indexed.
 
-**Integration approach:** PostgREST query params for filtering; lightweight client-side sort as fallback.
+**contact.js — notes and signal history:**
 
-**Specific PostgREST patterns:**
-
-Score sort (via embedded resource ordering — PostgREST v11+):
 ```javascript
-.from('outreach_queue')
-.select('*, connections(*)')
-.eq('status', 'pending_review')
-.order('priority_score', { ascending: false })  // keep as primary
-// Client-side re-sort by connections.reconnect_score if needed
-```
+// Fetch and display notes
+const { data: notes } = await db
+  .from('contact_notes')
+  .select('*')
+  .eq('connection_id', contactId)
+  .order('created_at', { ascending: false });
 
-Industry/company filter (PostgREST inner join filter):
-```javascript
-.from('outreach_queue')
-.select('*, connections!inner(*)')
-.eq('status', 'pending_review')
-.ilike('connections.current_company', `%${company}%`)
-```
-
-Status filter tabs (trivial — change the `.eq('status', ...)` value):
-```javascript
-.eq('status', selectedStatus)  // 'pending_review' | 'approved' | 'all'
-```
-
-**Safe fallback for sort:** Since pending queue is typically 5-20 items, client-side sort after fetch is acceptable. Build a `sortItems(items, sortBy)` helper in `queue.js`.
-
-**UI additions to `queue.js`:**
-- Filter bar HTML above queue cards: company text input + sort toggle buttons + status tabs
-- Filter state variables: `currentFilter = { company: '', sort: 'priority', status: 'pending_review' }`
-- `renderQueue()` reads filter state and builds the PostgREST query dynamically
-
-**What changes:**
-- `pwa/js/queue.js` — add filter state, modify query builder, add filter UI rendering
-- No DB changes, no migration, no new Edge Functions
-
-**Confidence:** HIGH — PostgREST filter/sort is well-documented. Client-side fallback is trivial for small datasets.
-
----
-
-### 5. CLI Commands (replace Streamlit pipeline controls)
-
-**Current state:** Pipeline is triggered via LaunchAgent cron. Streamlit's pipeline page wraps `run_daily_pipeline()` with a UI button. Streamlit is being removed. The CLI must cover all operations currently only accessible via Streamlit.
-
-**Integration approach:** Add `src/cli.py` entry point using `click` (recommended over `argparse` for subcommand UX).
-
-**Commands to expose:**
-```
-reconnect pipeline                    # run full daily pipeline
-reconnect pipeline --skip-enrich      # skip enrichment step
-reconnect pipeline --skip-queue       # skip queue generation step
-reconnect sync                        # push + pull only
-reconnect import <path>               # import LinkedIn dump ZIP
-reconnect rescore                     # re-score all enriched contacts
-reconnect reset-queue                 # mark all pending/approved as skipped
-reconnect auth gmail                  # OAuth dance for Gmail
-reconnect status                      # show pipeline stats + queue counts
-reconnect find-emails [--limit N]     # Hunter.io email batch lookup
-```
-
-**Wraps existing functions:**
-- `pipeline` → `run_daily_pipeline()` from `src/pipeline/daily_pipeline.py`
-- `sync` → `run_sync()` from `src/sync/runner.py`
-- `import` → `import_linkedin_dump()` from `src/ingestion/linkedin_dump.py`
-- `rescore` → `score_connections_batch()` from `src/llm/scoring.py`
-- `reset-queue` → direct DB update (copy from Streamlit's `_reset_stale_queue()`)
-- `status` → `get_pipeline_stats()` + `get_queue_stats()`
-
-**LaunchAgent migration:** Update plist to call `python -m src.cli pipeline` (or `python /path/to/project/src/cli.py pipeline`).
-
-**What changes:**
-- NEW `src/cli.py` — `click` group with all subcommands
-- NEW `src/cli/__init__.py` — empty
-- NEW `src/cli/auth.py` — Gmail OAuth dance (also needed for Gmail OAuth feature)
-- LaunchAgent `.plist` — update `ProgramArguments` to use CLI command
-- No DB changes, no migration
-
-**Confidence:** HIGH — all functions exist, CLI is thin wrappers.
-
----
-
-### 6. Score Breakdown Bug Fix
-
-**Current state (bugfix, not new architecture):** The PWA contact page shows 0 in all 5 scoring dimensions. The bug is in how `score_reasoning` is stored vs read.
-
-**Root cause (confirmed from code inspection):** `src/llm/scoring.py` stores:
-```python
-connection.score_reasoning = json.dumps({
-    "reasoning": result.reasoning,
-    "key_factors": result.key_factors,
-    "conversation_hooks": result.conversation_hooks,
-    "dimension_scores": result.dimension_scores,
-})
-```
-
-`pwa/js/contact.js` reads:
-```javascript
-const reasoning = JSON.parse(conn.score_reasoning);
-dimensions = reasoning.dimension_scores || {};
-```
-
-This should work. The likely bug: contacts were scored BEFORE `dimension_scores` was added to the scoring rubric (old format had no `dimension_scores` key). These contacts need to be re-scored. The `_rescore_contacts(rubric_only=True)` function in `src/ui/app.py` already identifies and re-scores these.
-
-**Fix:** Run `reconnect rescore` (new CLI command). No code change needed — just a data migration via the rescore command.
-
-**Confidence:** HIGH — code paths confirmed by inspection.
-
----
-
-### 7. Streamlit Removal Audit
-
-**What Streamlit provides (by page) and coverage status:**
-
-| Page | Key Functionality | PWA Coverage | CLI Coverage | Safe to Delete? |
-|------|------------------|--------------|--------------|-----------------|
-| Contacts (main) | Browse, search, enrich+score batch | Partial (queue only, no browse) | Partial | Not yet — contact browse not in PWA |
-| Dashboard | Charts, health, alerts | YES (dashboard.js) | No | YES after PWA charts land |
-| Ask My Network | AI contact search | NO → new feature | No | YES after search Edge Fn |
-| Review Queue | Approve/skip | YES (queue.js) | No | YES |
-| Find Contacts | Opportunity search | Same as Ask | No | YES after search Edge Fn |
-| Pipeline | Run pipeline, diagnostics | No | YES (new CLI) | YES after CLI |
-| Settings | User profile | YES (preferences.js) | No | YES |
-
-**Contact import — only in Streamlit today.** Must be preserved via CLI:
-- `reconnect import <path>` covers explicit path import
-- LaunchAgent auto-import from `~/Downloads` is already in `daily_pipeline.py`
-- Streamlit import (file upload UI) can be removed — manual imports are rare
-
-**Safe deletion order:**
-1. `src/ui/views/review.py` — crashes on import, delete first (no deps)
-2. `src/ui/views/dashboard.py` — delete after PWA charts land
-3. `src/ui/views/ask.py` — delete after search Edge Function ships
-4. `src/ui/views/opportunities.py` — delete with ask.py
-5. `src/ui/app.py` + `src/ui/components/` — delete after all views gone
-6. `src/config.py` — remove `get_streamlit_secrets()` function
-7. `requirements.txt` / `pyproject.toml` — remove `streamlit`, `plotly`
-
-**Do not delete (still used):**
-- `src/services/dashboard_service.py` — pipeline step 10
-- `src/llm/opportunity_match.py` — keep as local Python library
-- Anything in `src/pipeline/`, `src/sync/`, `src/integrations/`, `src/llm/`, `src/ingestion/`
-
----
-
-## Data Flow Diagrams
-
-### Dashboard Charts Flow
-
-```
-Pipeline Step 10
-    ↓
-compute_demographics()    → { industry_distribution, role_mix, score_tiers, top_companies }
-compute_health_insights() → [ { type, message } ]
-compute_network_health()  → { score, components }  (existing)
-compute_data_quality()    → { total, scored, enriched, ... }  (existing)
-    ↓ (all merged into snapshot dict)
-save_dashboard_snapshot(snapshot) → DashboardSnapshot row in SQLite
-    ↓
-push.py → upsert DashboardSnapshot to Supabase PostgreSQL
-    ↓
-PWA dashboard.js
-  → PostgREST: GET /dashboard_snapshots?snapshot_type=eq.daily&order=created_at.desc&limit=1
-  → snapshot.demographics → build chart HTML (CSS bar pattern)
-  → snapshot.health_insights → render insight cards
-```
-
-### AI Search Flow
-
-```
-User types "Who can help with fundraising?" in PWA search
-    ↓
-pwa/js/search.js → POST /functions/v1/search { query: "..." }
-    ↓
-supabase/functions/search/index.ts
-  → SELECT id, name, current_role, current_company, location FROM connections
-    WHERE current_role IS NOT NULL OR current_company IS NOT NULL
-  → Batch 50 contacts/call
-  → For each batch: POST to OpenAI gpt-4o-mini with match prompt
-  → Collect matches with score >= 60
-  → Sort by score desc, return top 10
-    ↓
-PWA renders match cards: name, role@company, score, reason
-  → Each card links to #/contact/{connection_id}
-```
-
-### Gmail OAuth Flow (one-time setup)
-
-```
-Developer: python -m src.cli auth gmail
-    ↓
-src/cli/auth.py
-  → Build OAuth URL (gmail_client_id, redirect_uri=localhost:8080, scope=gmail.send)
-  → Open browser to Google consent screen
-  → Listen on localhost:8080 for OAuth callback
-  → Exchange auth code for tokens (google-auth-oauthlib)
-  → Save to GmailCredentials row id=1 in SQLite (access_token, refresh_token, expiry)
-    ↓
-[Pipeline runs daily]
-  → is_gmail_configured() checks: App Password OR refresh_token present
-  → send_html_email_oauth(): load creds, refresh if needed, save refreshed, call Gmail API
-```
-
-### Queue Filtering Flow
-
-```
-User sets filter: company="Stripe", sort="score"
-    ↓
-pwa/js/queue.js
-  → currentFilter = { company: 'Stripe', sort: 'score', status: 'pending_review' }
-  → Build query:
-      .from('outreach_queue')
-      .select('*, connections!inner(*)')
-      .eq('status', 'pending_review')
-      .ilike('connections.current_company', '%Stripe%')
-      .order('priority_score', { ascending: false })
-    ↓
-PostgREST returns filtered results (server-side)
-  → Optional: client-side re-sort by connections.reconnect_score
-    ↓
-Existing queue card template renders filtered items
+// Fetch signal history
+const { data: signals } = await db
+  .from('contact_signals')
+  .select('signal, context, signaled_at')
+  .eq('connection_id', contactId)
+  .order('signaled_at', { ascending: false })
+  .limit(5);
 ```
 
 ---
@@ -467,164 +428,298 @@ Existing queue card template renders filtered items
 
 ```
 src/
-├── cli.py                   # NEW — click entry point, subcommands
-├── cli/
-│   ├── __init__.py          # NEW (empty)
-│   └── auth.py              # NEW — Gmail OAuth dance
-├── integrations/
-│   └── gmail.py             # MODIFY — add OAuth send path, update is_gmail_configured()
+├── database/
+│   └── models.py            # MODIFY: ContactSignal, ContactNote classes;
+│                            #         Connection: latest_signal, cadence_due_at;
+│                            #         OutreachQueueItem: signal, signal_context, mini_key_factors;
+│                            #         UserProfile: current_projects, goals_structured
 ├── services/
-│   └── dashboard_service.py # MODIFY — add compute_demographics(), compute_health_insights()
-├── sync/
-│   └── push.py              # MODIFY — remove gmail_credentials from sync payload
-├── config.py                # MODIFY — add gmail_client_id, gmail_client_secret; remove get_streamlit_secrets()
-└── ui/                      # DELETE progressively (see audit above)
-    └── views/review.py      # delete first (already broken)
+│   ├── dashboard_service.py # no change
+│   └── signal_service.py    # NEW: SIGNAL_ACTIONS map + apply_signal() function
+├── pipeline/
+│   ├── daily_pipeline.py    # MODIFY: pass signal_context flag to Step 5/8
+│   ├── queue_generator.py   # MODIFY: cadence exclusion Rule 6-7, priority boost,
+│   │                        #         mini_key_factors computation
+│   └── feedback_processor.py # MODIFY: analyze signal patterns, trigger signal rescore
+├── llm/
+│   └── scoring.py           # MODIFY: build_scoring_prompt() accepts signal context
+└── sync/
+    ├── push.py              # MODIFY: push contact_signals, contact_notes, new connection fields
+    └── pull.py              # MODIFY: pull contact_signals, contact_notes, latest_signal updates
+
+supabase/
+├── functions/
+│   └── draft/index.ts       # MODIFY: accept signal param, inject tone guidance
+└── migrations/
+    └── YYYYMMDD_intent_signals.sql  # NEW: contact_signals, contact_notes, new columns
 
 pwa/js/
-├── app.js                   # MODIFY — add #/search route, add search nav item
-├── dashboard.js             # MODIFY — add demographics chart rendering, health insight cards
-├── queue.js                 # MODIFY — add filter state, modify query builder, add filter UI
-└── search.js                # NEW — search UI + calls /functions/v1/search
-
-supabase/functions/
-└── search/
-    └── index.ts             # NEW — AI contact search Edge Function
+├── queue.js                 # MODIFY: signal selector replacing 3-button triage;
+│                            #         enriched card (mini_key_factors, notes preview)
+├── contact.js               # MODIFY: notes section, signal history panel
+└── preferences.js           # MODIFY: user goals/projects editing form
 ```
 
 ---
 
-## Architectural Patterns in This Codebase
+## Architectural Patterns
 
-### Pattern 1: Snapshot-Based Dashboard (extend, do not replace)
+### Pattern 1: Canonical Signal Map — One Definition, Two Implementations
 
-**What:** Pipeline computes all dashboard data and stores as a JSON blob in `dashboard_snapshots`. PWA reads the latest snapshot — no live aggregation queries from the browser.
+**What:** Define the signal → action mapping once in `signal_service.py` (Python) and mirror it as a plain JS object in `queue.js`. All other code imports from these two locations.
 
-**When to use:** Any data that (a) only needs to be current as of the last pipeline run and (b) requires aggregation across many rows. Keeps PostgREST calls simple and fast.
+**When to use:** Every path that acts on a signal value: queue generator, feedback processor, PWA writes, draft Edge Function.
 
-**Extension for v1.1:** All new dashboard charts (industry distribution, role mix, score tiers, health insights) fit this pattern. Add new keys to the snapshot dict in `compute_dashboard_snapshot()`. Do not add new PostgREST queries to `dashboard.js`.
+**Trade-offs:** Slight duplication (Python + JS) but eliminates silent divergence where the PWA sets cadence to 30 days but the pipeline expects 14. The alternative (Edge Function as single source) adds latency to a write-only operation.
 
-### Pattern 2: Edge Function for AI Operations (extend it)
+```python
+# src/services/signal_service.py
+from datetime import datetime, timedelta
+from typing import Optional
 
-**What:** Anything that needs OpenAI runs in a Supabase Edge Function (Deno TypeScript). The PWA calls Edge Functions directly with the anon key. Edge Functions use the service role key to access all DB tables.
+SIGNAL_ACTIONS: dict[str, dict] = {
+    "WARM_LEAD":    {"queue_status": "approved",       "cadence_days": 7,   "priority_boost": 10},
+    "NURTURE":      {"queue_status": "pending_review", "cadence_days": 30,  "priority_boost": 0},
+    "VALUE_DROP":   {"queue_status": "skipped",        "cadence_days": 90,  "priority_boost": -5},
+    "SYNERGY":      {"queue_status": "approved",       "cadence_days": 14,  "priority_boost": 5},
+    "RECONNECT":    {"queue_status": "approved",       "cadence_days": 14,  "priority_boost": 0},
+    "FUTURE_PIVOT": {"queue_status": "pending_review", "cadence_days": 60,  "priority_boost": 0},
+    "ARCHIVE":      {"queue_status": "skipped",        "cadence_days": None, "priority_boost": -100},
+}
 
-**When to use:** Any AI feature the PWA needs on-demand. Draft generation already uses this pattern.
-
-**For v1.1 AI search:** Create `supabase/functions/search/index.ts`. Mirrors the `draft` Edge Function structure: accept POST body, use service role to read DB, call OpenAI, return JSON result.
-
-**Constraint:** Supabase free tier Edge Function execution limit is 2s CPU per invocation. For 500 contacts = 10 batches × 1 OpenAI call each. Run batches sequentially (not Promise.all) to stay under limits; total wall-clock ~5s is acceptable for a search interaction.
-
-### Pattern 3: Direct PostgREST for CRUD (existing, works well)
-
-**What:** Queue actions, contact updates, preference writes go directly from the PWA through PostgREST using the anon key. No Edge Function intermediary.
-
-**When to use:** Any operation that is a direct table read or update without AI or complex business logic.
-
-**For v1.1 queue filtering:** Add filter params to the existing PostgREST queries in `queue.js`. Do not create an Edge Function for filtering — that would be overengineered.
-
-### Pattern 4: Sync at Pipeline Completion (do not change)
-
-**What:** Pipeline runs locally, computes everything in SQLite, then calls `push.py` as the final step. Pull happens at the start of the next pipeline run.
-
-**Critical invariant:** The `last_push_at` timestamp in `sync_metadata` gates delta pushes. If this timestamp gets corrupted, contacts stop syncing incrementally and a full resync is needed.
-
----
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Live Aggregation Queries in the PWA Dashboard
-
-**What people do:** Add PostgREST GROUP BY queries directly in `dashboard.js` for industry counts, score distributions, etc.
-
-**Why wrong:** PostgREST does not support GROUP BY natively. For complex aggregations you need a Postgres function/view — additional schema complexity. It also bypasses the snapshot pattern.
-
-**Do this instead:** Add aggregation to `compute_demographics()` in `dashboard_service.py`. Include in the snapshot. The snapshot updates every 24h which is exactly the right cadence for dashboard charts.
-
-### Anti-Pattern 2: Syncing OAuth Tokens to Supabase
-
-**What people do:** `push.py` currently syncs the `gmail_credentials` table to Supabase PostgreSQL.
-
-**Why wrong:** OAuth refresh tokens in a shared database are a security liability, even with RLS. The tokens are only needed locally by the pipeline to send email — there is no cloud-side use case for them.
-
-**Do this instead:** Remove `gmail_credentials` from the sync payload in `push.py`. If the token needs to be recoverable, it should be backed up separately (e.g., encrypted file in a safe location), not in Supabase.
-
-### Anti-Pattern 3: pgvector for AI Search at Current Scale
-
-**What people do:** Reach for semantic vector search when "AI search" is mentioned.
-
-**Why wrong:** At hundreds to low thousands of contacts, embedding generation (OpenAI embeddings API, cost) + pgvector extension + sync column + ongoing maintenance adds complexity without proportional benefit. The existing batch LLM approach is simpler, cheaper, and proven.
-
-**Do this instead:** Port `opportunity_match.py` to an Edge Function. Re-evaluate pgvector when contacts exceed 5,000+ (where 100 batches × 500ms each = 50s latency becomes unacceptable).
-
-### Anti-Pattern 4: Porting Streamlit Session State to the CLI
-
-**What people do:** Try to replicate Streamlit's `st.session_state` (in-memory state between button clicks) in CLI commands.
-
-**Why wrong:** CLI commands are stateless processes. Each invocation is a new Python process. There is no in-memory continuity.
-
-**Do this instead:** All state lives in SQLite. CLI commands read and write DB rows. No in-memory state between invocations. Progress output via `click.echo()`, not a state object.
-
----
-
-## Integration Points Summary
-
-| Feature | New Files | Modified Files | New DB/Migration? | New Edge Fn? |
-|---------|-----------|----------------|-------------------|--------------|
-| Dashboard charts + health insights | — | `dashboard_service.py`, `dashboard.js` | No | No |
-| AI contact search | `search/index.ts`, `search.js` | `app.js`, `index.html` | No | YES |
-| Gmail OAuth | `cli/auth.py` | `gmail.py`, `config.py`, `push.py` | No | No |
-| Queue filtering/sorting | — | `queue.js` | No | No |
-| CLI commands | `cli.py`, `cli/__init__.py`, `cli/auth.py` | LaunchAgent plist | No | No |
-| Score breakdown fix | — | — (rescore command) | No | No |
-| Streamlit removal | — | `config.py`, `requirements.txt` | No | No |
-
----
-
-## Build Order Rationale
-
-Features are independent of each other except:
-- Streamlit Removal depends on: CLI commands + AI Search Edge Function + confirmation charts are in PWA
-- Score Breakdown fix depends on: rescore CLI command existing (or running Streamlit rescore directly)
-
+def apply_signal(signal: str, now: Optional[datetime] = None) -> dict:
+    now = now or datetime.utcnow()
+    action = SIGNAL_ACTIONS.get(signal, {})
+    cadence_days = action.get("cadence_days")
+    return {
+        "queue_status": action.get("queue_status", "skipped"),
+        "cadence_due_at": now + timedelta(days=cadence_days) if cadence_days else None,
+        "priority_boost": action.get("priority_boost", 0),
+    }
 ```
-1. Score Breakdown Bug Fix — run rescore via Streamlit (existing) or new CLI
-   No arch work, just confirm existing contact data has dimension_scores populated
 
-2. Queue Filtering — zero dependencies, high daily-use value
-   Change: queue.js only
+### Pattern 2: Denormalized Signal Cache on Connections
 
-3. Dashboard Charts + Health Insights — extends existing snapshot pattern
-   Change: dashboard_service.py + dashboard.js
+**What:** Cache `latest_signal`, `latest_signal_at`, and `cadence_due_at` on the `connections` row rather than querying `contact_signals` with MAX aggregation.
 
-4. AI Contact Search Edge Function — new pattern, mirrors draft Edge Function
-   Change: new search Edge Function + search.js + app.js route
+**When to use:** Everywhere that needs to know a contact's current signal: `is_contact_excluded()`, queue sort, queue card display in PWA.
 
-5. CLI Commands — wraps existing functions, unblocks Streamlit removal
-   Change: new src/cli.py + cli/auth.py scaffold
+**Trade-offs:** Slight write duplication (INSERT contact_signals + UPDATE connections) but eliminates a correlated subquery in `generate_daily_queue()`. Every path that inserts a signal MUST also update the connection cache — enforce this by routing all signal writes through `signal_service.py::apply_signal()` on the backend and through `applySignal()` in `queue.js` on the frontend.
 
-6. Gmail OAuth — independent infra, lower urgency than UX features
-   Change: gmail.py + cli/auth.py (reuse from step 5) + config.py + push.py
+**Update discipline:** The `apply_signal()` function in `signal_service.py` ALWAYS returns the connection update fields. Callers that skip the connection update create stale cache — this is a correctness bug, not a performance bug.
 
-7. Streamlit Removal — last, after steps 4 + 5 cover Streamlit's functionality
-   Change: delete src/ui/ progressively, clean requirements
+### Pattern 3: Signal Context as LLM Prompt Injection (Additive, Not Replacement)
+
+**What:** When a contact has a signal with context, append it as an additional prompt section rather than rewriting the core scoring prompt.
+
+**When to use:** `scoring.py::build_scoring_prompt()` for signal rescoring, `draft/index.ts::buildDraftPrompt()` for tone adaptation.
+
+**Trade-offs:** Keeps the core prompt stable (existing calibration is preserved); signal context is additive. The risk of prompt injection from user-provided `signal_context` text is low (single-user tool, no malicious input).
+
+```python
+# In build_scoring_prompt() when signal context is available:
+signal_section = ""
+if connection.latest_signal and connection.latest_signal != "ARCHIVE":
+    signal_section = f"""
+TRIAGE SIGNAL (user's intent for this contact):
+- Signal: {connection.latest_signal}
+- Context: {signal_context or 'No additional context'}
+Consider this when scoring Goal Alignment and Conversation Hooks dimensions.
+"""
+return f"{user_context}\n{contact_context}\n{signal_section}\nTASK: ..."
 ```
+
+### Pattern 4: PostgREST Direct for Signal Writes (No Edge Function)
+
+**What:** The PWA writes signals, notes, and queue updates directly through PostgREST with the anon key, not through an Edge Function.
+
+**When to use:** Any write that does not require server-side secrets (OPENAI_API_KEY, SERVICE_ROLE_KEY for cross-table operations beyond anon key permissions).
+
+**Why not an Edge Function for signals:** PostgREST already handles inserts to `user_feedback` and `user_preferences` from the PWA. Signal writes follow the identical pattern — one INSERT plus two UPDATEs, no AI, no secrets. An Edge Function would add cold-start latency (~200ms) to every signal tap.
+
+**Supabase RLS note:** The new `contact_signals` and `contact_notes` tables need the same INSERT grant to the `anon` role as `user_feedback`. Add these to the migration.
+
+---
+
+## Integration Points
+
+### Where New Features Touch Existing Code
+
+| Feature | Existing Component | Integration Point |
+|---------|--------------------|-------------------|
+| 7 signals | `queue.js` | Replace 3-button triage; write to contact_signals + queue + connection via PostgREST |
+| 7 signals | `outreach_queue` | New columns: signal, signal_context |
+| 7 signals | `queue_generator.py` | New exclusion Rule 6 (cadence_due_at); Rule 7 (ARCHIVE); priority boost from latest_signal |
+| Cadence re-queuing | `connections` table | cadence_due_at column; read in is_contact_excluded() |
+| Cadence re-queuing | `queue_generator.py` | New exclusion Rule 6 |
+| User goals | `user_profile` table | current_projects, goals_structured columns |
+| User goals | `scoring.py` | build_scoring_prompt() extended to use goals_structured |
+| User goals | `preferences.js` | Add goals editing form (POST to user_profile via PostgREST) |
+| Contact notes | `contact.js` | Fetch from contact_notes, render below scoring rationale |
+| Contact notes | `queue.js` | Show truncated note on queue card |
+| Contact notes | `pull.py` | Pull notes created in PWA to local SQLite |
+| Contact notes | `push.py` | Push notes created locally to Supabase |
+| Signal rescoring | `feedback_processor.py` | Analyze signal patterns; identify rescore candidates; call score_connections_batch() |
+| Signal rescoring | `scoring.py` | build_scoring_prompt() accepts optional signal context param |
+| Signal rescoring | `daily_pipeline.py` | Step 8 extended (non-fatal) |
+| Draft tone | `draft/index.ts` | Accept signal param; SIGNAL_TONE_MAP → tone guidance injected in buildDraftPrompt() |
+| Queue enrichment | `queue_generator.py` | _compute_mini_key_factors() from score_reasoning JSON |
+| Queue enrichment | `queue.js` | Display mini_key_factors and latest note snippet on cards |
+
+### External Boundaries Unchanged
+
+| Boundary | Status | Notes |
+|----------|--------|-------|
+| PostgREST API | No breaking changes | New tables and nullable columns; existing queries work as-is |
+| Edge Function `action/` | Unchanged | Email triage tokens still work; signal triage is a PWA-only flow |
+| Edge Function `feedback/` | Unchanged | Signal writes go direct to PostgREST, not through this function |
+| Email digest | Unchanged | The digest links to PWA queue; signal selection happens in PWA |
+| Supabase anon key permissions | Needs addition | New tables (contact_signals, contact_notes) need SELECT/INSERT for anon role |
+
+---
+
+## Suggested Build Order
+
+Dependencies flow: schema → service layer → PWA UI → sync → pipeline integration → tone.
+
+### Phase 1: Schema + Signal Service (foundation, no UI yet)
+
+Everything downstream depends on this. No features are testable without it.
+
+1. Write migration: `contact_signals`, `contact_notes` tables; new columns on `connections`, `outreach_queue`, `user_profile`; anon role grants
+2. Update `database/models.py`: `ContactSignal`, `ContactNote` classes; field additions to existing models
+3. Create `src/services/signal_service.py` with `SIGNAL_ACTIONS` map and `apply_signal()` function
+
+### Phase 2: PWA Signal UI (primary UX change)
+
+Builds on Phase 1 schema. Enables real signal data to accumulate before the pipeline learns from it.
+
+1. `queue.js`: Signal selector (7 options + optional context field) replacing 3-button triage
+2. `queue.js`: Write to contact_signals, outreach_queue, connections via PostgREST
+3. `queue.js`: Display mini_key_factors on cards (initially from score_reasoning live, later from column)
+4. `contact.js`: Fetch and display contact_notes and signal history
+
+### Phase 3: User Goals Profile
+
+Required before signal rescoring produces meaningful results. Also fixes sparse profile issues.
+
+1. `preferences.js`: Add goals editing form (current_projects + goals_structured)
+2. `scoring.py`: Extend `build_scoring_prompt()` to include `goals_structured` context
+
+### Phase 4: Sync Updates
+
+Makes PWA-created signals and notes available to the pipeline.
+
+1. `pull.py`: Add contact_signals, contact_notes, latest_signal/cadence_due_at pull
+2. `push.py`: Add contact_signals, contact_notes, new connection fields push
+
+### Phase 5: Pipeline Signal Integration
+
+Now that signals flow locally, teach the pipeline to act on them. Depends on Phases 1-4.
+
+1. `queue_generator.py`: cadence exclusion Rule 6-7; signal priority boost; mini_key_factors computation (replaces live JS computation from Phase 2)
+2. `feedback_processor.py`: signal pattern analysis; rescore candidate identification
+3. `scoring.py`: accept signal context in prompt for rescore pass
+4. `daily_pipeline.py`: thread signal_context flag into Step 8
+
+### Phase 6: Draft Tone Adaptation
+
+Smallest change, no dependencies beyond Phase 1. Can be shipped any time after Phase 2.
+
+1. `draft/index.ts`: Accept `signal` parameter; add `SIGNAL_TONE_MAP` constant; inject tone guidance in `buildDraftPrompt()`
+
+### Summary Table
+
+| Phase | Focus | New Files | Modified Files |
+|-------|-------|-----------|----------------|
+| 1 | Schema + signal service | `signal_service.py`, migration SQL | `models.py` |
+| 2 | PWA signal UI | — | `queue.js`, `contact.js` |
+| 3 | User goals | — | `preferences.js`, `scoring.py` |
+| 4 | Sync | — | `push.py`, `pull.py` |
+| 5 | Pipeline integration | — | `queue_generator.py`, `feedback_processor.py`, `scoring.py`, `daily_pipeline.py` |
+| 6 | Draft tone | — | `draft/index.ts` |
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Storing Signal Logic in Multiple Places
+
+**What people do:** Duplicate the signal → status → cadence mapping independently in `queue.js`, `queue_generator.py`, `feedback_processor.py`, and `draft/index.ts`.
+
+**Why it's wrong:** When NURTURE cadence changes from 30 to 21 days, it must be updated in 4 places. More likely: they diverge silently. PWA sets 30 days, pipeline expects 21, contacts re-appear at the wrong time.
+
+**Do this instead:** Define `SIGNAL_ACTIONS` once in `signal_service.py` (Python) and once as a JS const in `queue.js`. Every other file imports from one of these two canonical sources.
+
+### Anti-Pattern 2: Using `user_feedback` Table for Signals
+
+**What people do:** Store signals as `feedback_type = 'signal'` in the existing `user_feedback` table to avoid a new table.
+
+**Why it's wrong:** `user_feedback` is queried by `feedback_processor.py` for approval rate analysis (skip/approve patterns). Mixing signal records changes those queries and corrupts the existing learning loop. Signal history also needs to be queryable per-contact (for the contact.js history view) without joining on feedback_type.
+
+**Do this instead:** New `contact_signals` table. The schema change is one migration. Clean separation enables clean queries in both the pipeline and the PWA.
+
+### Anti-Pattern 3: Rescoring on Every Signal (Real-Time)
+
+**What people do:** When a user assigns WARM_LEAD, immediately POST to an Edge Function that calls OpenAI to rescore that contact.
+
+**Why it's wrong:** Real-time rescoring adds 1-3 seconds of latency to every signal tap. The user has already made their intent judgment — the score does not need to reflect it instantly. The score is for queue prioritization (pipeline decides ordering), not for the user's triage decision.
+
+**Do this instead:** Batch rescore in Step 8 of the daily pipeline. `feedback_processor.py` identifies candidates based on 30-day signal patterns. One focused `score_connections_batch()` call handles a small set. This is the existing weight-adjustment pattern extended.
+
+### Anti-Pattern 4: Edge Function for Signal Writes
+
+**What people do:** Create a `signal/index.ts` Edge Function to handle signal submissions from the PWA.
+
+**Why it's wrong:** PostgREST already handles the identical write pattern for `user_feedback` and `user_preferences`. An Edge Function adds cold-start latency (~200ms) to every signal tap with no benefit — no secrets, no cross-table logic beyond what PostgREST can do with anon key grants.
+
+**Do this instead:** Write signals directly to `contact_signals` via PostgREST. Reserve Edge Functions for operations that need OPENAI_API_KEY or SERVICE_ROLE_KEY access (drafts, action tokens).
+
+### Anti-Pattern 5: Skipping the `cadence_due_at` Cache Column
+
+**What people do:** Add cadence logic in `is_contact_excluded()` by querying `MAX(signaled_at)` from `contact_signals` and computing cadence on the fly.
+
+**Why it's wrong:** Every contact evaluation in `generate_daily_queue()` would fire a correlated subquery against `contact_signals`. At 12,800+ contacts, that is thousands of subqueries per pipeline run. SQLite handles it but it adds meaningful latency with no benefit.
+
+**Do this instead:** Store `cadence_due_at` on `connections` as a pre-computed cache. Update it atomically with the signal write. `is_contact_excluded()` reads a single column — O(1).
+
+---
+
+## Scaling Considerations
+
+This is a single-user personal tool. Scaling is not a concern. The operational concern is LLM cost.
+
+| Concern | Current | With v1.2 |
+|---------|---------|-----------|
+| LLM calls (scoring) | Batch on enrichment (~5-20 contacts/day) | +flagged NURTURE rescore candidates (small subset) |
+| LLM calls (draft) | On-demand per queue item | Same; tone prompt addition is ~30 tokens overhead |
+| Signal write volume | N/A | ~5-15 signal taps/day (single user, daily triage) |
+| Contact note storage | connections.notes (never synced) | contact_notes rows: tiny, no concern |
+| PostgREST query changes | Existing JOIN pattern | signal/note fetches are indexed by connection_id — fast |
+
+The signal rescore batch in `feedback_processor.py` should be guarded by the same `min_queue_score` check used in enrichment planning — avoid rescoring contacts that will never reach the queue regardless.
 
 ---
 
 ## Sources
 
-- Direct code inspection: `src/services/dashboard_service.py`
-- Direct code inspection: `pwa/js/dashboard.js`, `pwa/js/queue.js`, `pwa/js/contact.js`, `pwa/js/app.js`
-- Direct code inspection: `src/integrations/gmail.py`, `src/database/models.py`
-- Direct code inspection: `src/sync/push.py`, `src/sync/pull.py`
-- Direct code inspection: `supabase/functions/draft/index.ts`, `supabase/functions/action/index.ts`
-- Direct code inspection: `src/llm/opportunity_match.py`, `src/llm/scoring.py`
-- Direct code inspection: `src/ui/app.py`, `src/ui/views/dashboard.py`, `src/ui/views/ask.py`
-- Direct code inspection: `src/config.py`, `.planning/PROJECT.md`
+- `src/database/models.py` — all existing table definitions and field inventory
+- `src/pipeline/daily_pipeline.py` — 10-step pipeline orchestration and step dependencies
+- `src/pipeline/queue_generator.py` — exclusion rules, priority scoring, queue item generation
+- `src/llm/scoring.py` — scoring prompt structure, weight override mechanism
+- `src/pipeline/feedback_processor.py` — existing signal learning pattern to extend
+- `src/sync/push.py`, `src/sync/pull.py` — bidirectional sync patterns and conflict resolution
+- `supabase/functions/draft/index.ts` — buildDraftPrompt() structure for tone injection
+- `supabase/functions/action/index.ts` — token-based email action pattern
+- `supabase/functions/feedback/index.ts` — PostgREST-direct feedback write pattern
+- `pwa/js/queue.js` — PostgREST query patterns, client-side sort, triage button structure
+- `pwa/js/app.js` — Supabase client init, hash router, PostgREST access pattern
+- `supabase/migrations/20260305000000_pwa_overhaul.sql` — migration pattern to follow
+- `.planning/PROJECT.md` — v1.2 requirements, constraints, and current state
 
-All architectural claims are grounded in source-code inspection. Confidence: HIGH.
+All architectural claims are grounded in direct source-code inspection. Confidence: HIGH.
 
 ---
 
-*Architecture research for: Reconnect v1.1 Network Intelligence*
-*Researched: 2026-03-09*
+*Architecture research for: Reconnect v1.2 Intent-Driven Triage*
+*Researched: 2026-03-11*

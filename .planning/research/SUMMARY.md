@@ -1,190 +1,264 @@
 # Project Research Summary
 
-**Project:** Reconnect v1.1 — Network Intelligence milestone
-**Domain:** Personal networking CRM with Python pipeline + Vanilla JS PWA
-**Researched:** 2026-03-09
-**Confidence:** HIGH (all research grounded in direct codebase inspection and official docs)
+**Project:** Reconnect v1.2 — Intent-Driven Triage
+**Domain:** Personal networking CRM — intent signal system, cadence scheduling, goals profile, contact notes, signal-informed rescoring, draft tone adaptation
+**Researched:** 2026-03-11
+**Confidence:** HIGH
 
 ## Executive Summary
 
-Reconnect v1.1 is a focused incremental upgrade to a working personal networking CRM. The core system (Python pipeline, SQLite, Supabase PostgreSQL, PostgREST, Edge Functions, Vanilla JS PWA) is fully operational at v1.0. The v1.1 milestone adds network intelligence features — dashboard analytics, AI-powered contact search, Gmail OAuth, queue filtering, and a CLI to replace the broken Streamlit admin UI. Research confirms that most of the hard work is already done: the LLM scoring logic, data models, and pipeline architecture all exist. The remaining work is primarily wiring, UI additions, and one new Edge Function.
+Reconnect v1.2 replaces the binary approve/skip/snooze triage model with a seven-signal intent system (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE). The signal a user assigns is not just a label — it drives cadence re-queuing, draft tone adaptation, and signal-pattern rescoring over time. Research confirms this is architecturally achievable as a pure extension of the existing stack: no new Python libraries, no new npm packages, no new Deno imports. Every feature maps to an existing hook in the pipeline, sync layer, or PWA. The two new database tables (`contact_signals`, `contact_notes`) and nullable columns on three existing tables are the only schema footprint.
 
-The recommended approach is strictly additive: extend existing patterns rather than replace them. All new dashboard charts should use the pre-existing snapshot-based architecture (compute in pipeline, read in PWA). AI search should port the existing `opportunity_match.py` batch LLM pattern to a new Edge Function — not adopt pgvector or RAG, which would be over-engineered for a sub-10K contact dataset. The CLI should wrap existing functions with Click; all state lives in SQLite with no new in-memory abstractions. Gmail OAuth uses the standard `google-auth-oauthlib` `InstalledAppFlow` pattern, which the `GmailCredentials` table schema was already designed to support.
+The recommended approach is six sequential phases, starting with schema and the canonical signal service, then the PWA signal UI, then user goals profile, sync coverage, pipeline integration, and finally draft tone adaptation. The dependency chain is strict: the PWA writes signals to Supabase, pull sync brings them to local SQLite, then the pipeline learns from them. Building in the wrong order produces signal data that exists in one layer but not the other — silent failures that are hard to diagnose. The critical constraint throughout is that schema migrations and sync payload updates must ship in the same step as model changes, never after.
 
-The primary risk cluster is ordering. Three features have hard dependencies that, if violated, cause irreversible operational loss: (1) the score breakdown bug must be fixed before dimension bars can be trusted, (2) CLI commands must reach parity with Streamlit's admin operations before Streamlit is deleted, and (3) AI search requires a two-stage pre-filter + LLM-rank architecture to avoid context window overflow. Secondary risks are Chart.js instance leakage on SPA navigation and Gmail OAuth's 7-day refresh token expiry when the GCP consent screen is left in "Testing" mode. Both have clear prevention strategies.
+The highest-risk element is signal-informed rescoring. The existing feedback processor already applies weight adjustments from approve/skip patterns, and extending it to consume signals creates a confirmation bias feedback loop that can homogenize the queue toward the user's early preferences within two to three weeks. Prevention requires raising the minimum sample threshold before any weight adjustment fires (at least 25 actions over 14 days), capping cumulative drift at plus or minus 40%, and logging weight history so drift is auditable. A second major risk is cadence scheduling correctness: using absolute `cadence_due_at` timestamps rather than age-based eligibility causes cohort saturation when many contacts are assigned the same signal on the same day. Both risks have concrete mitigation strategies documented in PITFALLS.md.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The existing stack is locked and should not change. V1.1 adds five targeted packages. Chart.js 4.5.1 via CDN script tag (lazy-loaded into the Dashboard route only) handles all chart types needed. Click 8.3.1 replaces Streamlit's multi-subcommand admin UI with a `reconnect` CLI group. Three Google packages (`google-api-python-client`, `google-auth-oauthlib`, `google-auth`) implement the Gmail OAuth flow. AI search reuses the existing `openai` package already in requirements. Streamlit and Plotly are deleted entirely after CLI parity is confirmed.
+No new libraries or framework additions are required for any v1.2 feature. The entire milestone is achievable within the verified existing stack: Python 3.11+, SQLModel 0.0.31, OpenAI 2.15.0, psycopg2-binary 2.9+, Supabase JS client v2 (CDN), and Deno TypeScript on Supabase Edge Functions. All v1.2 functionality maps to existing capabilities: stdlib `datetime` for cadence arithmetic, stdlib `json` for parsing `score_reasoning`, stdlib `collections.Counter` for signal pattern analysis. The only deployment action beyond the migration is `supabase functions deploy draft`.
 
-**Core technologies added:**
-- **Chart.js 4.5.1 (CDN, lazy-loaded):** Dashboard bar/doughnut charts — zero-dependency, PWA-compatible, no build step; lazy-load into Dashboard route only to avoid 200KB download on every page
-- **Click 8.3.1:** CLI subcommand framework replacing Streamlit — cleaner than argparse for multi-level subcommand groups; decorator-based, automatic `--help` generation
-- **google-api-python-client 2.192.0 + google-auth-oauthlib 1.3.0 + google-auth 2.49.0:** Gmail OAuth send path — official Google stack, InstalledAppFlow token.json pattern, all three must be updated together
-- **pgvector (Supabase built-in, DEFERRED):** NOT recommended for v1.1 — batch LLM approach from `opportunity_match.py` is cheaper, proven, and sufficient below 5K contacts
+**Core technologies (v1.2 usage):**
+- Python pipeline + SQLite: signal service layer, cadence re-queuing, feedback processor extension — no runtime changes
+- Supabase PostgreSQL + PostgREST: two new tables (`contact_signals`, `contact_notes`) plus nullable columns on `connections`, `outreach_queue`, and `user_profile`; migration follows the established psycopg2-direct pattern
+- Supabase Edge Function `draft/index.ts`: add optional `signal` parameter with a tone mapping dict; deploy via `supabase functions deploy draft`
+- Vanilla JS PWA: signal picker replaces three-button triage; PostgREST direct writes for signals and notes (no Edge Function needed, no server-side secrets required)
+- Bidirectional sync (`push.py` + `pull.py`): extend both to cover new tables and fields; user-intent data (signals, notes, priorities) is cloud-authoritative; pipeline-computed data (scores, enrichment) is local-authoritative
 
-**Removed:**
-- `streamlit >= 1.30.0` — replaced by CLI
-- `plotly >= 5.18.0` — only used by Streamlit; redundant once Streamlit is deleted
+**What not to add:**
+- APScheduler or Celery — cadence re-queuing is a daily batch check, not real-time
+- React or Vue — signal picker is seven buttons, not a UI rewrite
+- pgvector or semantic embeddings — signal pattern analysis via Counter is sufficient
+- New Edge Function for signals or notes — PostgREST with anon key + RLS handles these writes identically to existing `user_feedback` writes
 
 ### Expected Features
 
-Research identified a clear P1/P2/P3 priority structure with hard feature dependencies grounded in codebase inspection.
+The v1.2 feature set has a strict internal dependency: signals must exist before everything else builds on them, and queue card enrichment is a prerequisite for informed signal choice. Contact notes are independent but synergistic. Email digest fix is independent and should be repaired first to restore daily workflow reliability.
 
-**Must have — P1 (removes debt, unblocks daily workflow):**
-- Score breakdown bug fix — dimension bars show 0 for pre-rubric contacts; destroys trust in scoring display; fix is a rescore CLI command, not a code change
-- Health score actionable insights — transforms the single 0-100 number into per-component action strings; data already in `compute_network_health()`; needs action-text generation layer
-- Queue sort + status filter — users need to toggle sort and see approved/sent items; Supabase PostgREST params handle this server-side
-- CLI commands: `pipeline run`, `queue reset`, `queue stats`, and six more — required before Streamlit can be removed
-- Streamlit removal — `review.py` already crashes on import; maintaining both CLI and Streamlit doubles maintenance surface
-- Gmail OAuth CLI flow — App Passwords disallowed on some Workspace accounts; `GmailCredentials` table already modeled for OAuth from day one
+**Must have (table stakes — P1):**
+- Email digest fix — daily workflow is broken without reliable delivery; fix before any signal work
+- 7 intent signals (DB + PWA picker) — milestone is incoherent without this foundation
+- Signal storage in `user_feedback` log — required by rescoring, history, and pattern analysis downstream
+- Queue card enrichment (industry chip, first key factor, last interaction) — users cannot make a confident signal choice without context; all data is already in the existing joined query
+- Contact notes PWA wire-up — `Connection.notes` column exists; only the PWA edit path is missing
+- Signal-driven cadence re-queuing — signals must produce behavior or they are inert labels
+- Profile key factors fallbacks — empty profiles feel broken; a basic product quality fix
 
-**Should have — P2 (intelligence layer):**
-- Demographic charts (score tier first, then industry/role after pipeline aggregation step) — answers "am I networking in the right circles?"
-- AI contact search PWA route + Edge Function — surfaces network value via semantic query; `opportunity_match.py` already implements the core LLM logic
-- Queue industry filter (client-side, via JSON traversal) — additive on top of status filter
+**Should have (differentiators — P2):**
+- Draft tone adaptation — pass signal to `draft/index.ts` with a tone mapping dict; meaningfully improves draft quality with minimal effort
+- Signal-informed rescoring — extends existing `feedback_processor.py` weight logic; compounds value over time
+- User goals profile (`current_projects` field) — incremental improvement to WARM_LEAD precision in scoring
+- Conversation starters from alternative sources — frontend-only; high return on effort
+- Signal history on contact profile — retrospective value; low complexity
 
-**Defer to v1.2+:**
-- Score weight tuning UI in PWA — `UserPreference` weights work via feedback processor; preferences UI is cosmetic overhead
-- `industry` top-level column on `connections` — proper fix for industry filtering; requires migration; client-side JSON filter is acceptable for v1.1
-- Geographic distribution chart — less than 40% of contacts have location data; chart would be mostly empty
-- Pipeline controls in PWA — CLI is sufficient per PROJECT.md
+**Defer (v1.3+):**
+- Signal-based queue filter in PWA — `reconnect contacts list --signal WARM_LEAD` CLI covers the power-user case
+- Configurable cadence per signal via CLI — defaults work for 90% of use cases
+- Signal-driven email digest bucketing — complex digest redesign
+- Signal analytics on dashboard
+- Resource prompt for VALUE_DROP contacts
 
-**Critical feature dependency chain:**
-```
-Score breakdown bug fix → enables trustworthy profile display
-CLI commands → enables Streamlit removal
-AI search Edge Function → replaces Streamlit "Ask My Network" page (required before full removal)
-Streamlit removal → reduces maintenance surface
-```
+**Signal taxonomy and system actions:**
+
+| Signal | Cadence | Queue Status | Draft Tone |
+|--------|---------|--------------|------------|
+| WARM_LEAD | 7 days | approved | Direct, specific ask |
+| NURTURE | 30 days | pending_review | Warm, low-pressure, no ask |
+| VALUE_DROP | 90 days | skipped | Helpful, generous, lead with value |
+| SYNERGY | 14 days | approved | Peer-to-peer, propose concrete step |
+| RECONNECT | 14 days | approved | Warm, reference shared history |
+| FUTURE_PIVOT | 60 days | pending_review | Exploratory, no ask |
+| ARCHIVE | never | skipped | No draft; set user_priority = never |
 
 ### Architecture Approach
 
-All v1.1 work fits within four established patterns and requires no new database migrations for the core scope. The snapshot-based dashboard pattern (pipeline computes, PWA reads) is extended with two new top-level keys (`demographics`, `health_insights`). The Edge Function pattern gets one new member: `supabase/functions/search/index.ts`. Direct PostgREST filtering handles queue filtering. The CLI wraps existing function calls with Click decorators.
+The architecture is a pure extension of the existing local-pipeline to SQLite to Supabase to PWA pattern. The canonical signal mapping is defined once in `src/services/signal_service.py` (Python) and mirrored as a JS constant in `queue.js`, then consumed by all other components — this eliminates silent drift between PWA and pipeline cadence values. Signal writes from the PWA go directly to PostgREST because no server-side secrets are required; this follows the same pattern already used for `user_feedback` and `user_preferences` writes. Draft tone adaptation requires an Edge Function because it needs the OpenAI key, so the signal is passed in the POST body from the PWA.
 
-**Major components and their v1.1 changes:**
+**Major components and v1.2 responsibilities:**
 
-1. **`src/services/dashboard_service.py`** (MODIFY) — Add `compute_demographics()` and `compute_health_insights()` helpers; include in snapshot dict. No new API calls; pure extension of `compute_dashboard_snapshot()`.
-2. **`supabase/functions/search/index.ts`** (NEW) — Port `opportunity_match.py` batch LLM pattern to Deno TypeScript. Query contacts, batch 50, call gpt-4o-mini, return top matches. Mirrors `draft` Edge Function structure exactly.
-3. **`src/cli.py`** + **`src/cli/auth.py`** (NEW) — Click group with all pipeline/queue/sync/gmail subcommands. LaunchAgent plist updated to call `python -m src.cli pipeline`.
-4. **`src/integrations/gmail.py`** (MODIFY) — Add OAuth send path alongside App Password fallback. Load from `GmailCredentials` row id=1; auto-refresh via `google-auth`; save refreshed tokens back to SQLite.
-5. **`pwa/js/dashboard.js`** (MODIFY) — Add CSS-bar demographics rendering and health insight cards. Existing funnel bar pattern (`buildFunnelSection()`) is sufficient — Chart.js optional.
-6. **`pwa/js/queue.js`** (MODIFY) — Add filter state, modify query builder to use PostgREST chained filters (`.eq()`, `.ilike()`, `.gte()`), add filter UI controls.
-7. **`pwa/js/search.js`** (NEW) — Search UI + POST to `/functions/v1/search`; add `#/search` route to `app.js`.
-8. **`src/sync/push.py`** (MODIFY) — Remove `gmail_credentials` from sync payload (security fix: OAuth tokens must not be pushed to Supabase).
+1. **`src/services/signal_service.py` (new)** — canonical `SIGNAL_ACTIONS` map and `apply_signal()` function; single source of truth for signal to cadence, status, and priority boost mapping
+2. **`pwa/js/queue.js` (modify)** — 7-option signal picker replacing 3-button triage; PostgREST writes to `contact_signals`, `outreach_queue`, and `connections`; enriched card display with industry, key factors, notes preview
+3. **`pwa/js/contact.js` (modify)** — contact notes display and signal history panel
+4. **`pwa/js/preferences.js` (modify)** — user goals and current_projects editing form
+5. **`src/pipeline/queue_generator.py` (modify)** — two new exclusion rules (cadence not due, ARCHIVE); WARM_LEAD priority boost; `_compute_mini_key_factors()` pre-computation from `score_reasoning`
+6. **`src/pipeline/feedback_processor.py` (modify)** — signal pattern analysis; rescore candidate identification; conservative weight adjustments (25+ actions over 14 days, plus or minus 40% cap)
+7. **`src/sync/push.py` + `pull.py` (modify)** — extended to cover `contact_signals`, `contact_notes`, and new connection fields; cloud wins for user-intent data, local wins for pipeline-computed data
+8. **`supabase/functions/draft/index.ts` (modify)** — accepts optional `signal` parameter; injects tone guidance from a `SIGNAL_TONE_MAP`
+9. **Database migration (new)** — `contact_signals` table, `contact_notes` table, new columns on three existing tables, anon role grants for new tables
 
-**No new DB migrations needed** for the core v1.1 scope. All new data flows through existing tables.
+**Key patterns:**
+- Canonical signal map (one Python dict, one JS object) — eliminates cadence drift
+- Denormalized `latest_signal` + `cadence_due_at` cache on `connections` — avoids correlated subqueries in queue generation
+- Signal context as additive LLM prompt injection — preserves existing scoring calibration
+- PostgREST direct for signal writes — no Edge Function cold-start overhead on every signal tap
 
 ### Critical Pitfalls
 
-1. **Chart.js instances not destroyed on SPA navigation** — every `new Chart(canvas, config)` call on an already-used canvas leaks memory and renders doubled charts after the user navigates away and returns. Prevention: module-level instance registry with explicit `chart.destroy()` before re-creating; also lazy-load Chart.js via dynamic script injection only when Dashboard route activates (saves 200KB on non-Dashboard pages).
+1. **Orphaned "skipped" items block cadence re-queue** — existing `status = "skipped"` rows are ambiguous: was this a Skip (maps to ARCHIVE) or a Snooze (maps to RECONNECT with re-queuing)? A one-time migration must backfill intent before the new exclusion logic deploys. Run before deploying new `is_contact_excluded()` rules.
 
-2. **Gmail OAuth consent screen left in "Testing" mode** — refresh tokens expire after exactly 7 days in Testing mode, silently breaking the daily email digest with `invalid_grant`. Prevention: publish the GCP consent screen (or add your email as a test user) before running the authorization flow for real use. Wrap `credentials.refresh(Request())` in try/except for `RefreshError`; skip digest gracefully rather than crashing the pipeline.
+2. **Cadence as absolute timestamp causes cohort saturation** — do not store `cadence_due_at` as a precomputed fixed date. Instead evaluate `signal_assigned_at + cadence_days <= today` at query time on each pipeline run. When more cadence-eligible contacts exist than the daily queue limit, use priority ordering to clear the backlog gradually across multiple days.
 
-3. **AI search passing all raw_enrichment JSON to the LLM** — at 100+ enriched contacts, full raw_enrichment context overflows gpt-4o-mini's 128K token window and causes `context_length_exceeded`. Prevention: mandatory two-stage architecture — SQL pre-filter first (free, milliseconds via PostgREST), then pass only compact summaries (~200 tokens per contact) to gpt-4o-mini for 20-50 candidates.
+3. **Signal-informed rescoring creates confirmation bias** — the feedback processor's weight adjustment mechanism will amplify early signal patterns, homogenizing the queue toward the user's first few weeks of triage behavior within 2-3 weeks. Prevention: 25-action / 14-day minimum threshold before any weight fires; plus or minus 40% cumulative cap; log every adjustment with sample count.
 
-4. **Streamlit removal before CLI parity** — six admin operations have no CLI equivalent yet (reset empty enrichments, batch rescore, Hunter.io email lookup, pipeline run history, import LinkedIn dump, reset stale queue). Removing Streamlit first loses all access to these operations permanently until CLI is built. Prevention: audit all Streamlit pages, build CLI equivalents, verify parity, then delete `src/ui/`. Note: `review.py` crashes on import and should be deleted immediately as a pre-condition — but this does not mean the rest of Streamlit is safe to remove yet.
+4. **New signal fields silently dropped from push sync** — for every new field added to a model, write the Supabase migration SQL and add the field to the push payload mapping in the same step. Consider a field coverage assertion to prevent future drift.
 
-5. **AI search hallucinating contact details** — gpt-4o-mini may infer skills or context from training data rather than the provided contact summaries, producing match reasons that reference data not in the database. Prevention: prompt instructs model to only cite data from the provided list; verify match reasons reference actual contact fields before displaying.
+5. **Signal logic duplicated across pipeline and PWA** — define `SIGNAL_ACTIONS` once in `signal_service.py` (Python) and once as a JS const in `queue.js`. All other files consume from one of these two locations. If cadence values diverge between the two, contacts re-appear at the wrong time with no error raised.
 
 ## Implications for Roadmap
 
-Based on the feature dependency graph and pitfall sequencing, a 4-phase structure is recommended. Phases 1-3 address the P1 must-haves; Phase 4 delivers the highest-value P2 differentiator.
+Based on combined research, the dependency chain is strict and the phase order is non-negotiable: schema before PWA before sync before pipeline. Draft tone is the only phase that is genuinely order-independent after Phase 1.
 
-### Phase 1: Foundation Fixes + Queue UX
-**Rationale:** Score breakdown bug and queue filtering have zero dependencies, high daily-use value, and low implementation cost. Fix these first to establish a trustworthy, usable baseline before adding any new capability. Pitfall research confirms queue filtering must be server-side via PostgREST params — client-side full-table fetch is a performance trap at 50+ items.
-**Delivers:** Trustworthy scoring display on all contact profiles (via rescore command); queue sort/filter controls for status, score range, and industry
-**Addresses:** Score breakdown bug fix (P1); Queue sort + status filter (P1); Queue industry filter (P2, client-side via JavaScript for v1.1)
-**Avoids:** Score dimension trust damage; client-side full-fetch performance trap; filter state loss on navigation (encode active filters in URL or sessionStorage)
-**Research flag:** Standard patterns — PostgREST filtering is well-documented; rescore function already exists in `src/ui/app.py`. No additional research needed.
+### Phase 1: Schema, Migration, and Signal Service
 
-### Phase 2: Dashboard Intelligence
-**Rationale:** Dashboard charts are medium complexity with no dependencies on other v1.1 features. The snapshot pattern is fully established — extending `compute_dashboard_snapshot()` is safe and well-understood. Health insights require the same snapshot extension. Build before AI search to validate the pipeline-to-PWA data flow is working before adding a new Edge Function.
-**Delivers:** Industry distribution, role mix, and score tier charts (using CSS bar pattern from existing `buildFunnelSection()`); health score breakdown with per-component action strings and color-coded thresholds
-**Addresses:** Demographic charts — score tier first (P2), industry/role after aggregation step; Health score actionable insights (P1)
-**Uses:** `compute_dashboard_snapshot()` extension; `pwa/js/dashboard.js` additions; Chart.js 4.5.1 lazy-loaded if CSS bars are insufficient for specific chart types
-**Avoids:** Chart.js instance leakage (destroy-before-create registry required); live aggregation queries in PWA (use snapshot only — PostgREST does not support GROUP BY natively); Supabase Realtime channel duplicate subscription if realtime is added for snapshot refresh
-**Research flag:** Standard patterns — snapshot extension is established in this codebase. Chart.js CDN integration is HIGH confidence from official docs. No additional research needed.
+**Rationale:** Everything downstream depends on the database schema and the canonical signal map existing in both SQLite and Supabase. Must include anon role grants for new tables or PWA writes will silently fail. The backfill migration for existing "skipped" items must run in this phase, before any new exclusion logic is deployed.
 
-### Phase 3: CLI Commands + Gmail OAuth + Streamlit Removal
-**Rationale:** CLI must exist and be verified before Streamlit is deleted. This is the gate phase. All six Streamlit admin operations need CLI equivalents confirmed before deletion. Gmail OAuth is bundled here because `src/cli/auth.py` is shared between the CLI and the `reconnect gmail auth` command. Streamlit removal is the final step of this phase, not the first — delete only after verifying every CLI equivalent.
-**Delivers:** `reconnect` CLI with full subcommand coverage (pipeline, queue, sync, contacts, gmail); Gmail OAuth send path replacing App Password; `src/ui/` deleted; `streamlit` and `plotly` removed from requirements; `gmail_credentials` removed from Supabase sync payload
-**Addresses:** CLI commands (P1); Gmail OAuth (P1); Streamlit removal (P1)
-**Uses:** Click 8.3.1; google-api-python-client 2.192.0; google-auth-oauthlib 1.3.0; google-auth 2.49.0
-**Avoids:** Premature Streamlit removal — verify CLI parity against all 6 admin operations before deleting `src/ui/`; Gmail OAuth 7-day Testing mode expiry — publish GCP consent screen before running authorization; OAuth refresh tokens in Supabase — remove `gmail_credentials` from `push.py` sync payload immediately when adding OAuth
-**Research flag:** Standard patterns for both Click CLI and Gmail OAuth (HIGH confidence from official docs). No additional research needed.
+**Delivers:** `contact_signals` and `contact_notes` tables in both SQLite and Supabase; new nullable columns on `connections` (latest_signal, cadence_due_at), `outreach_queue` (signal, signal_context, mini_key_factors), and `user_profile` (current_projects, goals_structured); `signal_service.py` with canonical `SIGNAL_ACTIONS` map and `apply_signal()` function; `models.py` updated with new model classes and field additions; one-time backfill migration categorizing existing skipped items; unique index on `outreach_queue(connection_id) WHERE status IN ('pending_review', 'approved')` preventing duplicate queue entries.
 
-### Phase 4: AI Contact Search
-**Rationale:** Highest implementation effort, highest user value. Requires a new Deno TypeScript Edge Function, a new PWA route, and careful prompt engineering. Placed last because it has no blockers from other phases but benefits from CLI and snapshot infrastructure being stable. Replaces the Streamlit "Ask My Network" page removed in Phase 3. Pitfall research is definitive: two-stage architecture (SQL pre-filter + LLM rank) is mandatory from the start — retrofitting it later is costly.
-**Delivers:** `#/search` PWA route with natural language query UI; `supabase/functions/search/index.ts` Edge Function with batch LLM matching (mirrors `draft` Edge Function structure); result cards linked to `#/contact/:id`; loading/empty/error states
-**Addresses:** AI contact search (P2)
-**Uses:** Existing OpenAI `gpt-4o-mini` via `OPENAI_API_KEY` Supabase secret; TypeScript port of `opportunity_match.py` batch logic; `--no-verify-jwt` deploy flag (same as `draft`, `action`, `feedback`)
-**Avoids:** Context window overflow — pre-filter with PostgREST before LLM call; hallucination — grounding prompt that instructs model to cite only provided data; pgvector complexity — batch LLM is sufficient and proven at this contact scale; Supabase free tier 2s CPU limit — sequential batches of 50, cap at first 200 contacts
-**Research flag:** Architecture is HIGH confidence (mirrors draft Edge Function). The TypeScript port of the batch LLM pattern in Deno runtime and the Supabase free tier CPU time constraint warrant a brief `/gsd:research-phase` call if the developer is unfamiliar with Deno module imports and Edge Function execution limits.
+**Avoids (pitfalls):** Pitfall 4 (new fields not synced) by migrating Supabase schema before any Python code sets the fields. Duplicate queue item race condition by adding the unique index here. Pitfall 1 (orphaned skipped items) by running the backfill migration before any new exclusion logic is written.
+
+**Research flag:** Standard patterns — migration follows the established psycopg2-direct approach (see `20260305000000_pwa_overhaul.sql`). No additional research needed.
+
+---
+
+### Phase 2: Email Digest Fix + PWA Signal UI
+
+**Rationale:** Email fix is a day-one blocker — the daily workflow is broken without it. The PWA signal UI is the primary user-facing change of the entire milestone and must be built before sync and pipeline integration so real signal data can accumulate. Queue card enrichment belongs here because it is a prerequisite for informed signal choice — users cannot confidently choose SYNERGY vs NURTURE without seeing industry and key factors.
+
+**Delivers:** Email digest reliably sends (or falls back to Telegram notification); 7-signal picker on queue cards replacing 3-button triage; PostgREST writes to `contact_signals`, `outreach_queue`, and `connections`; enriched cards showing industry chip, first key factor, last interaction date; notes preview on cards; contact notes display and editing on profile page; signal history timeline on profile page; email digest updated to "Review in App" and "Archive" buttons (removing Snooze and Reach Out in email to align with signal model).
+
+**Addresses (FEATURES.md):** Email digest fix (P1), 7 intent signals PWA (P1), queue card enrichment (P1), contact notes PWA wire-up (P1), signal storage in user_feedback log (P1), profile key factors fallbacks (P1), signal history on contact profile (P2).
+
+**Avoids (pitfalls):** Pitfall 9 (optimistic UI card removal) — signal assignment updates the card's signal badge without removing the card; card dismissal is a separate "Done" action. Pitfall 5 (action token security) — full signal assignment stays in the PWA exclusively; email keeps at most two simplified actions. Full re-render on signal assignment must be avoided: use targeted DOM updates to preserve scroll position and filter state.
+
+**Research flag:** PWA targeted DOM mutation pattern (signal badge update without full re-render) is a standard pattern but warrants careful testing of scroll position and filter state on mobile before shipping.
+
+---
+
+### Phase 3: User Goals Profile
+
+**Rationale:** Goals profile is a prerequisite for signal-informed rescoring to produce meaningful results (the rescoring step uses `current_projects` to identify WARM_LEAD candidates against active initiatives). Also required for the Edge Function draft to use fresh user context rather than the stale "Network expansion" fallback. Must be built before Phase 5 pipeline integration.
+
+**Delivers:** Goals and current_projects editing form in `preferences.js`; `scoring.py` extended to include `goals_structured` context in `build_scoring_prompt()`; `user_profile` push sync updated to include new goal fields; `user_profile` pull sync added to `pull.py` so PWA-edited goals reach the pipeline; `updated_at` added to `UserPreference` with last-write-wins conflict resolution in pull sync; `scoring_weight_auto` vs `scoring_weight_user` pref_type distinction preventing pipeline overwrites of user-explicit preferences.
+
+**Addresses (FEATURES.md):** User goals profile / current_projects (P2).
+
+**Avoids (pitfalls):** Pitfall 6 (stale goals in Edge Function draft) — push sync update ships in this phase. Pitfall 10 (user preferences overwritten by pipeline) — `updated_at` and pref_type source distinction added here.
+
+**Research flag:** Standard patterns — PostgREST PATCH on `user_profile` is identical to existing preference writes.
+
+---
+
+### Phase 4: Sync Coverage
+
+**Rationale:** PWA-created signals and notes are in Supabase but invisible to the pipeline until pull sync is extended. Pipeline-computed `mini_key_factors` are in local SQLite but invisible to the PWA until push sync is extended. Both gaps must close before Phase 5 pipeline integration can be built or tested.
+
+**Delivers:** `pull.py` extended to pull `contact_signals`, `contact_notes`, `latest_signal`/`cadence_due_at` updates, and `Connection.notes`; `push.py` extended to push `contact_signals`, `contact_notes`, and new connection fields including `latest_signal` and `cadence_due_at`; conflict resolution documented and enforced: cloud wins for user-intent data, local wins for pipeline-computed data.
+
+**Avoids (pitfalls):** Pitfall 4 (push sync coverage gap), Pitfall 7 (contact notes never pulled to local SQLite). The principle that `Connection.notes` is purely user-authored (pull-only from cloud; pipeline must never overwrite) should be documented in code comments to prevent future accidental overwrite.
+
+**Research flag:** Standard patterns — follows identical structure to existing `user_feedback` and `action_token` pull sync.
+
+---
+
+### Phase 5: Pipeline Signal Integration
+
+**Rationale:** Now that signals flow from PWA through Supabase to local SQLite, the pipeline can act on them. This phase wires cadence exclusion into queue generation and signal pattern analysis into feedback processing. Depends on all previous phases. This is the phase with the highest correctness risk (feedback loop dynamics) and requires the most careful implementation.
+
+**Delivers:** `queue_generator.py` with cadence exclusion Rule 6 (age-based eligibility: `signal_assigned_at + cadence_days <= today`, not absolute `cadence_due_at`), Rule 7 (ARCHIVE exclusion), WARM_LEAD priority boost, and `_compute_mini_key_factors()` pre-computation; `feedback_processor.py` extended with signal pattern analysis using 25-action / 14-day minimum threshold, plus or minus 40% multiplier cap, and weight history logging (`scoring_weight_auto` rows with sample count and timestamp); `scoring.py` accepts optional signal context for rescore pass; `daily_pipeline.py` threads signal_context flag into Step 8.
+
+**Addresses (FEATURES.md):** Signal-driven cadence re-queuing (P1), signal-informed rescoring (P2).
+
+**Avoids (pitfalls):** Pitfall 1 (orphaned skipped items — new exclusion checks `triage_signal` not just status timestamp), Pitfall 2 (duplicate queue items — unique constraint from Phase 1 prevents this), Pitfall 3 (confirmation bias — 25-action threshold and multiplier cap), Pitfall 8 (cadence cohort saturation — age-based eligibility distributes backlog naturally with priority ordering).
+
+**Research flag:** Feedback loop threshold values (25 actions, plus or minus 40%) are grounded in published ML feedback loop literature but have not been validated against this specific dataset. Plan to inspect `user_preferences` multiplier values after the first two weeks of signal use and tighten thresholds if queue diversity degrades.
+
+---
+
+### Phase 6: Draft Tone Adaptation
+
+**Rationale:** Smallest change, narrowest dependency (only requires Phase 1 schema to exist). Can ship any time after Phase 2 (when the PWA passes `intent_signal` in draft POST requests), but placed last to avoid blocking higher-priority phases on an Edge Function deploy. Delivers immediately visible user value: generated drafts sound appropriate to the relationship intent rather than defaulting to channel-only tone.
+
+**Delivers:** `draft/index.ts` updated with optional `signal` parameter, `SIGNAL_TONE_MAP` constant mapping each of 6 signals to tone guidance, and signal guidance injected into `buildDraftPrompt()`; ARCHIVE signal guard (no draft generated, PWA disables button); `signal_context` passed as additional context line in prompt when provided.
+
+**Addresses (FEATURES.md):** Draft tone adaptation (P2).
+
+**Avoids (pitfalls):** Pitfall 6 (wrong tone because signal not passed) — signal is now in POST body; goals are now synced from Phase 3.
+
+**Research flag:** Standard patterns — adding an optional parameter to an existing Deno TypeScript Edge Function is well-documented.
+
+---
 
 ### Phase Ordering Rationale
 
-- **Phase 1 first:** Score trust is foundational. Dashboard charts built on unreliable dimension scores would compound the trust problem. Queue filtering delivers immediate daily-use value with zero risk.
-- **Phase 2 before Phase 3:** Dashboard chart work validates the pipeline-to-PWA snapshot flow before the pipeline's admin surface changes in Phase 3. Confirms snapshot JSON schema extensions work end-to-end.
-- **Phase 3 before Phase 4:** `src/cli/auth.py` built in Phase 3 is shared with Gmail OAuth. More importantly, Phase 3 removes the Streamlit "Ask My Network" page — Phase 4 replaces it. Removing before replacing is intentional: Streamlit's version crashes when `review.py` is imported, making the entire Streamlit app unreliable. Better to have no search than a crashing admin UI.
-- **Score breakdown bug fix as Phase 1 pre-condition:** Running `reconnect contacts score --rubric-only` (or the Streamlit rescore before CLI exists) is a data fix, not a code change. Do this before any other phase work to validate that dimension scores render correctly in the existing PWA.
+- **Schema first:** Every other phase creates or reads the new columns and tables. There is no valid alternative sequence.
+- **Email fix bundled with PWA UI (Phase 2):** Email and queue card are the two primary interaction surfaces. Fixing email reliability and rebuilding queue triage in the same phase ensures both are consistent when the signal model ships. A user should not see signals in the PWA but Reach Out / Skip / Snooze in the email.
+- **Goals profile before pipeline (Phase 3 before Phase 5):** Signal-informed rescoring uses `current_projects` to identify WARM_LEAD candidates. Building rescoring without goals profile makes it produce generic results.
+- **Sync before pipeline (Phase 4 before Phase 5):** The pipeline must read signals and notes from local SQLite. Without pull sync, `is_contact_excluded()` has no signal data to read.
+- **Draft tone last (Phase 6):** No feature depends on draft tone being complete. Placing it last avoids blocking higher-priority phases on an Edge Function deploy.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 4 (AI Contact Search):** TypeScript port of batch LLM pattern in Deno runtime and Supabase free tier 2s CPU execution limit per invocation warrant a `/gsd:research-phase` call. Specifically: Deno ESM module imports differ from Node.js; sequential batch vs Promise.all strategy needs validation against actual contact count and timing.
+Phases needing monitoring or deeper validation during execution:
+- **Phase 5 (Feedback Processor):** The 25-action / 14-day threshold and plus or minus 40% multiplier cap are based on published ML feedback loop research but are not validated against this codebase's specific signal distribution. Monitor `user_preferences` for `scoring_weight_auto` rows after first two weeks. If queue diversity drops (same industry or role type dominates more than 60% of the queue), tighten the minimum threshold further before the next pipeline run.
+- **Phase 2 (Mobile PWA State Management):** Targeted DOM updates for signal badge changes (without card removal or full re-render) are a known-solvable pattern but require hands-on testing of scroll position and filter state preservation on mobile, especially during batch triage of 10+ cards.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation Fixes + Queue UX):** PostgREST filtering via Supabase JS client is well-documented; rescore logic already exists in `src/ui/app.py` and just needs extraction to a CLI command.
-- **Phase 2 (Dashboard Intelligence):** Snapshot extension is an established pattern in this codebase; Chart.js CDN lazy-loading is HIGH confidence from official docs.
-- **Phase 3 (CLI + Gmail OAuth + Streamlit Removal):** Click CLI and Gmail OAuth `InstalledAppFlow` are thoroughly documented official patterns. Streamlit removal is a systematic audit-and-delete exercise, not a technical challenge.
+Phases with standard patterns (skip deeper research):
+- **Phase 1:** psycopg2-direct migration is an established pattern in this codebase (see `20260305000000_pwa_overhaul.sql`).
+- **Phase 3:** PostgREST PATCH on `user_profile` mirrors the identical pattern used for existing preference writes.
+- **Phase 4:** Pull sync extension follows the `user_feedback` pull pattern exactly.
+- **Phase 6:** Optional TypeScript parameter addition to an existing Edge Function is well-documented.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All new packages verified on PyPI with exact release dates; Chart.js confirmed on jsDelivr; pgvector confirmed pre-installed on all Supabase hosted plans; version compatibility matrix verified |
-| Features | HIGH | All findings from direct codebase inspection of actual source files; priorities grounded in current code state, not guessing; dependency chain confirmed by reading function signatures and imports |
-| Architecture | HIGH | All integration points confirmed by reading actual source files; no speculative claims; build order rationale grounded in confirmed dependency relationships |
-| Pitfalls | HIGH (OAuth, charting) MEDIUM (AI search) | OAuth and charting pitfalls from official docs and well-known GitHub issues; AI search hallucination and context overflow from community sources without official benchmarks at this exact dataset size |
+| Stack | HIGH | All findings from direct codebase inspection; verified installed package versions; conclusion that no new libraries are needed is unambiguous — every feature maps to an existing dependency |
+| Features | HIGH | Feature taxonomy derived from codebase + PROJECT.md; signal definitions align with established CRM cadence patterns; anti-features are justified by concrete architectural constraints, not opinion |
+| Architecture | HIGH | All claims grounded in source code inspection; patterns are direct extensions of verified existing patterns (PostgREST writes, bidirectional sync, Edge Function prompt injection); no speculation |
+| Pitfalls | HIGH (migration/sync/PWA) / MEDIUM (feedback dynamics) | Migration and sync pitfalls are code-verified; confirmation bias dynamics are supported by ML literature but the specific thresholds (25 actions, plus or minus 40%) are domain judgment, not empirically validated against this dataset |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Supabase Edge Function CPU time limit:** Free tier enforces 2s CPU per invocation. With 500 enriched contacts = 10 sequential batches × ~400-500ms each = ~4-5s wall-clock. Sequential processing stays under CPU limit but wall-clock may feel slow. Validate with actual contact count during Phase 4 planning. Mitigation: cap at first 200 contacts (4 batches × ~400ms = ~1.6s).
-- **PostgREST inner join filter on embedded resources:** The `connections!inner(*)` syntax with `.ilike('connections.current_company', ...)` is documented but not tested against this schema. If it fails, client-side filtering after fetch is an acceptable fallback for ≤50 queue items. Validate in Phase 1 before building filter UI.
-- **GCP OAuth consent screen publishing timeline:** For "External" apps requesting the `gmail.send` scope, Google may require a verification form. Timeline is variable (can be instant or take days). Mitigation: add your own email as a test user during development — tokens last 7 days in Testing mode, workable during active development. Publish before leaving the pipeline unattended for more than a week.
-- **Raw enrichment JSON key variants:** Industry data is stored as either `$.data.company_industry` or `$.company_industry` depending on enrichment format version. The SQLite `json_extract()` query and the Python aggregation must handle both key paths. Validate with actual data before building the demographics chart in Phase 2.
+- **Signal cadence day counts vary slightly between research files:** STACK.md and FEATURES.md differ on some cadence values (e.g., NURTURE is 90 days in STACK.md vs 21 days in FEATURES.md, VALUE_DROP is 60 days vs 14 days). Reconcile these before Phase 1. The canonical source must be `signal_service.py` — all other files consume from it.
+
+- **Feedback loop threshold validation:** The 25-action / 14-day minimum and plus or minus 40% cap are reasonable starting points based on published research but need empirical validation against this specific dataset. Plan a review of `user_preferences` multiplier values after the first two to three weeks of v1.2 use.
+
+- **Email digest redesign scope:** Research calls for updating the email to show "Review in App" and "Archive" as simplified buttons, but the exact HTML redesign of the digest template is not fully specified. This needs design decisions during Phase 2 planning.
+
+- **`contact_notes` vs `connections.notes` design decision:** STACK.md recommends using the existing `connections.notes` field (already exists, already in sync fields), while ARCHITECTURE.md recommends a new `contact_notes` table for cleaner separation. The STACK.md approach is simpler; the ARCHITECTURE.md approach is more queryable. Decide before Phase 1 migration is written.
 
 ## Sources
 
-### Primary (HIGH confidence)
-- Direct codebase inspection: `src/services/dashboard_service.py`, `src/llm/opportunity_match.py`, `src/llm/scoring.py`, `src/pipeline/queue_generator.py`, `pwa/js/queue.js`, `pwa/js/dashboard.js`, `pwa/js/contact.js`, `src/integrations/gmail.py`, `src/database/models.py`, `src/config.py`, `src/ui/app.py`, `src/sync/push.py`, `supabase/functions/draft/index.ts`
-- `.planning/PROJECT.md` — constraints, out-of-scope list, known tech debt
-- [Chart.js Installation Docs](https://www.chartjs.org/docs/latest/getting-started/installation.html) — CDN pattern, Canvas API
-- [Chart.js Destroy API](https://www.chartjs.org/docs/latest/developers/api.html#destroy) — instance lifecycle
-- [Gmail API Python Quickstart](https://developers.google.com/workspace/gmail/api/quickstart/python) — InstalledAppFlow token.json pattern
-- [google-auth on PyPI](https://pypi.org/project/google-auth/) — v2.49.0, released 2026-03-06
-- [google-auth-oauthlib on PyPI](https://pypi.org/project/google-auth-oauthlib/) — v1.3.0, released 2026-02-27
-- [google-api-python-client on PyPI](https://pypi.org/project/google-api-python-client/) — v2.192.0, released 2026-03-05
-- [Supabase pgvector Docs](https://supabase.com/docs/guides/database/extensions/pgvector) — extension setup, HNSW indexing
-- [Supabase Semantic Search Docs](https://supabase.com/docs/guides/ai/semantic-search) — match_documents RPC pattern
-- [Click 8.3.1 on PyPI](https://pypi.org/project/click/) — released 2025-11-15
-- [Click Entry Points Docs](https://click.palletsprojects.com/en/stable/entry-points/) — pyproject.toml scripts pattern
-- [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings) — text-embedding-3-small, dimensions parameter
+### Primary (HIGH confidence — direct codebase inspection)
 
-### Secondary (MEDIUM confidence)
-- [Gmail OAuth refresh token expiry rules](https://developers.google.com/identity/protocols/oauth2#expiration) — 7-day Testing mode expiry, 50-token-per-client limit
-- [Google OAuth invalid_grant causes](https://nango.dev/blog/google-oauth-invalid-grant-token-has-been-expired-or-revoked) — community source
-- [Google OOB flow deprecated](https://developers.googleblog.com/en/oauth-out-of-band-flow-deprecation-part-2/) — use run_local_server() not oob
-- [Supabase Realtime duplicate channel subscription](https://github.com/supabase/supabase-js/issues/1440) — GitHub issue
-- [Supabase PostgREST conditional filtering](https://markustripp.medium.com/supabase-conditional-queries-with-filter-chaining-1c2bb48b8388) — community source
-- [RAG reducing hallucinations](https://community.openai.com/t/mitigating-hallucinations-in-rag-a-2025-review/1362063) — community source
-- 512 vs 1536 embedding dimensions tradeoff — OpenAI community forum + blogs; no official benchmark at contact-scale datasets
+- `src/database/models.py` — all existing table definitions, field inventory, metadata conventions
+- `src/pipeline/daily_pipeline.py` — 10-step pipeline orchestration and step dependencies
+- `src/pipeline/queue_generator.py` — exclusion rules, priority scoring, queue item generation
+- `src/pipeline/feedback_processor.py` — existing signal learning pattern and threshold values
+- `src/llm/scoring.py` — scoring prompt structure, weight override mechanism
+- `src/sync/push.py`, `src/sync/pull.py` — bidirectional sync patterns and conflict resolution
+- `supabase/functions/draft/index.ts` — `buildDraftPrompt()` structure for tone injection
+- `pwa/js/queue.js` — PostgREST write patterns, client-side sort, triage button structure
+- `supabase/migrations/20260305000000_pwa_overhaul.sql` — migration pattern reference
+- `.planning/PROJECT.md` — v1.2 requirements, constraints, and current state
+- Installed package versions verified directly: sqlmodel 0.0.31, openai 2.15.0, click 8.3.1, pydantic 2.12.5
+
+### Secondary (MEDIUM confidence — community consensus, multiple sources agree)
+
+- Personal CRM ecosystem patterns (Clay, Folk, Covve, Cloze) — cadence norms; 14-21 day follow-up as industry baseline for networking CRMs
+- ML feedback loop literature (arxiv 2305.06055, 2101.05673; Microsoft Research) — confirmation bias dynamics and threshold guidance for iterative recommendation systems
+- Supabase bidirectional sync conflict resolution patterns (stacksync.com)
+- Vanilla JS PWA optimistic UI and state management patterns (MDN, medium.com)
+- LLM personalization sycophancy with user profiles (MIT News, 2026)
+
+### Tertiary (LOW confidence — needs validation during execution)
+
+- Signal cadence day counts (slight variation between STACK.md and FEATURES.md) — reconcile in `signal_service.py` before Phase 1
+- Feedback loop threshold values (25 actions, plus or minus 40% cap) — empirical validation needed after first 2-3 weeks of v1.2 production use
 
 ---
-*Research completed: 2026-03-09*
+*Research completed: 2026-03-11*
 *Ready for roadmap: yes*
