@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
-status: completed
-stopped_at: Completed 08-email-signal-ui-profile-content-02-PLAN.md
-last_updated: "2026-03-12T03:43:02.700Z"
-last_activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
+status: in_progress
+stopped_at: Completed 08-email-signal-ui-profile-content-04-PLAN.md
+last_updated: "2026-03-12T03:52:00Z"
+last_activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Phase 7 — Signal Foundation
+**Current focus:** Phase 8 — Email Signal UI Profile Content
 
 ## Current Position
 
-Phase: 7 of 10 (Signal Foundation)
-Plan: 2 of 2 complete in current phase
+Phase: 8 of 10 (Email Signal UI Profile Content)
+Plan: 4 of 4 complete in current phase
 Status: Phase Complete
-Last activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
+Last activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
 
-Progress: [██████████] 100% (v1.2 phase 7 complete: 2/2 plans done)
+Progress: [██████████] 100% (v1.2 phase 8 complete: 4/4 plans done)
 
 ## Accumulated Context
 
@@ -53,6 +53,7 @@ Recent decisions affecting current work:
 - [Phase 08-email-signal-ui-profile-content]: Email digest uses ?view=queue query param deep link (not /#/queue hash fragment) — query params survive Gmail redirect chain
 - [Phase 08-email-signal-ui-profile-content]: Client-side signal filter after fetch — PostgREST cannot filter on embedded resource fields (connections.latest_signal)
 - [Phase 08-email-signal-ui-profile-content]: Legacy queueAction() function preserved in queue.js for backward compatibility with signal picker replacing 3-button UI
+- [Phase 08-04]: ContactSignal pull is insert-only (immutable once assigned); ContactNote uses insert-or-update-if-newer via updated_at comparison
 
 ### Pending Todos
 
@@ -65,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:43:02.696Z
-Stopped at: Completed 08-email-signal-ui-profile-content-02-PLAN.md
+Last session: 2026-03-12T03:52:00Z
+Stopped at: Completed 08-email-signal-ui-profile-content-04-PLAN.md
 Resume file: None
