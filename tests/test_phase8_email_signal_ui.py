@@ -325,14 +325,34 @@ class TestQueueCardContext:
 
 
 # ---------------------------------------------------------------------------
-# TestPullSync — Plan 04 / wave 1 stubs
+# TestPullSync — Plan 04
 # ---------------------------------------------------------------------------
 
 
 class TestPullSync:
-    """Pull sync signal keys — implemented in Plan 04 / wave 1."""
+    """Pull sync signal keys — implemented in Plan 04."""
 
-    @pytest.mark.skip(reason="Plan 04 / wave 1")
     def test_pull_stats_has_signal_keys(self):
-        """Pull sync stats include signal-related keys."""
-        pass
+        """Pull sync stats dict includes contact_signals_pulled and contact_notes_pulled keys."""
+        import inspect
+        import src.sync.pull as pull_mod
+        source = inspect.getsource(pull_mod.pull_from_cloud)
+        assert 'contact_signals_pulled' in source
+        assert 'contact_notes_pulled' in source
+
+    def test_pull_imports_contact_signal_model(self):
+        """ContactSignal is imported in pull.py."""
+        import src.sync.pull as pull_mod
+        assert hasattr(pull_mod, 'ContactSignal') or 'ContactSignal' in dir(pull_mod)
+
+    def test_pull_imports_contact_note_model(self):
+        """ContactNote is imported in pull.py."""
+        import src.sync.pull as pull_mod
+        assert hasattr(pull_mod, 'ContactNote') or 'ContactNote' in dir(pull_mod)
+
+    def test_pull_syncs_latest_signal(self):
+        """contacts_data pull section includes latest_signal field."""
+        import inspect
+        import src.sync.pull as pull_mod
+        source = inspect.getsource(pull_mod.pull_from_cloud)
+        assert 'latest_signal' in source
