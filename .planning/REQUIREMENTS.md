@@ -87,36 +87,36 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EMAIL-01 | — | Pending |
-| EMAIL-02 | — | Pending |
-| EMAIL-03 | — | Pending |
-| EMAIL-04 | — | Pending |
-| SIG-01 | — | Pending |
-| SIG-02 | — | Pending |
-| SIG-03 | — | Pending |
-| SIG-04 | — | Pending |
-| SIG-05 | — | Pending |
-| SIG-06 | — | Pending |
-| CAD-01 | — | Pending |
-| CAD-02 | — | Pending |
-| CAD-03 | — | Pending |
-| PROF-01 | — | Pending |
-| PROF-02 | — | Pending |
-| PROF-03 | — | Pending |
-| PROF-04 | — | Pending |
-| PERS-01 | — | Pending |
-| PERS-02 | — | Pending |
-| PERS-03 | — | Pending |
-| PERS-04 | — | Pending |
-| PERS-05 | — | Pending |
-| QUX-01 | — | Pending |
-| QUX-02 | — | Pending |
+| EMAIL-01 | Phase 8 | Pending |
+| EMAIL-02 | Phase 8 | Pending |
+| EMAIL-03 | Phase 8 | Pending |
+| EMAIL-04 | Phase 8 | Pending |
+| SIG-01 | Phase 8 | Pending |
+| SIG-02 | Phase 8 | Pending |
+| SIG-03 | Phase 8 | Pending |
+| SIG-04 | Phase 8 | Pending |
+| SIG-05 | Phase 8 | Pending |
+| SIG-06 | Phase 8 | Pending |
+| CAD-01 | Phase 7 | Pending |
+| CAD-02 | Phase 9 | Pending |
+| CAD-03 | Phase 9 | Pending |
+| PROF-01 | Phase 8 | Pending |
+| PROF-02 | Phase 8 | Pending |
+| PROF-03 | Phase 8 | Pending |
+| PROF-04 | Phase 8 | Pending |
+| PERS-01 | Phase 9 | Pending |
+| PERS-02 | Phase 9 | Pending |
+| PERS-03 | Phase 9 | Pending |
+| PERS-04 | Phase 9 | Pending |
+| PERS-05 | Phase 10 | Pending |
+| QUX-01 | Phase 8 | Pending |
+| QUX-02 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24
+- Mapped to phases: 24
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 — traceability mapped to phases 7-10*
