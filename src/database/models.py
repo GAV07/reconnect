@@ -56,6 +56,10 @@ class UserProfile(SQLModel, table=True):
     posting_themes: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     public_persona_summary: Optional[str] = Field(default=None, sa_column=Column(Text))
 
+    # Signal foundation (v1.2)
+    current_projects: Optional[str] = Field(default=None, sa_column=Column(Text))
+    goals_structured: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -134,6 +138,15 @@ class Connection(SQLModel, table=True):
     endorsement_count: int = Field(default=0)
     has_recommendation: bool = Field(default=False)
 
+    # User priority and data completeness (PWA overhaul)
+    user_priority: Optional[str] = None  # "always" | "never" | NULL
+    data_completeness_score: Optional[float] = None  # 0-100
+    missing_data_fields: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+
+    # Signal foundation (v1.2)
+    latest_signal: Optional[str] = None  # Last applied signal name
+    cadence_due_at: Optional[datetime] = Field(default=None)  # Next re-queue date
+
 
 # Composite indexes for common query patterns
 Connection.__table_args__ = (
@@ -161,6 +174,38 @@ class EngagementSignal(SQLModel, table=True):
     signal_date: Optional[datetime] = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ContactSignal(SQLModel, table=True):
+    """
+    Records when a user assigns a triage signal to a contact.
+    Canonical signal names: WARM_LEAD | NURTURE | VALUE_DROP | SYNERGY |
+    RECONNECT | FUTURE_PIVOT | ARCHIVE
+    """
+
+    __tablename__ = "contact_signals"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    connection_id: str = Field(foreign_key="connections.id", index=True)
+    signal: str  # Required — one of the 7 canonical signal names
+    signal_context: Optional[str] = Field(default=None, sa_column=Column(Text))
+    assigned_at: datetime = Field(default_factory=datetime.utcnow)
+    assigned_by: str = Field(default="user")  # "user" | "system" | "pipeline"
+
+
+class ContactNote(SQLModel, table=True):
+    """
+    Timestamped notes attached to a contact.
+    Complementary to connections.notes (free-form); provides queryable history.
+    """
+
+    __tablename__ = "contact_notes"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    connection_id: str = Field(foreign_key="connections.id", index=True)
+    note_text: str = Field(sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class UserContent(SQLModel, table=True):
@@ -219,6 +264,12 @@ class OutreachQueueItem(SQLModel, table=True):
 
     priority_score: Optional[float] = None  # For sorting queue
     skip_reason: Optional[str] = None
+    why_today: Optional[str] = None  # Time-sensitive reason for outreach
+
+    # Signal foundation (v1.2)
+    signal: Optional[str] = None  # Applied signal name (WARM_LEAD, NURTURE, etc.)
+    signal_context: Optional[str] = Field(default=None, sa_column=Column(Text))
+    mini_key_factors: Optional[str] = Field(default=None, sa_column=Column(Text))
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     reviewed_at: Optional[datetime] = None
@@ -317,3 +368,60 @@ class PipelineRun(SQLModel, table=True):
 
     started_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
+
+
+class ActionToken(SQLModel, table=True):
+    """One-time-use tokens for email action links."""
+
+    __tablename__ = "action_tokens"
+
+    token: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    action: str  # "approve", "skip", "snooze", "feedback"
+    queue_item_id: Optional[int] = Field(default=None, foreign_key="outreach_queue.id")
+    connection_id: Optional[str] = Field(default=None, foreign_key="connections.id")
+    payload: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    used: bool = Field(default=False)
+    used_at: Optional[datetime] = None
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserFeedback(SQLModel, table=True):
+    """User feedback signals for learning from behavior."""
+
+    __tablename__ = "user_feedback"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    connection_id: Optional[str] = Field(default=None, foreign_key="connections.id")
+    queue_item_id: Optional[int] = Field(default=None, foreign_key="outreach_queue.id")
+    feedback_type: str  # "suggestion_quality", "outcome", "preference", "digest_rating"
+    rating: Optional[int] = None  # 1-5
+    text: Optional[str] = Field(default=None, sa_column=Column(Text))
+    extra_data: Optional[dict[str, Any]] = Field(
+        default=None, sa_column=Column("metadata", JSON)
+    )  # Maps to "metadata" column in DB but avoids SQLAlchemy reserved name
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserPreference(SQLModel, table=True):
+    """User preferences for scoring and suggestions."""
+
+    __tablename__ = "user_preferences"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    pref_type: str  # "industry_interest", "company_interest", "role_interest", "scoring_weight"
+    pref_key: str
+    pref_value: Optional[str] = None
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DashboardSnapshot(SQLModel, table=True):
+    """Pipeline-computed dashboard data pushed to Supabase for PWA access."""
+
+    __tablename__ = "dashboard_snapshots"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    snapshot_type: str  # "daily", "weekly"
+    snapshot_data: dict[str, Any] = Field(sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
