@@ -91,6 +91,7 @@ def build_scoring_prompt(
     """Build the prompt for scoring a connection."""
 
     # User context
+    current_projects_display = (user_profile.current_projects or '')[:500] or 'Not specified'
     user_context = f"""USER'S PROFILE:
 - Name: {user_profile.name or 'Not specified'}
 - Current role: {user_profile.current_role or 'Not specified'}
@@ -98,6 +99,7 @@ def build_scoring_prompt(
 - Industry: {user_profile.industry or 'Not specified'}
 - Networking goals: {user_profile.goals or 'General networking'}
 - Interests/topics: {user_profile.interests or 'Not specified'}
+- Current projects & focus: {current_projects_display}
 """
 
     # Add user's posting themes if available

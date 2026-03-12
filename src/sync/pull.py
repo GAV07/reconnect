@@ -15,6 +15,7 @@ from src.database.models import (
     SyncMetadata,
     UserFeedback,
     UserPreference,
+    UserProfile,
 )
 from src.sync.engines import get_cloud_engine, get_local_engine
 
@@ -55,6 +56,7 @@ def pull_from_cloud() -> dict[str, Any]:
         "preferences_pulled": 0,
         "contact_signals_pulled": 0,
         "contact_notes_pulled": 0,
+        "user_profile_updated": 0,
     }
 
     # Get last pull timestamp
@@ -193,6 +195,17 @@ def pull_from_cloud() -> dict[str, Any]:
             for n in cloud_notes
         ]
 
+        # 8. Pull UserProfile goals fields from cloud
+        profile_data = None
+        cloud_profile = cloud_session.get(UserProfile, 1)
+        if cloud_profile:
+            profile_data = {
+                "id": cloud_profile.id,
+                "current_projects": cloud_profile.current_projects,
+                "goals_structured": cloud_profile.goals_structured,
+                "updated_at": cloud_profile.updated_at,
+            }
+
     # Apply changes to local DB
     with Session(local_engine, expire_on_commit=False) as local_session:
         try:
@@ -281,6 +294,19 @@ def pull_from_cloud() -> dict[str, Any]:
                     local_session.add(existing)
                     stats["contact_notes_pulled"] += 1
 
+            # 8. Apply user_profile goals (cloud wins if cloud is newer)
+            if profile_data:
+                local_profile = local_session.get(UserProfile, 1)
+                if local_profile:
+                    cloud_ts = profile_data.get("updated_at")
+                    local_ts = local_profile.updated_at
+                    if cloud_ts and (local_ts is None or cloud_ts > local_ts):
+                        local_profile.current_projects = profile_data["current_projects"]
+                        local_profile.goals_structured = profile_data["goals_structured"]
+                        # Do NOT update local_profile.updated_at — avoids push sync loop (research pitfall 5)
+                        local_session.add(local_profile)
+                        stats["user_profile_updated"] = 1
+
             # Update sync metadata
             meta = _get_sync_metadata(local_session)
             meta.last_pull_at = datetime.utcnow()
@@ -292,6 +318,7 @@ def pull_from_cloud() -> dict[str, Any]:
                 + stats["preferences_pulled"]
                 + stats["contact_signals_pulled"]
                 + stats["contact_notes_pulled"]
+                + stats["user_profile_updated"]
             )
             local_session.add(meta)
 
