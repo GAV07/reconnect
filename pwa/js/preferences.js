@@ -27,7 +27,31 @@ async function renderPreferences(container) {
     .in('user_priority', ['always', 'never'])
     .order('name');
 
+  // Fetch user profile for goals
+  const { data: userProfile } = await db
+    .from('user_profile')
+    .select('id, current_projects, updated_at')
+    .eq('id', 1)
+    .single();
+
   let html = '';
+
+  // Goals section (renders above scoring weights)
+  html += `
+    <div class="pref-group">
+      <h3>Your Networking Goals</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        What kind of reconnections are valuable to you right now? This text
+        guides which contacts score as WARM_LEAD.
+      </p>
+      <textarea id="goals-input"
+        style="width: 100%; min-height: 80px; padding: 8px; font-size: 14px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; box-sizing: border-box;"
+        placeholder="e.g. Exploring product leadership roles in fintech. Interested in AI/ML applications..."
+      >${escapeHtml(userProfile?.current_projects || '')}</textarea>
+      <button class="btn btn-primary" style="margin-top: 8px;" onclick="saveGoals(document.getElementById('goals-input').value)">
+        Save Goals
+      </button>
+    </div>`;
 
   // Scoring Weight Overrides
   const scoringPrefs = (prefs || []).filter(p => p.pref_type === 'scoring_weight');
@@ -146,5 +170,43 @@ async function clearPriority(connectionId) {
     // Re-render
     const content = document.getElementById('app-content');
     if (content) renderPreferences(content);
+  }
+}
+
+async function saveGoals(text) {
+  if (!db) return;
+
+  const { error } = await db
+    .from('user_profile')
+    .update({
+      current_projects: text,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', 1);
+
+  if (error) return;
+
+  // Write rescore trigger so pipeline knows to rescore existing contacts
+  // Uses UserPreference row: pref_type="rescore_trigger", pref_key="goals_updated_at"
+  // Pipeline will batch-clear scored_at on contacts where scored_at < this timestamp
+  const now = new Date().toISOString();
+  await db
+    .from('user_preferences')
+    .upsert({
+      id: 'rescore-goals-trigger',
+      pref_type: 'rescore_trigger',
+      pref_key: 'goals_updated_at',
+      pref_value: now,
+      is_active: true,
+      created_at: now
+    }, { onConflict: 'id' });
+
+  // Show brief confirmation
+  const btn = document.querySelector('#goals-input + button') ||
+              document.querySelector('.btn-primary');
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
   }
 }
