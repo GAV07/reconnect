@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-12T15:13:43.356Z"
-last_activity: 2026-03-12 — Plan 01 complete (goals UI, scoring prompt current_projects, pull sync, rescore trigger)
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-03-12T15:20:19.945Z"
+last_activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 9
   percent: 100
 ---
 
@@ -60,6 +60,8 @@ Recent decisions affecting current work:
 - [Phase 09-01]: Pull sync does NOT update local.updated_at when pulling goals from cloud — avoids push sync loop (research pitfall 5)
 - [Phase 09-01]: Rescore trigger uses UserPreference pref_type='rescore_trigger' row written by PWA; pipeline batch-clears 10 contacts per run
 - [Phase 09-01]: goals_structured JSON column reserved for future lookouts feature — not exposed in UI
+- [Phase 09-03]: ARCHIVE signal excluded from weight adjustments — contact irrelevant signal, not scoring quality indicator (research pitfall 3)
+- [Phase 09-03]: Weight history is insert-only rows (pref_type='weight_history') — each adjustment creates a new row for full audit trail
 
 ### Pending Todos
 
@@ -72,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T15:13:43.352Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-12T15:20:19.942Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
