@@ -102,9 +102,13 @@ function setupOfflineDetection() {
   if (!navigator.onLine) banner.classList.add('visible');
 }
 
-// Deep link bridge: reads ?view=contact&id=X query params and converts to hash route.
-// Gmail's redirect chain strips hash fragments (RFC 3986), so action emails must use
+// Deep link bridge: reads query params and converts to hash route.
+// Gmail's redirect chain strips hash fragments (RFC 3986), so emails must use
 // query params for deep links. This function bridges them to the hash router.
+//
+// Supported deep links:
+//   ?view=contact&id=X  → #/contact/X  (profile page)
+//   ?view=queue         → #/queue      (queue page, from "Review in App" CTA)
 function checkDeepLinkQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
@@ -114,6 +118,11 @@ function checkDeepLinkQueryParams() {
     history.replaceState(null, '', window.location.pathname);
     window.location.hash = `/contact/${id}`;
     return true; // hashchange event will trigger render()
+  }
+  if (view === 'queue') {
+    history.replaceState(null, '', window.location.pathname);
+    window.location.hash = '/queue';
+    return true;
   }
   return false;
 }
