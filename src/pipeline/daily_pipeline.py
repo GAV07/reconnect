@@ -138,6 +138,56 @@ def run_daily_pipeline(
                 update_user_profile_from_dump(dump)
                 steps_completed.append("profile_update")
 
+        # Step 2b: Check for goals rescore trigger
+        # When user changes goals in the PWA, a UserPreference row with
+        # pref_type="rescore_trigger" is written. We batch-clear scored_at
+        # on up to 10 contacts per run so they get rescored with the new goals.
+        # The trigger row is deleted once all affected contacts are rescored.
+        try:
+            from src.database.models import UserPreference
+            with get_session() as session:
+                trigger = session.exec(
+                    select(UserPreference)
+                    .where(UserPreference.pref_type == "rescore_trigger")
+                    .where(UserPreference.pref_key == "goals_updated_at")
+                ).first()
+
+                if trigger and trigger.pref_value:
+                    from datetime import datetime as dt
+                    trigger_ts = dt.fromisoformat(trigger.pref_value.replace("Z", "+00:00"))
+
+                    # Find contacts scored before goals changed
+                    stale = session.exec(
+                        select(Connection)
+                        .where(Connection.scored_at.isnot(None))
+                        .where(Connection.scored_at < trigger_ts)
+                        .limit(10)
+                    ).all()
+
+                    if stale:
+                        for conn in stale:
+                            conn.scored_at = None
+                        session.commit()
+                        results["rescore_cleared"] = len(stale)
+                        import logging as _log
+                        _log.getLogger(__name__).info(
+                            "Goals rescore: cleared scored_at on %d contacts (batch)", len(stale)
+                        )
+                    else:
+                        # All contacts rescored — remove trigger
+                        session.delete(trigger)
+                        session.commit()
+                        results["rescore_trigger_cleared"] = True
+                        import logging as _log
+                        _log.getLogger(__name__).info(
+                            "Goals rescore: all contacts rescored, trigger removed"
+                        )
+
+                    steps_completed.append("rescore_trigger")
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).warning("Goals rescore trigger check failed: %s", e)
+
         # Step 3: Pre-score un-scored contacts
         from src.llm.prescoring import prescore_unscored_connections
 
