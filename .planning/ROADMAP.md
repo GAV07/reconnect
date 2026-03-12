@@ -50,7 +50,10 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details.
   2. New nullable columns on `connections` (latest_signal, cadence_due_at), `outreach_queue` (signal, signal_context, mini_key_factors), and `user_profile` (current_projects, goals_structured) are present in both databases
   3. `signal_service.py` exists with `SIGNAL_ACTIONS` map defining all 7 signals with cadence days, queue status, and priority boost — this is the single source of truth consumed by pipeline and PWA
   4. Existing "skipped" items in `outreach_queue` are backfilled with a default signal intent so the new exclusion logic can read unambiguous triage state
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Models, signal service, and migration SQL
+- [ ] 07-02-PLAN.md — Sync integration and comprehensive test suite
 
 ### Phase 8: Email + Signal UI + Profile Content
 **Goal**: Users can triage contacts via 7 intent signals in the PWA, receive a daily email that directs them to the app, and see meaningful content on every profile regardless of enrichment completeness
@@ -97,7 +100,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details.
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 7. Signal Foundation | v1.2 | 0/TBD | Not started | - |
+| 7. Signal Foundation | v1.2 | 0/2 | Not started | - |
 | 8. Email + Signal UI + Profile Content | v1.2 | 0/TBD | Not started | - |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/TBD | Not started | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |
