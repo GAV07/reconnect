@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-03-12T03:41:32.685Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-12T03:42:47.868Z"
 last_activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 5
   percent: 100
 ---
 
@@ -49,6 +49,8 @@ Recent decisions affecting current work:
 - [Phase 07-signal-foundation]: Use assigned_at (not created_at) as ContactSignal timestamp filter — signals timestamped by assignment
 - [Phase 08-03]: SIGNAL_ACTIONS guard: typeof SIGNAL_ACTIONS \!== 'undefined' — safe when 08-02 not yet executed
 - [Phase 08-03]: Note UI uses textarea + two-button split: Save Note (quick update) vs Add to History (timestamped insert)
+- [Phase 08-email-signal-ui-profile-content]: Gmail functions patched at source module (src.integrations.gmail.*) since imported inside send_digest_email() body, not at module level
+- [Phase 08-email-signal-ui-profile-content]: Email digest uses ?view=queue query param deep link (not /#/queue hash fragment) — query params survive Gmail redirect chain
 
 ### Pending Todos
 
@@ -61,6 +63,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:41:32.681Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-03-12T03:42:41.831Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None

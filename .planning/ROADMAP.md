@@ -106,6 +106,6 @@ Plans:
 | 5. Dashboard Intelligence | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
-| 8. Email + Signal UI + Profile Content | 1/4 | In Progress|  | - |
+| 8. Email + Signal UI + Profile Content | 3/4 | In Progress|  | - |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/TBD | Not started | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |

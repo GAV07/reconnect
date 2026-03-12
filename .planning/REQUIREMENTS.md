@@ -9,10 +9,10 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 
 ### Email & Notifications
 
-- [ ] **EMAIL-01**: User receives daily email digest with contact recommendations via Gmail
-- [ ] **EMAIL-02**: Email digest includes "Review in App" CTA linking to PWA queue for signal assignment
-- [ ] **EMAIL-03**: Email action buttons use signal-aligned vocabulary (not legacy approve/skip/snooze)
-- [ ] **EMAIL-04**: Telegram notifications retained as backup for pipeline failure alerts
+- [x] **EMAIL-01**: User receives daily email digest with contact recommendations via Gmail
+- [x] **EMAIL-02**: Email digest includes "Review in App" CTA linking to PWA queue for signal assignment
+- [x] **EMAIL-03**: Email action buttons use signal-aligned vocabulary (not legacy approve/skip/snooze)
+- [x] **EMAIL-04**: Telegram notifications retained as backup for pipeline failure alerts
 
 ### Signal System
 
@@ -87,10 +87,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EMAIL-01 | Phase 8 | Pending |
-| EMAIL-02 | Phase 8 | Pending |
-| EMAIL-03 | Phase 8 | Pending |
-| EMAIL-04 | Phase 8 | Pending |
+| EMAIL-01 | Phase 8 | Complete |
+| EMAIL-02 | Phase 8 | Complete |
+| EMAIL-03 | Phase 8 | Complete |
+| EMAIL-04 | Phase 8 | Complete |
 | SIG-01 | Phase 8 | Pending |
 | SIG-02 | Phase 8 | Pending |
 | SIG-03 | Phase 8 | Complete |
