@@ -210,6 +210,14 @@ def run_daily_pipeline(
         results["score"] = score_results
         steps_completed.append("score")
 
+        # Note: cadence re-queuing (CAD-02, CAD-03) is integrated directly into
+        # generate_daily_queue() rather than being a separate pipeline step.
+        # Contacts with expired cadence_due_at are queried inside queue generation
+        # and compete for slots alongside fresh scored candidates (capped at 50%).
+        # One-day delay for goals changes is expected behavior (goals are stable
+        # networking objectives, not urgent requests) — pull sync runs at end of
+        # pipeline, so new goals take effect on the NEXT day's scoring run.
+
         # Step 6: Generate outreach queue (unless skipped)
         if not skip_queue_generation:
             from src.pipeline.queue_generator import generate_daily_queue
