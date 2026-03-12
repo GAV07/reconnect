@@ -286,7 +286,7 @@ async function renderContact(container, connectionId) {
       </div>`;
   }
 
-  // Key factors
+  // Key factors — with fallback from enrichment when scoring data is sparse
   let factorsHtml = '';
   if (keyFactors.length > 0) {
     factorsHtml = '<div class="detail-section"><h3>Key Factors</h3><ul style="padding-left: 18px; font-size: 14px; color: var(--text-secondary);">';
@@ -294,9 +294,40 @@ async function renderContact(container, connectionId) {
       factorsHtml += `<li style="margin-bottom: 4px;">${escapeHtml(String(f))}</li>`;
     }
     factorsHtml += '</ul></div>';
+  } else {
+    // Fallback: synthesize from enrichment data
+    const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+    const fallbacks = [];
+    if (enrichment.headline) {
+      fallbacks.push(enrichment.headline);
+    }
+    const industry = enrichment.company_industry || enrichment.companyIndustry;
+    if (industry) {
+      fallbacks.push(`Works in ${industry}`);
+    }
+    const experiences = enrichment.experiences || enrichment.experience || [];
+    if (experiences.length > 1) {
+      const prev = experiences[1];
+      const prevTitle = prev.title || '';
+      const prevCompany = prev.company || prev.companyName || '';
+      if (prevTitle || prevCompany) {
+        fallbacks.push(`Previously: ${prevTitle}${prevCompany ? ' at ' + prevCompany : ''}`);
+      }
+    }
+    if (conn.message_count > 0) {
+      fallbacks.push(`${conn.message_count} messages exchanged`);
+    }
+
+    if (fallbacks.length > 0) {
+      factorsHtml = '<div class="detail-section"><h3>Key Factors</h3><ul style="padding-left: 18px; font-size: 14px; color: var(--text-secondary);">';
+      for (const f of fallbacks) {
+        factorsHtml += `<li style="margin-bottom: 4px;">${escapeHtml(String(f))}</li>`;
+      }
+      factorsHtml += '</ul></div>';
+    }
   }
 
-  // Hooks
+  // Conversation starters — with fallback from enrichment when activity_log is empty
   let hooksHtml = '';
   if (hooks.length > 0) {
     hooksHtml = '<div class="detail-section"><h3>Conversation Starters</h3>';
@@ -304,6 +335,39 @@ async function renderContact(container, connectionId) {
       hooksHtml += `<div class="alert-card"><div class="alert-detail">${escapeHtml(String(h))}</div></div>`;
     }
     hooksHtml += '</div>';
+  } else {
+    // Fallback: construct starters from enrichment and connection data
+    const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+    const fallbackHooks = [];
+    if (enrichment.headline) {
+      fallbackHooks.push(`Ask about their work as: "${enrichment.headline}"`);
+    }
+    const experiences = enrichment.experiences || enrichment.experience || [];
+    if (experiences.length > 0 && experiences[0]) {
+      const current = experiences[0];
+      const companyName = current.company || current.companyName;
+      if (companyName) {
+        fallbackHooks.push(`Discuss their role at ${companyName}`);
+      }
+    }
+    if (conn.conversation_summary) {
+      const summary = conn.conversation_summary.length > 80
+        ? conn.conversation_summary.slice(0, 80) + '...'
+        : conn.conversation_summary;
+      fallbackHooks.push(`Last discussed: ${summary}`);
+    }
+    const industry = enrichment.company_industry || enrichment.companyIndustry;
+    if (industry && !fallbackHooks.some(h => h.includes(industry))) {
+      fallbackHooks.push(`Connect on ${industry} industry topics`);
+    }
+
+    if (fallbackHooks.length > 0) {
+      hooksHtml = '<div class="detail-section"><h3>Conversation Starters</h3>';
+      for (const h of fallbackHooks) {
+        hooksHtml += `<div class="alert-card"><div class="alert-detail">${escapeHtml(String(h))}</div></div>`;
+      }
+      hooksHtml += '</div>';
+    }
   }
 
   // Draft section
