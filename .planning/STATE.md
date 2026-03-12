@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-12T00:55:49.665Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-12T02:40:08.536Z"
 last_activity: 2026-03-11 — Roadmap created; phases 7-10 defined
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 60
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 7 of 10 (Signal Foundation)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-11 — Roadmap created; phases 7-10 defined
+Plan: 1 of 2 complete in current phase
+Status: In Progress
+Last activity: 2026-03-12 — Plan 01 complete (signal data layer: models, service, migration SQL)
 
-Progress: [██████░░░░] 60% (v1.0 + v1.1 complete; v1.2 phases 7-10 not started)
+Progress: [█████░░░░░] 50% (v1.2 phase 7 in progress: 1/2 plans done)
 
 ## Accumulated Context
 
@@ -43,6 +43,9 @@ Recent decisions affecting current work:
 - [v1.2 research]: PostgREST direct writes for signals and notes — no new Edge Function needed (same pattern as user_feedback)
 - [v1.2 research]: Cadence re-queuing via age-based eligibility (signal_assigned_at + cadence_days <= today) — not absolute timestamps
 - [v1.2 research]: Feedback processor safety guards: 25-action / 14-day minimum, ±40% cap, weight history logging
+- [Phase 07-signal-foundation]: SIGNAL_ACTIONS defined once in signal_service.py as canonical source; PWA mirrors as JS const
+- [Phase 07-signal-foundation]: No __table_args__ partial index in SQLModel — PostgreSQL-only UNIQUE partial index stays in migration SQL only to avoid breaking SQLite
+- [Phase 07-signal-foundation]: signal_service.py NOT wired into daily_pipeline.py — deferred to Phase 9 queue intelligence
 
 ### Pending Todos
 
@@ -50,12 +53,11 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Cadence day counts vary between research files — reconcile before writing signal_service.py; canonical source is signal_service.py
-- [Phase 7]: Design decision: use existing connections.notes field (simpler) or new contact_notes table (more queryable) — decide before migration
 - [Phase 9]: Feedback loop thresholds (25 actions / ±40%) need empirical validation after first 2 weeks of v1.2 use
+- [Phase 7 Plan 02]: Migration SQL must be applied to Supabase before PWA can write signals
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:55:49.651Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-signal-foundation/07-CONTEXT.md
+Last session: 2026-03-12T02:40:08.533Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: .planning/phases/07-signal-foundation/07-01-SUMMARY.md

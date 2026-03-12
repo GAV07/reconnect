@@ -18,14 +18,14 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 
 - [ ] **SIG-01**: User can assign one of 7 intent signals to any queue contact (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE)
 - [ ] **SIG-02**: Signal picker replaces legacy Reach Out / Skip / Snooze buttons on queue cards
-- [ ] **SIG-03**: Each signal assignment is stored with timestamp and persisted to Supabase
+- [x] **SIG-03**: Each signal assignment is stored with timestamp and persisted to Supabase
 - [ ] **SIG-04**: User can view signal history for a contact on their profile page
 - [ ] **SIG-05**: User can filter queue by assigned signal type
 - [ ] **SIG-06**: ARCHIVE signal hides contact from queue and dashboard (data preserved)
 
 ### Cadence & Re-queuing
 
-- [ ] **CAD-01**: Each signal defines a default cadence (days until contact reappears in queue)
+- [x] **CAD-01**: Each signal defines a default cadence (days until contact reappears in queue)
 - [ ] **CAD-02**: Contacts with expired cadence automatically re-enter the daily queue
 - [ ] **CAD-03**: Re-queuing uses age-based eligibility to prevent cohort saturation
 
@@ -93,11 +93,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EMAIL-04 | Phase 8 | Pending |
 | SIG-01 | Phase 8 | Pending |
 | SIG-02 | Phase 8 | Pending |
-| SIG-03 | Phase 8 | Pending |
+| SIG-03 | Phase 8 | Complete |
 | SIG-04 | Phase 8 | Pending |
 | SIG-05 | Phase 8 | Pending |
 | SIG-06 | Phase 8 | Pending |
-| CAD-01 | Phase 7 | Pending |
+| CAD-01 | Phase 7 | Complete |
 | CAD-02 | Phase 9 | Pending |
 | CAD-03 | Phase 9 | Pending |
 | PROF-01 | Phase 8 | Pending |
