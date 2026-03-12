@@ -26,8 +26,8 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 ### Cadence & Re-queuing
 
 - [x] **CAD-01**: Each signal defines a default cadence (days until contact reappears in queue)
-- [ ] **CAD-02**: Contacts with expired cadence automatically re-enter the daily queue
-- [ ] **CAD-03**: Re-queuing uses age-based eligibility to prevent cohort saturation
+- [x] **CAD-02**: Contacts with expired cadence automatically re-enter the daily queue
+- [x] **CAD-03**: Re-queuing uses age-based eligibility to prevent cohort saturation
 
 ### Profile & Content
 
@@ -98,8 +98,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIG-05 | Phase 8 | Complete |
 | SIG-06 | Phase 8 | Complete |
 | CAD-01 | Phase 7 | Complete |
-| CAD-02 | Phase 9 | Pending |
-| CAD-03 | Phase 9 | Pending |
+| CAD-02 | Phase 9 | Complete |
+| CAD-03 | Phase 9 | Complete |
 | PROF-01 | Phase 8 | Complete |
 | PROF-02 | Phase 8 | Complete |
 | PROF-03 | Phase 8 | Complete |

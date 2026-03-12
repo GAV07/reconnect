@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-12T14:34:37.632Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-12T15:13:43.356Z"
 last_activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 100
 ---
 
@@ -54,6 +54,8 @@ Recent decisions affecting current work:
 - [Phase 08-email-signal-ui-profile-content]: Client-side signal filter after fetch — PostgREST cannot filter on embedded resource fields (connections.latest_signal)
 - [Phase 08-email-signal-ui-profile-content]: Legacy queueAction() function preserved in queue.js for backward compatibility with signal picker replacing 3-button UI
 - [Phase 08-04]: ContactSignal pull is insert-only (immutable once assigned); ContactNote uses insert-or-update-if-newer via updated_at comparison
+- [Phase 09]: NULL user_priority: use or_(is_(None), \!= 'never') — SQL \!= excludes NULLs, contacts without priority set were incorrectly excluded from cadence re-queuing
+- [Phase 09]: Cadence re-queuing integrated into generate_daily_queue() not a separate pipeline step — cadence candidates injected between always and fresh-scored, capped at 50%
 
 ### Pending Todos
 
@@ -66,6 +68,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T14:34:37.612Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-goals-sync-and-pipeline-intelligence/09-CONTEXT.md
+Last session: 2026-03-12T15:13:43.352Z
+Stopped at: Completed 09-02-PLAN.md
+Resume file: None
