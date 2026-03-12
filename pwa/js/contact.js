@@ -98,6 +98,131 @@ function buildEnrichmentSection(conn) {
   return html;
 }
 
+async function buildSignalHistorySection(connectionId) {
+  if (!db) return '';
+  try {
+    const { data: signals, error } = await db
+      .from('contact_signals')
+      .select('*')
+      .eq('connection_id', connectionId)
+      .order('assigned_at', { ascending: false })
+      .limit(20);
+
+    if (error || !signals || signals.length === 0) return '';
+
+    let itemsHtml = '';
+    for (const sig of signals) {
+      const info = (typeof SIGNAL_ACTIONS !== 'undefined' && SIGNAL_ACTIONS[sig.signal])
+        ? SIGNAL_ACTIONS[sig.signal]
+        : { label: sig.signal, color: '#666', bg: '#f3f4f6' };
+      const dateStr = sig.assigned_at
+        ? new Date(sig.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+      const contextStr = sig.signal_context ? ` — ${escapeHtml(sig.signal_context)}` : '';
+      const byStr = sig.assigned_by === 'user' ? '' : ` (${escapeHtml(sig.assigned_by)})`;
+      itemsHtml += `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+          <span class="signal-badge" style="background:${info.bg};color:${info.color};">${escapeHtml(info.label)}</span>
+          <span style="font-size:12px;color:var(--text-muted);">${dateStr}${byStr}${contextStr}</span>
+        </div>`;
+    }
+
+    return `<div class="detail-section"><h3>Signal History</h3>${itemsHtml}</div>`;
+  } catch (err) {
+    console.error('Signal history fetch error:', err);
+    return '';
+  }
+}
+
+async function buildNotesSection(connectionId, conn) {
+  let notesHtml = '';
+  if (db) {
+    try {
+      const { data: notes } = await db
+        .from('contact_notes')
+        .select('*')
+        .eq('connection_id', connectionId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (notes && notes.length > 0) {
+        for (const note of notes) {
+          const dateStr = note.created_at
+            ? new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '';
+          notesHtml += `
+            <div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+              <div style="font-size:14px;color:var(--text);">${escapeHtml(note.note_text || '')}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${dateStr}</div>
+            </div>`;
+        }
+      }
+    } catch (err) {
+      console.error('Notes fetch error:', err);
+    }
+  }
+
+  const quickNote = conn.notes || '';
+
+  return `
+    <div class="detail-section">
+      <h3>Notes</h3>
+      <div style="margin-bottom:12px;">
+        <textarea id="quick-note-input"
+          placeholder="Add a quick note about this contact..."
+          style="width:100%;min-height:60px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font:inherit;font-size:14px;resize:vertical;"
+        >${escapeHtml(quickNote)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn btn-outline" style="flex:0;padding:6px 14px;font-size:13px;"
+            onclick="saveQuickNote('${connectionId}')">Save Note</button>
+          <button class="btn btn-outline" style="flex:0;padding:6px 14px;font-size:13px;"
+            onclick="addTimestampedNote('${connectionId}')">Add to History</button>
+        </div>
+      </div>
+      ${notesHtml ? '<div style="margin-top:8px;">' + notesHtml + '</div>' : ''}
+    </div>`;
+}
+
+async function saveQuickNote(connectionId) {
+  const textarea = document.getElementById('quick-note-input');
+  if (!textarea || !db) return;
+  const noteText = textarea.value.trim();
+  try {
+    const { error } = await db
+      .from('connections')
+      .update({ notes: noteText })
+      .eq('id', connectionId);
+    if (error) throw error;
+    textarea.style.borderColor = 'var(--success)';
+    setTimeout(() => textarea.style.borderColor = '', 1500);
+  } catch (err) {
+    console.error('Save note error:', err);
+    textarea.style.borderColor = 'var(--danger)';
+    setTimeout(() => textarea.style.borderColor = '', 1500);
+  }
+}
+
+async function addTimestampedNote(connectionId) {
+  const textarea = document.getElementById('quick-note-input');
+  if (!textarea || !db) return;
+  const noteText = textarea.value.trim();
+  if (!noteText) return;
+  try {
+    const { error } = await db
+      .from('contact_notes')
+      .insert({
+        connection_id: connectionId,
+        note_text: noteText,
+      });
+    if (error) throw error;
+    textarea.value = '';
+    const content = document.getElementById('app-content');
+    if (content) renderContact(content, connectionId);
+  } catch (err) {
+    console.error('Add note error:', err);
+  }
+}
+
 async function renderContact(container, connectionId) {
   if (!db || !connectionId) {
     container.innerHTML = '<div class="empty-state"><p>Contact not found.</p></div>';
@@ -203,6 +328,10 @@ async function renderContact(container, connectionId) {
       </div>`;
   }
 
+  // Async sections: signal history + notes
+  const signalHistoryHtml = await buildSignalHistorySection(connectionId);
+  const notesHtml = await buildNotesSection(connectionId, conn);
+
   // Contact links
   let linksHtml = '<div class="detail-section"><h3>Quick Actions</h3><div style="display: flex; gap: 8px; flex-wrap: wrap;">';
   if (linkedinUrl) {
@@ -236,6 +365,8 @@ async function renderContact(container, connectionId) {
       ${buildProfessionalContextSection(conn)}
       ${buildConnectionStrengthSection(conn)}
       ${buildEnrichmentSection(conn)}
+      ${signalHistoryHtml}
+      ${notesHtml}
       ${draftHtml}
       ${linksHtml}
 
