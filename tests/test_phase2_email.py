@@ -98,15 +98,11 @@ def test_card_layout_uses_table(mock_settings, mocker):
 
 
 def test_button_tap_targets(mock_settings, mocker):
-    """Action buttons have padding >= 12px and font-size 16px for mobile tap targets."""
-    mocker.patch("src.api.tokens.create_action_tokens", return_value=FAKE_ACTION_URLS)
-    mocker.patch("src.api.tokens.create_feedback_token", return_value=FAKE_FEEDBACK_URL)
-    mocker.patch(
-        "src.integrations.email_digest._get_data_health_stats",
-        return_value={"need_email": 0, "need_enrichment": 0, "need_rescoring": 0},
-    )
-    mocker.patch("src.integrations.email_digest._get_skip_pattern_insight", return_value=None)
+    """CTA button has >= 12px padding and font-size 16px for mobile tap targets.
 
+    Phase 8 update: per-contact action buttons replaced with single 'Review in App' CTA.
+    Tap target requirement (44px+) is preserved on the CTA (padding:14px 32px, font-size:16px).
+    """
     from src.integrations.email_digest import _build_digest_html
 
     conn = _make_connection()
@@ -115,16 +111,13 @@ def test_button_tap_targets(mock_settings, mocker):
 
     html = _build_digest_html(contacts, {}, 5)
 
-    # Buttons must have 12px+ padding (44px tap target) and 16px font size
-    # Check that 8px padding from old code is NOT present in any buttons
-    assert 'padding:8px' not in html, "Old 8px button padding found — must be 12px+"
-    # Old action button font size must be gone from inline button styles
-    # (13px may appear in body text like the WHY hook, health section, etc.)
+    # Old per-contact action button padding must be gone
+    assert 'padding:8px' not in html, "Old 8px button padding found — must not appear"
     assert 'padding:8px 16px;border-radius:4px;font-size:13px' not in html, \
-        "Old 13px action button font size found — must be 16px"
-    # Check for 12px padding and 16px font-size in action buttons
-    assert 'padding:12px' in html, "Action buttons must have padding:12px (44px tap target)"
-    assert 'font-size:16px' in html, "Action buttons must have font-size:16px"
+        "Old 13px action button font size found — must not appear"
+    # CTA button must have 14px padding (>= 12px tap target) and 16px font size
+    assert 'padding:14px' in html, "CTA button must have padding:14px (44px+ tap target)"
+    assert 'font-size:16px' in html, "CTA button must have font-size:16px"
 
 
 def test_profile_link_uses_query_params(mock_settings, mocker):

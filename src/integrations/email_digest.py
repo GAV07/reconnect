@@ -1,7 +1,8 @@
-"""Email digest — actionable HTML email with token-based action buttons.
+"""Email digest — morning briefing email directing user to PWA for signal-based triage.
 
-No pre-drafted messages (saves tokens until user commits).
-Action buttons hit Supabase Edge Functions — work from any device.
+No per-contact action buttons (Approve/Skip/Snooze).
+No data health section or feedback stars.
+Single "Review in App" CTA links to PWA queue via ?view=queue deep link.
 """
 
 import json
@@ -56,7 +57,11 @@ def _extract_why_today(conn: Connection, queue_item: OutreachQueueItem) -> str:
 
 
 def _get_data_health_stats() -> dict[str, int]:
-    """Compute data health statistics for the digest."""
+    """Compute data health statistics for the digest.
+
+    NOTE: No longer called in _build_digest_html (removed in Phase 8).
+    Kept for backward compatibility / direct use.
+    """
     from sqlmodel import func, select
     settings = get_settings()
 
@@ -95,7 +100,11 @@ def _get_data_health_stats() -> dict[str, int]:
 
 
 def _get_skip_pattern_insight() -> str | None:
-    """Analyze recent skips for a pattern insight."""
+    """Analyze recent skips for a pattern insight.
+
+    NOTE: No longer called in _build_digest_html (removed in Phase 8).
+    Kept for backward compatibility / direct use.
+    """
     from sqlmodel import select
 
     with get_session() as session:
@@ -133,7 +142,16 @@ def _build_digest_html(
     pipeline_results: dict[str, Any],
     top_n: int,
 ) -> str:
-    """Build the HTML email body with action buttons and data health section."""
+    """Build the HTML email body with CTA, industry chips, and profile deep links.
+
+    Phase 8 rebuild:
+    - Removed per-contact action buttons (Approve/Skip/Snooze)
+    - Removed data health section
+    - Removed feedback star rating
+    - Added "Review in App" CTA button linking to ?view=queue
+    - Added industry chip on featured cards
+    - Profile links use ?view=contact&id= query params (survive Gmail redirect)
+    """
     settings = get_settings()
     today = datetime.now().strftime("%B %-d, %Y")
     total = len(contacts)
@@ -153,8 +171,9 @@ def _build_digest_html(
     featured = contacts[:top_n]
     remaining = contacts[top_n:]
 
-    # Generate action tokens for featured contacts
-    from src.api.tokens import create_action_tokens, create_feedback_token
+    # --- PWA base URL (query param deep links survive Gmail redirect) ---
+    pwa_base = settings.pwa_url.rstrip("/") if settings.pwa_url else ""
+    pwa_link = pwa_base + "/?view=queue" if pwa_base else "http://localhost:8501/?view=queue"
 
     # --- Build featured cards ---
     cards_html = ""
@@ -166,64 +185,64 @@ def _build_digest_html(
         role_line = f"{role} @ {company}" if company else role
         linkedin_url = conn.linkedin_url or ""
 
-        # Why Today hook
-        why_today = _extract_why_today(conn, queue_item)
-        why_html = f'<div style="color:#1a7f37;font-size:13px;margin:6px 0;"><strong>WHY:</strong> {escape(why_today)}</div>' if why_today else ""
-
-        # Name linked to LinkedIn
-        name_html = f'<a href="{escape(linkedin_url)}" style="color:#0a66c2;text-decoration:none;font-weight:bold;font-size:17px;">{name}</a>' if linkedin_url else f'<span style="font-weight:bold;font-size:17px;">{name}</span>'
-
-        # Profile deep link using query parameters (not hash fragments — survive Gmail redirect)
-        pwa_base = settings.pwa_url.rstrip("/") if settings.pwa_url else ""
-        profile_url = f"{pwa_base}/?view=contact&id={conn.id}"
-
-        # LinkedIn button cell — only if linkedin_url is set
-        linkedin_cell = ""
-        if linkedin_url:
-            linkedin_cell = (
-                f'<td style="padding-right:6px;">'
-                f'<a href="{escape(linkedin_url)}" style="display:inline-block;background:#0a66c2;'
-                f'color:#ffffff;text-decoration:none;padding:12px 14px;border-radius:4px;'
-                f'font-size:16px;">LinkedIn</a></td>'
-            )
-
-        # Profile button cell
-        profile_cell = (
-            f'<td style="padding-right:6px;">'
-            f'<a href="{escape(profile_url)}" style="display:inline-block;background:#ffffff;'
-            f'border:1px solid #0a66c2;color:#0a66c2;text-decoration:none;padding:12px 20px;'
-            f'border-radius:4px;font-size:16px;">Profile</a></td>'
+        # Industry chip from raw_enrichment
+        enrichment = {}
+        if conn.raw_enrichment:
+            raw = conn.raw_enrichment
+            if isinstance(raw, dict):
+                # Support both {"data": {"company_industry": ...}} and top-level
+                enrichment = raw.get("data", raw) if "data" in raw else raw
+        industry = escape(
+            enrichment.get("company_industry")
+            or enrichment.get("companyIndustry")
+            or ""
+        )
+        industry_html = (
+            f'<span style="background:#f3f4f6;color:#555;font-size:12px;'
+            f'padding:2px 8px;border-radius:10px;margin-left:6px;">{industry}</span>'
+            if industry
+            else ""
         )
 
-        # Token-based action buttons in table row (44px+ tap targets)
-        buttons_html = ""
-        if queue_item.id and conn.id:
-            try:
-                urls = create_action_tokens(queue_item.id, conn.id)
-                buttons_html = (
-                    f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">'
-                    f'<tr>'
-                    f'<td style="padding-right:6px;"><a href="{escape(urls["approve"])}" style="display:inline-block;background:#1a7f37;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;font-weight:bold;">Yes</a></td>'
-                    f'<td style="padding-right:6px;"><a href="{escape(urls["skip"])}" style="display:inline-block;background:#6c757d;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;">Skip</a></td>'
-                    f'<td style="padding-right:6px;"><a href="{escape(urls["snooze"])}" style="display:inline-block;background:#f0ad4e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:4px;font-size:16px;">Snooze</a></td>'
-                    f'{linkedin_cell}'
-                    f'{profile_cell}'
-                    f'</tr>'
-                    f'</table>'
-                )
-            except Exception as e:
-                logger.warning("Failed to create action tokens for %s: %s", conn.name, e)
+        # Why Today hook
+        why_today = _extract_why_today(conn, queue_item)
+        why_html = (
+            f'<div style="color:#1a7f37;font-size:13px;margin:6px 0;">'
+            f'<strong>WHY:</strong> {escape(why_today)}</div>'
+            if why_today
+            else ""
+        )
+
+        # Profile deep link using query parameters (not hash fragments — survive Gmail redirect)
+        profile_url = f"{pwa_base}/?view=contact&id={conn.id}"
+
+        # Name links to PWA profile page (query param deep link)
+        name_html = (
+            f'<a href="{escape(profile_url)}" '
+            f'style="color:#0a66c2;text-decoration:none;font-weight:bold;font-size:17px;">'
+            f'{name}</a>'
+            f'{industry_html}'
+        )
+
+        # LinkedIn small link below (if available)
+        linkedin_link_html = ""
+        if linkedin_url:
+            linkedin_link_html = (
+                f'<div style="margin-top:4px;">'
+                f'<a href="{escape(linkedin_url)}" '
+                f'style="color:#0a66c2;font-size:12px;text-decoration:none;">LinkedIn</a>'
+                f'</div>'
+            )
 
         cards_html += f'''
         <div style="background:#ffffff;border:1px solid #e0e0e0;border-radius:8px;padding:16px 18px;margin-bottom:12px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                    <td>{name_html}<div style="color:#555;font-size:14px;margin:2px 0;">{role_line}</div></td>
+                    <td>{name_html}<div style="color:#555;font-size:14px;margin:2px 0;">{role_line}</div>{linkedin_link_html}</td>
                     <td style="width:80px;text-align:right;white-space:nowrap;"><span style="background:#e8f4fd;color:#0a66c2;font-weight:bold;font-size:14px;padding:4px 10px;border-radius:12px;display:inline-block;">Score: {score:.0f}</span></td>
                 </tr>
             </table>
             {why_html}
-            {buttons_html}
         </div>
         '''
 
@@ -237,7 +256,11 @@ def _build_digest_html(
             role_line = escape(conn.current_role or "")
             if conn.current_company:
                 role_line += f" @ {escape(conn.current_company)}"
-            remaining_items += f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;"><strong>{name}</strong> <span style="color:#888;">({score:.0f})</span> <span style="color:#555;">{role_line}</span></div>'
+            remaining_items += (
+                f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">'
+                f'<strong>{name}</strong> <span style="color:#888;">({score:.0f})</span> '
+                f'<span style="color:#555;">{role_line}</span></div>'
+            )
 
         remaining_html = f'''
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;">
@@ -245,48 +268,14 @@ def _build_digest_html(
             {remaining_items}
         </div>'''
 
-    # --- Data Health Section ---
-    health_stats = _get_data_health_stats()
-    skip_insight = _get_skip_pattern_insight()
-
-    health_items = []
-    if health_stats["need_email"] > 0:
-        health_items.append(f'<div style="padding:4px 0;">&bull; {health_stats["need_email"]} high-priority contacts need email addresses</div>')
-    if health_stats["need_enrichment"] > 0:
-        health_items.append(f'<div style="padding:4px 0;">&bull; {health_stats["need_enrichment"]} contacts could score better with enrichment</div>')
-    if health_stats["need_rescoring"] > 0:
-        health_items.append(f'<div style="padding:4px 0;">&bull; {health_stats["need_rescoring"]} enriched contacts need scoring</div>')
-    if skip_insight:
-        health_items.append(f'<div style="padding:4px 0;">&bull; {skip_insight}</div>')
-
-    health_html = ""
-    if health_items:
-        health_content = "\n".join(health_items)
-        health_html = f'''
-        <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px 18px;margin-top:20px;">
-            <div style="font-weight:bold;font-size:15px;color:#333;margin-bottom:8px;">Your Network Data</div>
-            <div style="font-size:13px;color:#555;line-height:1.6;">
-                {health_content}
-            </div>
-        </div>'''
-
-    # --- Feedback CTA ---
-    feedback_html = ""
-    try:
-        rating_buttons = ""
-        for i in range(1, 6):
-            url = create_feedback_token(rating=i)
-            rating_buttons += f'<a href="{escape(url)}" style="display:inline-block;background:#ffffff;border:1px solid #ddd;color:#333;text-decoration:none;padding:12px 14px;border-radius:4px;font-size:16px;margin:0 3px;">{i}</a>'
-        feedback_html = f'''
-        <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
-            <div style="font-size:14px;color:#666;margin-bottom:8px;">Was today's digest useful?</div>
-            <div>{rating_buttons}</div>
-        </div>'''
-    except Exception as e:
-        logger.warning("Failed to create feedback tokens: %s", e)
-
-    # --- PWA link ---
-    pwa_link = settings.pwa_url.rstrip("/") + "/#/queue" if settings.pwa_url else "http://localhost:8501"
+    # --- Review in App CTA button ---
+    review_cta = (
+        f'<div style="text-align:center;margin:20px 0 8px;">'
+        f'<a href="{escape(pwa_link)}" style="display:inline-block;background:#0a66c2;color:#ffffff;'
+        f'text-decoration:none;padding:14px 32px;border-radius:6px;font-size:16px;font-weight:bold;">'
+        f'Review in App &rarr;</a>'
+        f'</div>'
+    )
 
     # --- Assemble full email ---
     html = f'''<!DOCTYPE html>
@@ -305,12 +294,7 @@ def _build_digest_html(
         {cards_html}
         {remaining_html}
 
-        <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
-            <a href="{escape(pwa_link)}" style="display:inline-block;background:#0a66c2;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:bold;">View Full Queue ({total} more) &rarr;</a>
-        </div>
-
-        {health_html}
-        {feedback_html}
+        {review_cta}
     </div>
 
     <div style="text-align:center;margin-top:16px;color:#999;font-size:12px;">

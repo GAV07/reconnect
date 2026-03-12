@@ -160,9 +160,10 @@ class TestDigestRebuild:
                 for i, n in enumerate(["Sarah Jones", "Mike Brown", "Lisa Chen", "Bob Davis"], 1)
             ],
         )
-        mocker.patch("src.integrations.email_digest.is_oauth_configured", return_value=False)
-        mocker.patch("src.integrations.email_digest.is_gmail_configured", return_value=True)
-        mocker.patch("src.integrations.email_digest.get_user_email", return_value="user@example.com")
+        # Patch at source module — gmail functions are imported inside send_digest_email()
+        mocker.patch("src.integrations.gmail.is_oauth_configured", return_value=False)
+        mocker.patch("src.integrations.gmail.is_gmail_configured", return_value=True)
+        mocker.patch("src.integrations.gmail.get_user_email", return_value="user@example.com")
 
         captured = {}
 
@@ -171,7 +172,7 @@ class TestDigestRebuild:
             captured["recipient"] = recipient
             return {"message_id": "fake-id"}
 
-        mocker.patch("src.integrations.email_digest.send_html_email", side_effect=fake_send_html_email)
+        mocker.patch("src.integrations.gmail.send_html_email", side_effect=fake_send_html_email)
 
         from src.integrations.email_digest import send_digest_email
         result = send_digest_email({})
@@ -190,11 +191,12 @@ class TestDigestRebuild:
                 (_make_queue_item(), _make_connection())
             ],
         )
-        mocker.patch("src.integrations.email_digest.is_oauth_configured", return_value=False)
-        mocker.patch("src.integrations.email_digest.is_gmail_configured", return_value=True)
-        mocker.patch("src.integrations.email_digest.get_user_email", return_value="user@example.com")
+        # Patch at source module — gmail functions are imported inside send_digest_email()
+        mocker.patch("src.integrations.gmail.is_oauth_configured", return_value=False)
+        mocker.patch("src.integrations.gmail.is_gmail_configured", return_value=True)
+        mocker.patch("src.integrations.gmail.get_user_email", return_value="user@example.com")
         mocker.patch(
-            "src.integrations.email_digest.send_html_email",
+            "src.integrations.gmail.send_html_email",
             return_value={"message_id": "fake-id"},
         )
 
