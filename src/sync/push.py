@@ -10,6 +10,8 @@ from src.database.engine import init_db
 from src.database.models import (
     ActionToken,
     Connection,
+    ContactNote,
+    ContactSignal,
     DashboardSnapshot,
     EngagementSignal,
     OutreachLog,
@@ -42,6 +44,8 @@ CONNECTION_SYNC_FIELDS = [
     "endorsement_count", "has_recommendation",
     # PWA overhaul fields
     "user_priority", "data_completeness_score", "missing_data_fields",
+    # Signal foundation fields (Phase 7)
+    "latest_signal", "cadence_due_at",
 ]
 
 
@@ -107,6 +111,8 @@ def push_to_cloud() -> dict[str, Any]:
         "user_feedback": 0,
         "user_preferences": 0,
         "dashboard_snapshots": 0,
+        "contact_signals": 0,
+        "contact_notes": 0,
     }
 
     # Get last push timestamp from local DB
@@ -242,6 +248,30 @@ def push_to_cloud() -> dict[str, Any]:
                     _upsert_record(cloud_session, DashboardSnapshot, data)
                     stats["dashboard_snapshots"] += 1
 
+            # 11. Push ContactSignals (immutable once written)
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(ContactSignal)
+                if last_push_at:
+                    query = query.where(ContactSignal.assigned_at > last_push_at)
+                signals = local_session.exec(query).all()
+
+                for sig in signals:
+                    data = _record_to_dict(sig)
+                    _upsert_record(cloud_session, ContactSignal, data)
+                    stats["contact_signals"] += 1
+
+            # 12. Push ContactNotes
+            with Session(local_engine, expire_on_commit=False) as local_session:
+                query = select(ContactNote)
+                if last_push_at:
+                    query = query.where(ContactNote.created_at > last_push_at)
+                notes = local_session.exec(query).all()
+
+                for note in notes:
+                    data = _record_to_dict(note)
+                    _upsert_record(cloud_session, ContactNote, data)
+                    stats["contact_notes"] += 1
+
             cloud_session.commit()
 
         except Exception:
@@ -258,8 +288,10 @@ def push_to_cloud() -> dict[str, Any]:
         local_session.commit()
 
     logger.info(
-        "Push complete: %d connections, %d queue items, %d outreach logs, %d engagement signals, %d user content",
+        "Push complete: %d connections, %d queue items, %d outreach logs, %d engagement signals, "
+        "%d user content, %d contact signals, %d contact notes",
         stats["connections"], stats["queue_items"], stats["outreach_logs"],
         stats["engagement_signals"], stats["user_content"],
+        stats["contact_signals"], stats["contact_notes"],
     )
     return stats
