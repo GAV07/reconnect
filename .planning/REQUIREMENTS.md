@@ -19,7 +19,7 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 - [ ] **SIG-01**: User can assign one of 7 intent signals to any queue contact (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE)
 - [ ] **SIG-02**: Signal picker replaces legacy Reach Out / Skip / Snooze buttons on queue cards
 - [x] **SIG-03**: Each signal assignment is stored with timestamp and persisted to Supabase
-- [ ] **SIG-04**: User can view signal history for a contact on their profile page
+- [x] **SIG-04**: User can view signal history for a contact on their profile page
 - [ ] **SIG-05**: User can filter queue by assigned signal type
 - [ ] **SIG-06**: ARCHIVE signal hides contact from queue and dashboard (data preserved)
 
@@ -31,9 +31,9 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 
 ### Profile & Content
 
-- [ ] **PROF-01**: Profile key factors shows meaningful fallback content when enrichment data is sparse
-- [ ] **PROF-02**: Conversation starters generated from enrichment data and scoring rationale when activity_log is empty
-- [ ] **PROF-03**: User can add and edit free-form notes on any contact's profile
+- [x] **PROF-01**: Profile key factors shows meaningful fallback content when enrichment data is sparse
+- [x] **PROF-02**: Conversation starters generated from enrichment data and scoring rationale when activity_log is empty
+- [x] **PROF-03**: User can add and edit free-form notes on any contact's profile
 - [ ] **PROF-04**: Contact notes visible on queue cards
 
 ### Personalization
@@ -94,15 +94,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIG-01 | Phase 8 | Pending |
 | SIG-02 | Phase 8 | Pending |
 | SIG-03 | Phase 8 | Complete |
-| SIG-04 | Phase 8 | Pending |
+| SIG-04 | Phase 8 | Complete |
 | SIG-05 | Phase 8 | Pending |
 | SIG-06 | Phase 8 | Pending |
 | CAD-01 | Phase 7 | Complete |
 | CAD-02 | Phase 9 | Pending |
 | CAD-03 | Phase 9 | Pending |
-| PROF-01 | Phase 8 | Pending |
-| PROF-02 | Phase 8 | Pending |
-| PROF-03 | Phase 8 | Pending |
+| PROF-01 | Phase 8 | Complete |
+| PROF-02 | Phase 8 | Complete |
+| PROF-03 | Phase 8 | Complete |
 | PROF-04 | Phase 8 | Pending |
 | PERS-01 | Phase 9 | Pending |
 | PERS-02 | Phase 9 | Pending |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-12T03:11:54.718Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-03-12T03:41:32.685Z"
 last_activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 6
+  completed_plans: 3
   percent: 100
 ---
 
@@ -47,6 +47,8 @@ Recent decisions affecting current work:
 - [Phase 07-signal-foundation]: No __table_args__ partial index in SQLModel — PostgreSQL-only UNIQUE partial index stays in migration SQL only to avoid breaking SQLite
 - [Phase 07-signal-foundation]: signal_service.py NOT wired into daily_pipeline.py — deferred to Phase 9 queue intelligence
 - [Phase 07-signal-foundation]: Use assigned_at (not created_at) as ContactSignal timestamp filter — signals timestamped by assignment
+- [Phase 08-03]: SIGNAL_ACTIONS guard: typeof SIGNAL_ACTIONS \!== 'undefined' — safe when 08-02 not yet executed
+- [Phase 08-03]: Note UI uses textarea + two-button split: Save Note (quick update) vs Add to History (timestamped insert)
 
 ### Pending Todos
 
@@ -59,6 +61,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:11:54.704Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-email-signal-ui-profile-content/08-CONTEXT.md
+Last session: 2026-03-12T03:41:32.681Z
+Stopped at: Completed 08-03-PLAN.md
+Resume file: None
