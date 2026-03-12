@@ -632,3 +632,61 @@ class TestSignalServiceExports:
     def test_exports_backfill_skipped_signals(self):
         from src.services.signal_service import backfill_skipped_signals
         assert callable(backfill_skipped_signals)
+
+
+# ---------------------------------------------------------------------------
+# Plan 02: Sync field and model import tests
+# ---------------------------------------------------------------------------
+
+class TestSyncFieldUpdates:
+    """CONNECTION_SYNC_FIELDS includes the new signal foundation fields (Plan 02)."""
+
+    def test_connection_sync_fields_updated(self):
+        from src.sync.push import CONNECTION_SYNC_FIELDS
+        assert "latest_signal" in CONNECTION_SYNC_FIELDS, (
+            "latest_signal must be in CONNECTION_SYNC_FIELDS for cloud sync"
+        )
+        assert "cadence_due_at" in CONNECTION_SYNC_FIELDS, (
+            "cadence_due_at must be in CONNECTION_SYNC_FIELDS for cloud sync"
+        )
+
+    def test_contact_signal_sync_stats_key(self):
+        """push.py stats dict must include contact_signals key."""
+        import inspect
+        import src.sync.push as push_mod
+        source = inspect.getsource(push_mod)
+        assert '"contact_signals": 0' in source or "'contact_signals': 0" in source, (
+            "contact_signals must be initialized in push_to_cloud stats dict"
+        )
+
+    def test_contact_notes_sync_stats_key(self):
+        """push.py stats dict must include contact_notes key."""
+        import inspect
+        import src.sync.push as push_mod
+        source = inspect.getsource(push_mod)
+        assert '"contact_notes": 0' in source or "'contact_notes': 0" in source, (
+            "contact_notes must be initialized in push_to_cloud stats dict"
+        )
+
+
+class TestModelsImportable:
+    """ContactSignal and ContactNote are importable with correct tablenames."""
+
+    def test_models_importable(self):
+        from src.database.models import ContactSignal, ContactNote
+        assert ContactSignal.__tablename__ == "contact_signals"
+        assert ContactNote.__tablename__ == "contact_notes"
+
+    def test_contact_signal_importable_from_push(self):
+        """push.py must import ContactSignal for sync sections."""
+        import src.sync.push as push_mod
+        assert hasattr(push_mod, "ContactSignal"), (
+            "ContactSignal must be imported in push.py for sync"
+        )
+
+    def test_contact_note_importable_from_push(self):
+        """push.py must import ContactNote for sync sections."""
+        import src.sync.push as push_mod
+        assert hasattr(push_mod, "ContactNote"), (
+            "ContactNote must be imported in push.py for sync"
+        )
