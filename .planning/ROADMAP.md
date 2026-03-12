@@ -111,5 +111,5 @@ Plans:
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
-| 9. Goals, Sync, and Pipeline Intelligence | 1/3 | In Progress|  | - |
+| 9. Goals, Sync, and Pipeline Intelligence | 2/3 | In Progress|  | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |

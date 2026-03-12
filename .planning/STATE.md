@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Completed 09-02-PLAN.md
+stopped_at: Completed 09-01-PLAN.md
 last_updated: "2026-03-12T15:13:43.356Z"
-last_activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
+last_activity: 2026-03-12 — Plan 01 complete (goals UI, scoring prompt current_projects, pull sync, rescore trigger)
 progress:
   total_phases: 4
   completed_phases: 2
@@ -56,6 +56,10 @@ Recent decisions affecting current work:
 - [Phase 08-04]: ContactSignal pull is insert-only (immutable once assigned); ContactNote uses insert-or-update-if-newer via updated_at comparison
 - [Phase 09]: NULL user_priority: use or_(is_(None), \!= 'never') — SQL \!= excludes NULLs, contacts without priority set were incorrectly excluded from cadence re-queuing
 - [Phase 09]: Cadence re-queuing integrated into generate_daily_queue() not a separate pipeline step — cadence candidates injected between always and fresh-scored, capped at 50%
+- [Phase 09-01]: Goals text area writes to user_profile.current_projects via PostgREST direct write — same pattern as signals/notes
+- [Phase 09-01]: Pull sync does NOT update local.updated_at when pulling goals from cloud — avoids push sync loop (research pitfall 5)
+- [Phase 09-01]: Rescore trigger uses UserPreference pref_type='rescore_trigger' row written by PWA; pipeline batch-clears 10 contacts per run
+- [Phase 09-01]: goals_structured JSON column reserved for future lookouts feature — not exposed in UI
 
 ### Pending Todos
 
@@ -69,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-12T15:13:43.352Z
-Stopped at: Completed 09-02-PLAN.md
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
