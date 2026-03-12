@@ -67,7 +67,12 @@ Plans:
   5. User can add and edit free-form notes on any contact; notes appear on queue cards and on the profile page alongside signal history
   6. Profile key factors section shows meaningful content even when enrichment data is sparse; conversation starters are populated from scoring rationale and enrichment fields when activity_log is empty
   7. ARCHIVE signal hides a contact from queue and dashboard while preserving all data; user can filter queue by signal type
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 08-01-PLAN.md — Email digest rebuild + test scaffold + deep link fix
+- [ ] 08-02-PLAN.md — Queue signal picker + card context + filter evolution
+- [ ] 08-03-PLAN.md — Profile signal history, notes, and content fallbacks
+- [ ] 08-04-PLAN.md — Pull sync for signals and notes
 
 ### Phase 9: Goals, Sync, and Pipeline Intelligence
 **Goal**: User goals inform scoring, signals and notes flow bidirectionally between PWA and pipeline, and cadence re-queuing and signal-informed rescoring run automatically in the daily pipeline
@@ -100,7 +105,7 @@ Plans:
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 7. Signal Foundation | 2/2 | Complete   | 2026-03-12 | - |
-| 8. Email + Signal UI + Profile Content | v1.2 | 0/TBD | Not started | - |
+| 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
+| 8. Email + Signal UI + Profile Content | v1.2 | 0/4 | Not started | - |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/TBD | Not started | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |
