@@ -34,7 +34,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details.
 
 **Milestone Goal:** Replace score-only queue decisions with a signal system that captures why you'd reach out, drives messaging tone, schedules follow-ups, and learns from triage patterns — while fixing email delivery and enriching sparse profiles.
 
-- [ ] **Phase 7: Signal Foundation** - Schema migration, canonical signal service, and cadence definitions
+- [x] **Phase 7: Signal Foundation** - Schema migration, canonical signal service, and cadence definitions (completed 2026-03-12)
 - [ ] **Phase 8: Email + Signal UI + Profile Content** - Email digest fix, 7-signal queue triage, enriched cards, contact notes, profile fallbacks
 - [ ] **Phase 9: Goals, Sync, and Pipeline Intelligence** - User goals profile, bidirectional sync for new data, cadence re-queuing, signal-informed rescoring
 - [ ] **Phase 10: Draft Tone Adaptation** - Signal-aware AI message generation via Edge Function
@@ -100,7 +100,7 @@ Plans:
 | 4. Foundation Fixes + Queue UX | v1.1 | 3/3 | Complete | 2026-03-09 |
 | 5. Dashboard Intelligence | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 7. Signal Foundation | 1/2 | In Progress|  | - |
+| 7. Signal Foundation | 2/2 | Complete   | 2026-03-12 | - |
 | 8. Email + Signal UI + Profile Content | v1.2 | 0/TBD | Not started | - |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/TBD | Not started | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |

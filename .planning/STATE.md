@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
-status: planning
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-12T02:40:08.536Z"
-last_activity: 2026-03-11 — Roadmap created; phases 7-10 defined
+status: phase-complete
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-12T02:44:29.094Z"
+last_activity: "2026-03-12 — Plan 01 complete (signal data layer: models, service, migration SQL)"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 60
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 7 of 10 (Signal Foundation)
-Plan: 1 of 2 complete in current phase
-Status: In Progress
-Last activity: 2026-03-12 — Plan 01 complete (signal data layer: models, service, migration SQL)
+Plan: 2 of 2 complete in current phase
+Status: Phase Complete
+Last activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
 
-Progress: [█████░░░░░] 50% (v1.2 phase 7 in progress: 1/2 plans done)
+Progress: [██████████] 100% (v1.2 phase 7 complete: 2/2 plans done)
 
 ## Accumulated Context
 
@@ -46,6 +46,7 @@ Recent decisions affecting current work:
 - [Phase 07-signal-foundation]: SIGNAL_ACTIONS defined once in signal_service.py as canonical source; PWA mirrors as JS const
 - [Phase 07-signal-foundation]: No __table_args__ partial index in SQLModel — PostgreSQL-only UNIQUE partial index stays in migration SQL only to avoid breaking SQLite
 - [Phase 07-signal-foundation]: signal_service.py NOT wired into daily_pipeline.py — deferred to Phase 9 queue intelligence
+- [Phase 07-signal-foundation]: Use assigned_at (not created_at) as ContactSignal timestamp filter — signals timestamped by assignment
 
 ### Pending Todos
 
@@ -54,10 +55,10 @@ None.
 ### Blockers/Concerns
 
 - [Phase 9]: Feedback loop thresholds (25 actions / ±40%) need empirical validation after first 2 weeks of v1.2 use
-- [Phase 7 Plan 02]: Migration SQL must be applied to Supabase before PWA can write signals
+- [Phase 8+]: Migration SQL (supabase/migrations/20260311000000_signal_foundation.sql) must be applied to Supabase before PWA can read/write signals
 
 ## Session Continuity
 
-Last session: 2026-03-12T02:40:08.533Z
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-signal-foundation/07-01-SUMMARY.md
+Last session: 2026-03-12T02:44:29.091Z
+Stopped at: Completed 07-02-PLAN.md
+Resume file: None
