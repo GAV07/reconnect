@@ -19,7 +19,7 @@ created: 2026-03-11
 |----------|-------|
 | **Framework** | pytest 7.x (already installed) |
 | **Config file** | `pyproject.toml` (ruff config exists; pytest section to add in Wave 0 if missing) |
-| **Quick run command** | `python -m pytest tests/test_signal_foundation.py -x -q` |
+| **Quick run command** | `python -m pytest tests/test_phase7_signal_foundation.py -x -q` |
 | **Full suite command** | `python -m pytest tests/ -q` |
 | **Estimated runtime** | ~5 seconds |
 
@@ -27,7 +27,7 @@ created: 2026-03-11
 
 ## Sampling Rate
 
-- **After every task commit:** Run `python -m pytest tests/test_signal_foundation.py -x -q`
+- **After every task commit:** Run `python -m pytest tests/test_phase7_signal_foundation.py -x -q`
 - **After every plan wave:** Run `python -m pytest tests/ -q`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 5 seconds
@@ -38,16 +38,12 @@ created: 2026-03-11
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | SIG-03 | unit | `pytest tests/test_signal_foundation.py::test_contact_signals_model` | ❌ W0 | ⬜ pending |
-| 07-01-02 | 01 | 1 | SIG-03 | unit | `pytest tests/test_signal_foundation.py::test_contact_notes_model` | ❌ W0 | ⬜ pending |
-| 07-01-03 | 01 | 1 | SIG-03 | unit | `pytest tests/test_signal_foundation.py::test_connection_new_fields` | ❌ W0 | ⬜ pending |
-| 07-01-04 | 01 | 1 | SIG-03 | unit | `pytest tests/test_signal_foundation.py::test_outreach_queue_new_fields` | ❌ W0 | ⬜ pending |
-| 07-01-05 | 01 | 1 | SIG-03 | unit | `pytest tests/test_signal_foundation.py::test_user_profile_new_fields` | ❌ W0 | ⬜ pending |
-| 07-02-01 | 02 | 1 | CAD-01 | unit | `pytest tests/test_signal_foundation.py::test_signal_actions_map` | ❌ W0 | ⬜ pending |
-| 07-02-02 | 02 | 1 | CAD-01 | unit | `pytest tests/test_signal_foundation.py::test_apply_signal` | ❌ W0 | ⬜ pending |
-| 07-02-03 | 02 | 1 | CAD-01 | unit | `pytest tests/test_signal_foundation.py::test_cadence_values` | ❌ W0 | ⬜ pending |
-| 07-03-01 | 03 | 2 | SIG-03 | integration | `pytest tests/test_signal_foundation.py::test_backfill_skipped` | ❌ W0 | ⬜ pending |
-| 07-03-02 | 03 | 2 | SIG-03 | integration | `pytest tests/test_signal_foundation.py::test_push_sync_new_fields` | ❌ W0 | ⬜ pending |
+| 07-01-01 | 01 | 1 | SIG-03 | unit | `pytest tests/test_phase7_signal_foundation.py::test_contact_signals_model` | ❌ W0 | ⬜ pending |
+| 07-01-02 | 01 | 1 | SIG-03 | unit | `pytest tests/test_phase7_signal_foundation.py::test_contact_notes_model` | ❌ W0 | ⬜ pending |
+| 07-01-03 | 01 | 1 | SIG-03 | unit | `pytest tests/test_phase7_signal_foundation.py::test_connection_new_fields` | ❌ W0 | ⬜ pending |
+| 07-02-01 | 02 | 2 | CAD-01 | unit | `pytest tests/test_phase7_signal_foundation.py::test_signal_actions_map` | ❌ W0 | ⬜ pending |
+| 07-02-02 | 02 | 2 | CAD-01, SIG-03 | unit | `pytest tests/test_phase7_signal_foundation.py::test_apply_signal` | ❌ W0 | ⬜ pending |
+| 07-02-03 | 02 | 2 | SIG-03 | integration | `pytest tests/test_phase7_signal_foundation.py::test_push_sync_new_fields` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -55,7 +51,7 @@ created: 2026-03-11
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_signal_foundation.py` — stubs for all phase test cases
+- [ ] `tests/test_phase7_signal_foundation.py` — stubs for all phase test cases
 - [ ] `tests/conftest.py` — shared fixtures (in-memory SQLite engine, test session)
 
 *If test infrastructure already exists, Wave 0 verifies it covers new models.*
