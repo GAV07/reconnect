@@ -580,6 +580,74 @@ body {
 .status-skipped { background: #f3f4f6; color: #6b7280; }
 .status-pending_review { background: #fef3c7; color: #92400e; }
 
+/* Signal Picker */
+.signal-triage { flex-direction: column; }
+.signal-toggle { cursor: pointer; padding: 8px 0; }
+.assign-signal-cta {
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+.signal-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.signal-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0;
+}
+.signal-chip {
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.signal-chip:active { transform: scale(0.95); }
+
+/* Card context fields */
+.card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.industry-chip {
+  background: #f3f4f6;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.card-key-factor {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 4px 0;
+  padding: 4px 0;
+}
+.card-last-contact {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.card-note-excerpt {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border-left: 2px solid var(--border);
+}
+
 /* Responsive — larger screens get some padding */
 @media (min-width: 481px) {
   .app-shell {

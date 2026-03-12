@@ -1,9 +1,20 @@
 /* Queue review page — mobile-first card interface */
 
+const SIGNAL_ACTIONS = {
+  WARM_LEAD:    { label: 'Warm Lead',    cadence: 7,    color: '#1a7f37', bg: '#dcfce7' },
+  NURTURE:      { label: 'Nurture',      cadence: 21,   color: '#0369a1', bg: '#e0f2fe' },
+  VALUE_DROP:   { label: 'Value Drop',   cadence: 14,   color: '#7c3aed', bg: '#ede9fe' },
+  SYNERGY:      { label: 'Synergy',      cadence: 14,   color: '#0a66c2', bg: '#e8f4fd' },
+  RECONNECT:    { label: 'Reconnect',    cadence: 14,   color: '#92400e', bg: '#fef3c7' },
+  FUTURE_PIVOT: { label: 'Future Pivot', cadence: 60,   color: '#6b7280', bg: '#f3f4f6' },
+  ARCHIVE:      { label: 'Archive',      cadence: null, color: '#dc3545', bg: '#fee2e2' },
+};
+
 const queueFilters = {
-  sortAscending: false,        // QUEUE-01: default high-to-low
-  statusFilter: 'pending_review',  // QUEUE-02: default to pending (matches current behavior)
-  industryFilter: null,        // QUEUE-03: null = all industries
+  sortAscending: false,        // default high-to-low
+  statusFilter: null,          // null = no status filter (signal filter takes precedence)
+  signalFilter: 'untriaged',   // 'untriaged' (default) | signal name | 'all'
+  industryFilter: null,        // null = all industries
 };
 
 let _queueChannel = null;
@@ -14,15 +25,16 @@ async function renderQueue(container) {
     return;
   }
 
-  // Dynamic query builder — status is server-side, sort is client-side (uses reconnect_score from connections)
+  // Fetch all pending_review items when in untriaged mode; all items otherwise
+  // Client-side signal filter applied after fetch (PostgREST can't filter on embedded fields)
   let query = db
     .from('outreach_queue')
     .select('*, connections(*)');
 
-  if (queueFilters.statusFilter) {
-    query = query.eq('status', queueFilters.statusFilter);
+  if (queueFilters.signalFilter === 'untriaged') {
+    query = query.eq('status', 'pending_review');
   }
-  // No status filter = show all statuses
+  // For 'all' and specific signal filters, fetch without status restriction
 
   const { data: items, error } = await query;
 
@@ -41,8 +53,31 @@ async function renderQueue(container) {
     });
   }
 
-  // QUEUE-03: Client-side industry filter on raw_enrichment
+  // Client-side signal filter — PostgREST cannot filter on embedded resource fields
   let filtered = items || [];
+  if (queueFilters.signalFilter === 'untriaged') {
+    filtered = filtered.filter(item => {
+      const conn = item.connections;
+      if (!conn) return false;
+      return !conn.latest_signal && conn.user_priority !== 'never';
+    });
+  } else if (queueFilters.signalFilter === 'all') {
+    // Show everything except ARCHIVE contacts
+    filtered = filtered.filter(item => {
+      const conn = item.connections;
+      if (!conn) return false;
+      return conn.user_priority !== 'never';
+    });
+  } else if (queueFilters.signalFilter) {
+    // Specific signal filter
+    filtered = filtered.filter(item => {
+      const conn = item.connections;
+      if (!conn) return false;
+      return conn.latest_signal === queueFilters.signalFilter;
+    });
+  }
+
+  // Client-side industry filter on raw_enrichment (existing behavior preserved)
   if (queueFilters.industryFilter) {
     filtered = filtered.filter(item => {
       const conn = item.connections;
@@ -53,7 +88,7 @@ async function renderQueue(container) {
     });
   }
 
-  // Extract unique industries from all fetched items (before client-side filter) for the dropdown
+  // Extract unique industries from all fetched items (before signal filter) for the dropdown
   const industries = [...new Set((items || []).map(item => {
     const conn = item.connections;
     if (!conn) return '';
@@ -61,13 +96,34 @@ async function renderQueue(container) {
     return enrichment.company_industry || enrichment.companyIndustry || '';
   }).filter(Boolean))].sort();
 
-  // Update header with filtered count
+  // Update header subtitle to reflect current filter
   const headerSub = document.querySelector('.app-header .subtitle');
   if (headerSub) {
-    headerSub.textContent = `${filtered.length} contacts${queueFilters.statusFilter ? '' : ' (all statuses)'}`;
+    if (queueFilters.signalFilter === 'untriaged') {
+      headerSub.textContent = `${filtered.length} contacts to triage`;
+    } else if (queueFilters.signalFilter === 'all') {
+      headerSub.textContent = `${filtered.length} contacts (all)`;
+    } else if (queueFilters.signalFilter && SIGNAL_ACTIONS[queueFilters.signalFilter]) {
+      headerSub.textContent = `${filtered.length} ${SIGNAL_ACTIONS[queueFilters.signalFilter].label} contacts`;
+    } else {
+      headerSub.textContent = `${filtered.length} contacts`;
+    }
   }
 
-  // Build filter bar HTML
+  // Build signal filter dropdown
+  const signalFilterHtml = `
+    <div class="filter-group">
+      <label>View</label>
+      <select onchange="setQueueSignalFilter(this.value)">
+        <option value="untriaged" ${queueFilters.signalFilter === 'untriaged' ? 'selected' : ''}>Untriaged</option>
+        <option value="all" ${queueFilters.signalFilter === 'all' ? 'selected' : ''}>All</option>
+        ${Object.entries(SIGNAL_ACTIONS).map(([key, info]) =>
+          `<option value="${key}" ${queueFilters.signalFilter === key ? 'selected' : ''}>${escapeHtml(info.label)}</option>`
+        ).join('')}
+      </select>
+    </div>`;
+
+  // Build filter bar HTML (Status dropdown replaced by Signal dropdown)
   const filterBarHtml = `
     <div class="queue-filters">
       <div class="filter-group">
@@ -76,16 +132,7 @@ async function renderQueue(container) {
           Score ${queueFilters.sortAscending ? '&#9650;' : '&#9660;'}
         </button>
       </div>
-      <div class="filter-group">
-        <label>Status</label>
-        <select onchange="setQueueStatusFilter(this.value)">
-          <option value="">All</option>
-          <option value="pending_review" ${queueFilters.statusFilter === 'pending_review' ? 'selected' : ''}>Pending</option>
-          <option value="approved" ${queueFilters.statusFilter === 'approved' ? 'selected' : ''}>Approved</option>
-          <option value="sent" ${queueFilters.statusFilter === 'sent' ? 'selected' : ''}>Sent</option>
-          <option value="skipped" ${queueFilters.statusFilter === 'skipped' ? 'selected' : ''}>Skipped</option>
-        </select>
-      </div>
+      ${signalFilterHtml}
       <div class="filter-group">
         <label>Industry</label>
         <select onchange="setQueueIndustryFilter(this.value)">
@@ -95,11 +142,22 @@ async function renderQueue(container) {
       </div>
     </div>`;
 
+  // Contextual empty state based on active filter
   if (filtered.length === 0) {
+    let emptyMessage;
+    if (queueFilters.signalFilter === 'untriaged') {
+      emptyMessage = 'All caught up! No untriaged contacts in queue.';
+    } else if (queueFilters.signalFilter === 'all') {
+      emptyMessage = 'Queue is empty. Check back after the pipeline runs.';
+    } else if (queueFilters.signalFilter && SIGNAL_ACTIONS[queueFilters.signalFilter]) {
+      emptyMessage = `No contacts with ${SIGNAL_ACTIONS[queueFilters.signalFilter].label} signal.`;
+    } else {
+      emptyMessage = 'No contacts match the current filters.';
+    }
     container.innerHTML = filterBarHtml + `
       <div class="empty-state">
         <div class="icon">&#10004;</div>
-        <p>${items && items.length > 0 ? 'No contacts match the current filters.' : 'Queue is clear! Check back tomorrow after the pipeline runs.'}</p>
+        <p>${emptyMessage}</p>
       </div>`;
     setupQueueRealtime();
     return;
@@ -126,19 +184,98 @@ async function renderQueue(container) {
       ? `<div class="why-today"><strong>WHY:</strong> ${whyToday}</div>`
       : '';
 
-    // Status-aware card rendering (pitfall 5 fix)
-    // pending_review: show action buttons
-    // approved/sent/skipped: show read-only status badge
+    // Part D: Contextual card fields
+    // 1. Industry chip
+    const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
+    const industry = enrichment.company_industry || enrichment.companyIndustry || '';
+    const industryChip = industry
+      ? `<span class="industry-chip">${escapeHtml(industry)}</span>`
+      : '';
+
+    // 2. First key factor from mini_key_factors or score_reasoning
+    let keyFactor = '';
+    if (item.mini_key_factors) {
+      const factors = item.mini_key_factors.split('\n').map(f => f.trim()).filter(Boolean);
+      keyFactor = factors[0] || '';
+    } else if (conn.score_reasoning) {
+      try {
+        const reasoning = typeof conn.score_reasoning === 'string'
+          ? JSON.parse(conn.score_reasoning)
+          : conn.score_reasoning;
+        keyFactor = (reasoning.key_factors && reasoning.key_factors[0]) || '';
+      } catch (e) {
+        keyFactor = '';
+      }
+    }
+    const keyFactorHtml = keyFactor
+      ? `<div class="card-key-factor">${escapeHtml(keyFactor)}</div>`
+      : '';
+
+    // 3. Last interaction date
+    let lastContactHtml = '';
+    if (conn.last_message_date) {
+      try {
+        const lastDate = new Date(conn.last_message_date).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+        lastContactHtml = `<span class="card-last-contact">Last: ${escapeHtml(lastDate)}</span>`;
+      } catch (e) {
+        lastContactHtml = '';
+      }
+    }
+
+    // 4. Notes excerpt from connections.notes (first 60 chars)
+    let notesHtml = '';
+    if (conn.notes) {
+      const excerpt = conn.notes.length > 60 ? conn.notes.slice(0, 60) + '...' : conn.notes;
+      notesHtml = `<div class="card-note-excerpt">${escapeHtml(excerpt)}</div>`;
+    }
+
+    // Wrap industry chip and last contact in a flex meta row
+    const metaRowHtml = (industryChip || lastContactHtml)
+      ? `<div class="card-meta">${industryChip}${lastContactHtml}</div>`
+      : '';
+
+    // Part B: Signal picker replacing 3-button triage
+    // Determine if card already has a signal assigned
+    const existingSignal = conn.latest_signal;
+    const existingSignalInfo = existingSignal && SIGNAL_ACTIONS[existingSignal] ? SIGNAL_ACTIONS[existingSignal] : null;
+
+    // Signal picker chips (all 7 signals)
+    const signalChipsHtml = Object.entries(SIGNAL_ACTIONS).map(([key, info]) =>
+      `<button class="signal-chip"
+        style="background:${info.bg};color:${info.color};border-color:${info.color}20;"
+        onclick="assignSignalFromCard(event, '${conn.id}', '${key}', ${item.id})"
+        title="${escapeHtml(info.label)}${info.cadence ? ' — ' + info.cadence + '-day cadence' : ''}"
+      >${escapeHtml(info.label)}</button>`
+    ).join('');
+
+    // Toggle area: show existing signal badge or "Assign Signal" CTA
+    const toggleContent = existingSignalInfo
+      ? `<span class="signal-badge"
+           style="background:${existingSignalInfo.bg};color:${existingSignalInfo.color};"
+         >${escapeHtml(existingSignalInfo.label)}</span> <span style="font-size:12px;color:var(--text-muted);">&#9660;</span>`
+      : `<span class="assign-signal-cta">Assign Signal &#9660;</span>`;
+
+    // For legacy non-pending cards without a signal, show a read-only status badge instead
     const isPending = item.status === 'pending_review';
-    const actionsHtml = isPending
-      ? `<div class="card-actions">
-          <button class="btn btn-primary" onclick="queueAction(${item.id}, '${conn.id}', 'approve')">Reach Out &#9654;</button>
-          <button class="btn btn-secondary" onclick="queueAction(${item.id}, '${conn.id}', 'skip')">Skip</button>
-          <button class="btn btn-warning" onclick="queueAction(${item.id}, '${conn.id}', 'snooze')">Snooze</button>
-        </div>`
-      : `<div class="card-actions card-status-wrapper">
-          <div class="card-status-badge status-${item.status}">${item.status.replace('_', ' ')}</div>
-        </div>`;
+    let actionsHtml;
+    if (!isPending && !existingSignal) {
+      // Legacy approved/sent/skipped without signal — read-only status badge
+      actionsHtml = `<div class="card-actions card-status-wrapper">
+        <div class="card-status-badge status-${item.status}">${item.status.replace(/_/g, ' ')}</div>
+      </div>`;
+    } else {
+      // Pending cards or cards with existing signal — show signal picker
+      actionsHtml = `<div class="card-actions signal-triage" id="signal-triage-${item.id}">
+        <div class="signal-toggle" onclick="toggleSignalPicker(event, ${item.id})">
+          ${toggleContent}
+        </div>
+        <div class="signal-picker hidden" id="signal-picker-${item.id}">
+          ${signalChipsHtml}
+        </div>
+      </div>`;
+    }
 
     html += `
       <div class="queue-card" data-item-id="${item.id}" data-connection-id="${conn.id}"
@@ -150,7 +287,10 @@ async function renderQueue(container) {
           </div>
           <div class="score-badge">${score}</div>
         </div>
+        ${metaRowHtml}
+        ${keyFactorHtml}
         ${whyHtml}
+        ${notesHtml}
         ${actionsHtml}
       </div>`;
   }
@@ -159,6 +299,84 @@ async function renderQueue(container) {
 
   // Subscribe to realtime updates
   setupQueueRealtime();
+}
+
+function toggleSignalPicker(event, itemId) {
+  event.stopPropagation();
+  const picker = document.getElementById(`signal-picker-${itemId}`);
+  if (picker) {
+    picker.classList.toggle('hidden');
+  }
+}
+
+async function assignSignalFromCard(event, connectionId, signal, itemId) {
+  event.stopPropagation();
+
+  const triageArea = document.getElementById(`signal-triage-${itemId}`);
+  const picker = document.getElementById(`signal-picker-${itemId}`);
+  const signalInfo = SIGNAL_ACTIONS[signal];
+  if (!signalInfo) return;
+
+  // Optimistic badge update — replace toggle area content immediately
+  if (triageArea) {
+    const toggle = triageArea.querySelector('.signal-toggle');
+    if (toggle) {
+      toggle.innerHTML = `<span class="signal-badge"
+        style="background:${signalInfo.bg};color:${signalInfo.color};"
+      >${escapeHtml(signalInfo.label)}</span> <span style="font-size:12px;color:var(--text-muted);">&#9660;</span>`;
+    }
+    // Close the picker
+    if (picker) picker.classList.add('hidden');
+  }
+
+  try {
+    if (!db) throw new Error('Supabase not available');
+
+    // INSERT to contact_signals (reassign = new row, no UPDATE needed per schema grants)
+    const { error: signalError } = await db
+      .from('contact_signals')
+      .insert({ connection_id: connectionId, signal, assigned_by: 'user' });
+
+    if (signalError) throw signalError;
+
+    // UPDATE connections.latest_signal (and user_priority for ARCHIVE)
+    const updateData = { latest_signal: signal };
+    if (signal === 'ARCHIVE') {
+      updateData.user_priority = 'never';
+    }
+
+    const { error: connError } = await db
+      .from('connections')
+      .update(updateData)
+      .eq('id', connectionId);
+
+    if (connError) throw connError;
+
+    // ARCHIVE: fade and remove the card from DOM — excluded from default + all views
+    if (signal === 'ARCHIVE') {
+      const card = document.querySelector(`[data-item-id="${itemId}"]`);
+      if (card) {
+        card.style.transition = 'opacity 0.4s ease, max-height 0.3s ease 0.4s';
+        card.style.opacity = '0';
+        setTimeout(() => {
+          card.style.maxHeight = '0';
+          card.style.overflow = 'hidden';
+          card.style.padding = '0';
+          card.style.margin = '0';
+          setTimeout(() => card.remove(), 300);
+        }, 400);
+      }
+    }
+  } catch (err) {
+    console.error('Signal assignment error:', err);
+    // Revert: restore "Assign Signal" CTA on failure
+    if (triageArea) {
+      const toggle = triageArea.querySelector('.signal-toggle');
+      if (toggle) {
+        toggle.innerHTML = `<span class="assign-signal-cta">Assign Signal &#9660;</span>`;
+      }
+    }
+  }
 }
 
 async function queueAction(itemId, connectionId, action) {
@@ -252,6 +470,12 @@ function setupQueueRealtime() {
 
 function toggleQueueSort() {
   queueFilters.sortAscending = !queueFilters.sortAscending;
+  const content = document.getElementById('app-content');
+  if (content) renderQueue(content);
+}
+
+function setQueueSignalFilter(value) {
+  queueFilters.signalFilter = value || 'untriaged';
   const content = document.getElementById('app-content');
   if (content) renderQueue(content);
 }
