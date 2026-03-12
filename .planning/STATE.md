@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: completed
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-12T03:42:47.868Z"
+stopped_at: Completed 08-email-signal-ui-profile-content-02-PLAN.md
+last_updated: "2026-03-12T03:43:02.700Z"
 last_activity: 2026-03-12 — Plan 02 complete (push sync for signals, comprehensive test suite)
 progress:
   total_phases: 4
@@ -51,6 +51,8 @@ Recent decisions affecting current work:
 - [Phase 08-03]: Note UI uses textarea + two-button split: Save Note (quick update) vs Add to History (timestamped insert)
 - [Phase 08-email-signal-ui-profile-content]: Gmail functions patched at source module (src.integrations.gmail.*) since imported inside send_digest_email() body, not at module level
 - [Phase 08-email-signal-ui-profile-content]: Email digest uses ?view=queue query param deep link (not /#/queue hash fragment) — query params survive Gmail redirect chain
+- [Phase 08-email-signal-ui-profile-content]: Client-side signal filter after fetch — PostgREST cannot filter on embedded resource fields (connections.latest_signal)
+- [Phase 08-email-signal-ui-profile-content]: Legacy queueAction() function preserved in queue.js for backward compatibility with signal picker replacing 3-button UI
 
 ### Pending Todos
 
@@ -63,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T03:42:41.831Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-12T03:43:02.696Z
+Stopped at: Completed 08-email-signal-ui-profile-content-02-PLAN.md
 Resume file: None
