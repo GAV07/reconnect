@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import or_
 from sqlmodel import select
 
 from src.config import settings
@@ -264,6 +265,39 @@ def _compute_why_today(connection: Connection) -> Optional[str]:
     return reasons[0] if reasons else None
 
 
+def _get_cadence_expired_candidates(session, limit: int) -> list[Connection]:
+    """Get contacts whose cadence has expired and are eligible for re-queuing.
+
+    Uses the stored cadence_due_at field (computed at signal assignment time
+    as assigned_at + cadence_days). Does NOT re-derive cadence from signals.
+
+    ARCHIVE contacts (user_priority='never') are excluded here AND by
+    is_contact_excluded() downstream — belt and suspenders.
+
+    Args:
+        session: Active database session
+        limit: Max candidates to return (should be limit // 2 for volume cap)
+
+    Returns:
+        List of Connection objects ordered by reconnect_score desc
+    """
+    now = datetime.utcnow()
+    return session.exec(
+        select(Connection)
+        .where(Connection.cadence_due_at.isnot(None))
+        .where(Connection.cadence_due_at <= now)
+        .where(
+            or_(
+                Connection.user_priority.is_(None),
+                Connection.user_priority != "never",
+            )
+        )
+        .where(Connection.reconnect_score.isnot(None))
+        .order_by(Connection.reconnect_score.desc())
+        .limit(limit)
+    ).all()
+
+
 def _get_scoring_weight_multipliers() -> dict[str, float]:
     """Load scoring weight multipliers from user preferences."""
     multipliers = {}
@@ -330,6 +364,7 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
         "added": 0,
         "excluded": 0,
         "expired": expired,
+        "cadence_added": 0,
         "exclusion_reasons": {},
     }
 
@@ -348,6 +383,11 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
             .where(Connection.reconnect_score.isnot(None))
         ).all()
 
+        # Cadence re-queuing: contacts whose cadence timer has expired
+        # Volume cap: at most half the queue slots go to cadence re-queues (CAD-03)
+        cadence_limit = limit // 2
+        cadence_candidates = _get_cadence_expired_candidates(session, cadence_limit)
+
         # Get top-scored connections - only those with a full reconnect_score
         query = (
             select(Connection)
@@ -359,11 +399,15 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
 
         candidates = session.exec(query).all()
 
-        # Merge always-priority contacts to the front
+        # Merge: always contacts first, then cadence re-queues, then fresh scored
         always_ids = {c.id for c in always_contacts}
+        cadence_ids = {c.id for c in cadence_candidates}
         merged = list(always_contacts)
-        for c in candidates:
+        for c in cadence_candidates:
             if c.id not in always_ids:
+                merged.append(c)
+        for c in candidates:
+            if c.id not in always_ids and c.id not in cadence_ids:
                 merged.append(c)
 
         # Apply weight multipliers and re-sort (always contacts stay at top)
@@ -409,6 +453,8 @@ def generate_daily_queue(limit: Optional[int] = None) -> dict:
 
             session.add(queue_item)
             added += 1
+            if conn.id in cadence_ids:
+                stats["cadence_added"] = stats.get("cadence_added", 0) + 1
 
         stats["added"] = added
 
