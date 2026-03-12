@@ -34,6 +34,14 @@ async function renderPreferences(container) {
     .eq('id', 1)
     .single();
 
+  // Fetch weight history (last 30 entries)
+  const { data: weightHistory } = await db
+    .from('user_preferences')
+    .select('pref_key, pref_value, created_at')
+    .eq('pref_type', 'weight_history')
+    .order('created_at', { ascending: false })
+    .limit(30);
+
   let html = '';
 
   // Goals section (renders above scoring weights)
@@ -74,6 +82,31 @@ async function renderPreferences(container) {
     }
   }
   html += '</div>';
+
+  // Weight Adjustment History (collapsed by default)
+  html += `
+    <div class="pref-group">
+      <h3 style="cursor: pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+        Weight History <span style="font-size: 12px; color: var(--text-muted);">(click to expand)</span>
+      </h3>
+      <div style="display: none;">`;
+
+  if (!weightHistory || weightHistory.length === 0) {
+    html += '<p style="font-size: 14px; color: var(--text-muted);">No weight adjustments recorded yet. The system needs at least 25 actions over 14 days before making changes.</p>';
+  } else {
+    html += '<p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Last ' + Math.min(weightHistory.length, 30) + ' adjustments. Multiplier range: 0.6x - 1.4x</p>';
+    for (const entry of weightHistory) {
+      const relDate = formatRelativeDate(entry.created_at);
+      const val = parseFloat(entry.pref_value);
+      const color = val > 1.0 ? 'var(--success, #22c55e)' : val < 1.0 ? 'var(--warning, #f59e0b)' : 'var(--text-secondary)';
+      html += `
+        <div class="pref-item">
+          <span style="font-size: 13px;">${escapeHtml(entry.pref_key)}</span>
+          <span style="font-weight: 600; color: ${color};">${val.toFixed(2)}x <span style="font-size: 11px; font-weight: 400; color: var(--text-muted);">${relDate}</span></span>
+        </div>`;
+    }
+  }
+  html += '</div></div>';
 
   // Priority Contacts
   const alwaysContacts = (priorityContacts || []).filter(c => c.user_priority === 'always');
