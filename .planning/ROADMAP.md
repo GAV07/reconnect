@@ -83,7 +83,11 @@ Plans:
   2. Signals and notes written in the PWA appear in local SQLite on the next sync run; pipeline-computed fields (mini_key_factors, latest_signal cache) appear in the PWA after the next push sync
   3. Contacts with expired cadence automatically re-enter the daily queue using age-based eligibility (signal_assigned_at + cadence_days <= today), not absolute timestamps; ARCHIVE contacts never re-appear
   4. Signal triage patterns adjust scoring dimension weights after at least 25 actions over 14 days, with a ±40% multiplier cap and logged weight history so drift is auditable
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 09-01-PLAN.md — Goals UI + scoring prompt + pull sync
+- [ ] 09-02-PLAN.md — Cadence re-queuing in queue generator
+- [ ] 09-03-PLAN.md — Signal feedback processor + safety guards + weight history UI
 
 ### Phase 10: Draft Tone Adaptation
 **Goal**: AI-generated draft messages reflect the intent signal assigned to the contact, producing appropriately toned outreach without any additional user input
@@ -106,6 +110,6 @@ Plans:
 | 5. Dashboard Intelligence | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
-| 8. Email + Signal UI + Profile Content | 4/4 | Complete   | 2026-03-12 | - |
-| 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/TBD | Not started | - |
+| 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
+| 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 0/3 | Not started | - |
 | 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |
