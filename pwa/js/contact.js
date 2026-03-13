@@ -1,5 +1,14 @@
 /* Contact detail page — view enrichment data + generate drafts */
 
+const SIGNAL_TONE_TOOLTIPS = {
+  WARM_LEAD: 'Direct and specific — references your current goals',
+  NURTURE: 'Warm and relationship-first — no ask, just reconnecting',
+  VALUE_DROP: 'Value-led — grounded in their industry and work',
+  SYNERGY: 'Collaborative — frames mutual benefit, references your goals',
+  RECONNECT: 'Nostalgic — re-entry framing, references your shared history',
+  FUTURE_PIVOT: 'Light touch — low-pressure, no ask',
+};
+
 function buildProfessionalContextSection(conn) {
   const enrichment = conn.raw_enrichment?.data || conn.raw_enrichment || {};
   const role = escapeHtml(conn.current_role || '');
@@ -370,26 +379,43 @@ async function renderContact(container, connectionId) {
     }
   }
 
-  // Draft section
+  // Draft section — three-way signal gate
   let draftHtml = '';
   if (queueItemId) {
-    draftHtml = `
-      <div class="detail-section draft-area" id="draft-section">
-        <h3>Draft Message</h3>
-        <div style="text-align: center; margin: 16px 0;">
-          <button class="btn btn-primary" onclick="generateDraft('${connectionId}', ${queueItemId})" id="generate-btn">
-            Generate Draft
-          </button>
-        </div>
-        <div id="draft-content" class="hidden">
-          <div class="draft-box"><textarea id="draft-text" placeholder="Draft will appear here..."></textarea></div>
-          <div class="draft-actions">
-            <button class="btn btn-outline" onclick="copyDraft()">Copy</button>
-            ${linkedinUrl ? `<a href="${escapeHtml(linkedinUrl.replace(/\/$/, ''))}/overlay/new-message/" target="_blank" class="btn btn-primary">Open LinkedIn DM</a>` : ''}
-            ${email ? `<a href="mailto:${escapeHtml(email)}" class="btn btn-outline">Send Email</a>` : ''}
+    const signal = conn.latest_signal;
+    if (signal === 'ARCHIVE') {
+      // ARCHIVE: hide draft section entirely — per CONTEXT.md decision
+      draftHtml = '';
+    } else if (!signal) {
+      // No signal assigned: show nudge to assign signal first
+      draftHtml = `
+        <div class="detail-section" id="draft-section">
+          <h3>Draft Message</h3>
+          <div class="draft-no-signal">
+            <p>Assign a signal for a tailored draft.</p>
           </div>
-        </div>
-      </div>`;
+        </div>`;
+    } else {
+      // Valid signal: show generate button with signal-aware draft area
+      draftHtml = `
+        <div class="detail-section draft-area" id="draft-section">
+          <h3>Draft Message</h3>
+          <div style="text-align: center; margin: 16px 0;">
+            <button class="btn btn-primary" onclick="generateDraft('${connectionId}', ${queueItemId}, '${escapeHtml(signal)}')" id="generate-btn">
+              Generate Draft
+            </button>
+          </div>
+          <div id="draft-content" class="hidden">
+            <div id="draft-signal-badge-area"></div>
+            <div class="draft-box"><textarea id="draft-text" placeholder="Draft will appear here..."></textarea></div>
+            <div class="draft-actions">
+              <button class="btn btn-outline" onclick="copyDraft()">Copy</button>
+              ${linkedinUrl ? `<a href="${escapeHtml(linkedinUrl.replace(/\/$/, ''))}/overlay/new-message/" target="_blank" class="btn btn-primary">Open LinkedIn DM</a>` : ''}
+              ${email ? `<a href="mailto:${escapeHtml(email)}" class="btn btn-outline">Send Email</a>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
   }
 
   // Async sections: signal history + notes
@@ -440,7 +466,7 @@ async function renderContact(container, connectionId) {
     </div>`;
 }
 
-async function generateDraft(connectionId, queueItemId) {
+async function generateDraft(connectionId, queueItemId, signal) {
   const btn = document.getElementById('generate-btn');
   const draftContent = document.getElementById('draft-content');
   const draftText = document.getElementById('draft-text');
@@ -467,6 +493,19 @@ async function generateDraft(connectionId, queueItemId) {
       draftContent.classList.remove('hidden');
       btn.textContent = 'Regenerate';
       btn.disabled = false;
+
+      // Inject signal tone badge above textarea
+      const badgeArea = document.getElementById('draft-signal-badge-area');
+      if (badgeArea && signal && typeof SIGNAL_ACTIONS !== 'undefined' && SIGNAL_ACTIONS[signal]) {
+        const info = SIGNAL_ACTIONS[signal];
+        const tooltip = SIGNAL_TONE_TOOLTIPS[signal] || info.label;
+        badgeArea.innerHTML = `
+          <div class="draft-tone-badge" title="${escapeHtml(tooltip)}">
+            <span class="signal-badge" style="background:${info.bg};color:${info.color};">
+              ${escapeHtml(info.label)} tone
+            </span>
+          </div>`;
+      }
     } else {
       btn.textContent = 'Failed — Try Again';
       btn.disabled = false;
