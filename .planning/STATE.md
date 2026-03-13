@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
 status: executing
-stopped_at: Completed 10-01-PLAN.md (signal-aware tone branching in draft Edge Function)
-last_updated: "2026-03-13T03:15:44.853Z"
-last_activity: 2026-03-13 — Plan 01 complete (signal-aware tone branching in draft Edge Function)
+stopped_at: "Completed 11-01-PLAN.md (signal write completion: outreach_queue.signal + connections.cadence_due_at writes in assignSignalFromCard)"
+last_updated: "2026-03-13T13:46:42.978Z"
+last_activity: 2026-03-13 — Plan 01 complete (signal write completion: outreach_queue.signal + connections.cadence_due_at writes in assignSignalFromCard)
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 12
+  completed_plans: 12
   percent: 83
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Phase 10 — Draft Tone Adaptation
+**Current focus:** Phase 11 — Signal Write Completion + Draft Wiring (complete)
 
 ## Current Position
 
-Phase: 10 of 10 (Draft Tone Adaptation)
-Plan: 1 of 3 complete in current phase
-Status: In Progress
-Last activity: 2026-03-13 — Plan 01 complete (signal-aware tone branching in draft Edge Function)
+Phase: 11 of 11 (Signal Write Completion + Draft Wiring)
+Plan: 1 of 1 complete in current phase
+Status: Complete
+Last activity: 2026-03-13 — Plan 01 complete (signal write completion: outreach_queue.signal + connections.cadence_due_at in assignSignalFromCard)
 
-Progress: [████████--] 83% (v1.2 phase 10 in progress: 1/3 plans done)
+Progress: [██████████] 100% (v1.2 complete: all 12 plans done)
 
 ## Accumulated Context
 
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 10-01]: ARCHIVE guard placed after queueItem fetch, before connection/profile fetches — avoids unnecessary DB reads for archived contacts
 - [Phase 10-01]: Null signal fallback preserves backward compat with generic "Be genuine, not salesy" directive
 - [Phase 10-01]: signal/signalContext passed as explicit buildDraftPrompt() parameters — pure function, easy to test
+- [Phase 11-signal-write-completion-draft-wiring]: cadence_due_at computed in JS client from SIGNAL_ACTIONS[signal].cadence × 86400000ms with explicit null guard
+- [Phase 11-signal-write-completion-draft-wiring]: outreach_queue signal UPDATE keyed on itemId (not connectionId) to avoid multi-row update bug
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T02:57:30Z
-Stopped at: Completed 10-01-PLAN.md (signal-aware tone branching in draft Edge Function)
-Resume file: .planning/phases/10-draft-tone-adaptation/10-01-SUMMARY.md
+Last session: 2026-03-13T13:46:42.974Z
+Stopped at: Completed 11-01-PLAN.md (signal write completion: outreach_queue.signal + connections.cadence_due_at writes in assignSignalFromCard)
+Resume file: .planning/phases/11-signal-write-completion-draft-wiring/11-01-SUMMARY.md
