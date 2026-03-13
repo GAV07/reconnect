@@ -26,7 +26,7 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 ### Cadence & Re-queuing
 
 - [x] **CAD-01**: Each signal defines a default cadence (days until contact reappears in queue)
-- [x] **CAD-02**: Contacts with expired cadence automatically re-enter the daily queue
+- [ ] **CAD-02**: Contacts with expired cadence automatically re-enter the daily queue
 - [x] **CAD-03**: Re-queuing uses age-based eligibility to prevent cohort saturation
 
 ### Profile & Content
@@ -42,7 +42,7 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 - [x] **PERS-02**: User goals included in LLM scoring prompt for more relevant WARM_LEAD identification
 - [x] **PERS-03**: Signal triage patterns adjust scoring dimension weights over time
 - [x] **PERS-04**: Rescoring has safety guards (25-action minimum, ±40% multiplier cap, drift logging)
-- [x] **PERS-05**: AI-generated draft messages adapt tone based on the assigned signal
+- [ ] **PERS-05**: AI-generated draft messages adapt tone based on the assigned signal
 
 ### Queue UX
 
@@ -98,7 +98,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIG-05 | Phase 8 | Complete |
 | SIG-06 | Phase 8 | Complete |
 | CAD-01 | Phase 7 | Complete |
-| CAD-02 | Phase 9 | Complete |
+| CAD-02 | Phase 11 | Pending |
 | CAD-03 | Phase 9 | Complete |
 | PROF-01 | Phase 8 | Complete |
 | PROF-02 | Phase 8 | Complete |
@@ -108,15 +108,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERS-02 | Phase 9 | Complete |
 | PERS-03 | Phase 9 | Complete |
 | PERS-04 | Phase 9 | Complete |
-| PERS-05 | Phase 10 | Complete |
+| PERS-05 | Phase 11 | Pending |
 | QUX-01 | Phase 8 | Complete |
 | QUX-02 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 24 total
-- Mapped to phases: 24
+- Satisfied: 22
+- Pending (gap closure): 2 (PERS-05, CAD-02 → Phase 11)
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 — traceability mapped to phases 7-10*
+*Last updated: 2026-03-13 — gap closure phase 11 added for PERS-05, CAD-02*

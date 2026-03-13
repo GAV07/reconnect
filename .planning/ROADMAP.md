@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Actionable PWA + Rich Email Digests** — Phases 1-3 (shipped 2026-03-09)
 - ✅ **v1.1 Network Intelligence** — Phases 4-6 (shipped 2026-03-10)
-- 🚧 **v1.2 Intent-Driven Triage** — Phases 7-10 (in progress)
+- 🚧 **v1.2 Intent-Driven Triage** — Phases 7-11 (in progress)
 
 ## Phases
 
@@ -38,6 +38,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details.
 - [x] **Phase 8: Email + Signal UI + Profile Content** - Email digest fix, 7-signal queue triage, enriched cards, contact notes, profile fallbacks (completed 2026-03-12)
 - [x] **Phase 9: Goals, Sync, and Pipeline Intelligence** - User goals profile, bidirectional sync for new data, cadence re-queuing, signal-informed rescoring (completed 2026-03-12)
 - [x] **Phase 10: Draft Tone Adaptation** - Signal-aware AI message generation via Edge Function (completed 2026-03-13)
+- [ ] **Phase 11: Signal Write Completion + Draft Wiring** - Close integration gaps: missing PWA writes and Edge Function signal passing
 
 ## Phase Details
 
@@ -102,6 +103,22 @@ Plans:
 - [ ] 10-01-PLAN.md — Edge Function signal-aware prompt branching + ARCHIVE guard
 - [ ] 10-02-PLAN.md — PWA signal gate, no-signal nudge, and draft tone badge UI
 
+### Phase 11: Signal Write Completion + Draft Wiring
+**Goal**: All signal writes propagate correctly so draft tone adaptation and cadence re-queuing work end-to-end
+**Depends on**: Phase 10
+**Requirements**: PERS-05, CAD-02
+**Gap Closure:** Closes gaps from v1.2 audit
+**Success Criteria** (what must be TRUE):
+  1. `assignSignalFromCard()` writes signal and signal_context to `outreach_queue` for the current queue item, so the Edge Function receives the correct signal
+  2. `assignSignalFromCard()` writes `cadence_due_at` to `connections` using the signal's cadence_days definition, so the pipeline re-queuing query finds candidates
+  3. Edge Function draft endpoint receives signal (either via outreach_queue or request body) and produces tone-adapted output matching SIGNAL_TONE_CONFIG
+  4. ARCHIVE signal correctly prevents draft generation (Edge Function guard fires)
+  5. Cadence re-queuing pipeline query returns contacts whose cadence has expired
+**Plans**: TBD
+Plans:
+- [ ] 11-01-PLAN.md — PWA signal write completion (outreach_queue + cadence_due_at)
+- [ ] 11-02-PLAN.md — Draft wiring: Edge Function signal passing + ARCHIVE guard
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -115,4 +132,5 @@ Plans:
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
-| 10. Draft Tone Adaptation | 2/2 | Complete    | 2026-03-13 | - |
+| 10. Draft Tone Adaptation | v1.2 | 2/2 | Complete | 2026-03-13 |
+| 11. Signal Write Completion + Draft Wiring | v1.2 | 0/2 | Pending | - |
