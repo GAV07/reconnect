@@ -97,7 +97,10 @@ Plans:
   1. When generating a draft from a contact with an assigned signal, the Edge Function produces a message with tone appropriate to that signal (e.g., WARM_LEAD produces a direct specific ask; NURTURE produces warm low-pressure copy)
   2. ARCHIVE contacts have the draft button disabled in the PWA — no draft is generated for archived contacts
   3. Draft tone Edge Function deploys successfully and the existing draft flow for contacts without a signal continues to work unchanged
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Edge Function signal-aware prompt branching + ARCHIVE guard
+- [ ] 10-02-PLAN.md — PWA signal gate, no-signal nudge, and draft tone badge UI
 
 ## Progress
 
@@ -111,5 +114,5 @@ Plans:
 | 6. CLI + Gmail OAuth + Streamlit Removal | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
-| 9. Goals, Sync, and Pipeline Intelligence | 3/3 | Complete   | 2026-03-12 | - |
-| 10. Draft Tone Adaptation | v1.2 | 0/TBD | Not started | - |
+| 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
+| 10. Draft Tone Adaptation | v1.2 | 0/2 | Not started | - |
