@@ -114,10 +114,9 @@ Plans:
   3. Edge Function draft endpoint receives signal (either via outreach_queue or request body) and produces tone-adapted output matching SIGNAL_TONE_CONFIG
   4. ARCHIVE signal correctly prevents draft generation (Edge Function guard fires)
   5. Cadence re-queuing pipeline query returns contacts whose cadence has expired
-**Plans**: TBD
+**Plans**: 1 plan
 Plans:
-- [ ] 11-01-PLAN.md — PWA signal write completion (outreach_queue + cadence_due_at)
-- [ ] 11-02-PLAN.md — Draft wiring: Edge Function signal passing + ARCHIVE guard
+- [ ] 11-01-PLAN.md — Signal write completion: outreach_queue.signal + connections.cadence_due_at writes + integration tests
 
 ## Progress
 
@@ -133,4 +132,4 @@ Plans:
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
 | 10. Draft Tone Adaptation | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 11. Signal Write Completion + Draft Wiring | v1.2 | 0/2 | Pending | - |
+| 11. Signal Write Completion + Draft Wiring | v1.2 | 0/1 | Pending | - |
