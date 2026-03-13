@@ -115,4 +115,4 @@ Plans:
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
-| 10. Draft Tone Adaptation | 2/2 | Complete   | 2026-03-13 | - |
+| 10. Draft Tone Adaptation | 2/2 | Complete    | 2026-03-13 | - |
