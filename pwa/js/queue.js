@@ -339,10 +339,17 @@ async function assignSignalFromCard(event, connectionId, signal, itemId) {
 
     if (signalError) throw signalError;
 
-    // UPDATE connections.latest_signal (and user_priority for ARCHIVE)
-    const updateData = { latest_signal: signal };
+    // Compute cadence_due_at from SIGNAL_ACTIONS const
+    const cadenceDays = signalInfo.cadence; // null for ARCHIVE
+    const cadenceDueAt = (cadenceDays !== null && cadenceDays !== undefined)
+      ? new Date(Date.now() + cadenceDays * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    // UPDATE connections.latest_signal (and user_priority for ARCHIVE, cadence_due_at for all)
+    const updateData = { latest_signal: signal, cadence_due_at: cadenceDueAt };
     if (signal === 'ARCHIVE') {
       updateData.user_priority = 'never';
+      // cadenceDueAt is null for ARCHIVE — explicitly clears any existing value
     }
 
     const { error: connError } = await db
@@ -351,6 +358,14 @@ async function assignSignalFromCard(event, connectionId, signal, itemId) {
       .eq('id', connectionId);
 
     if (connError) throw connError;
+
+    // UPDATE outreach_queue.signal so Edge Function draft receives it
+    const { error: queueSignalError } = await db
+      .from('outreach_queue')
+      .update({ signal: signal, signal_context: null })
+      .eq('id', itemId);
+
+    if (queueSignalError) throw queueSignalError;
 
     // ARCHIVE: fade and remove the card from DOM — excluded from default + all views
     if (signal === 'ARCHIVE') {
