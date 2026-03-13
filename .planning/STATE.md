@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
-status: completed
-stopped_at: "Completed 11-01-PLAN.md (signal write completion: outreach_queue.signal + connections.cadence_due_at writes in assignSignalFromCard)"
-last_updated: "2026-03-13T13:50:29.581Z"
-last_activity: "2026-03-13 — Plan 01 complete (signal write completion: outreach_queue.signal + connections.cadence_due_at in assignSignalFromCard)"
+status: shipped
+stopped_at: "Milestone v1.2 shipped and archived"
+last_updated: "2026-03-13"
+last_activity: "2026-03-13 — Milestone v1.2 Intent-Driven Triage shipped"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -18,58 +18,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-11)
+See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Phase 11 — Signal Write Completion + Draft Wiring (complete)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 11 of 11 (Signal Write Completion + Draft Wiring)
-Plan: 1 of 1 complete in current phase
-Status: Complete
-Last activity: 2026-03-13 — Plan 01 complete (signal write completion: outreach_queue.signal + connections.cadence_due_at in assignSignalFromCard)
+Milestone: v1.2 Intent-Driven Triage — SHIPPED 2026-03-13
+Status: Complete — all 5 phases, 12 plans shipped
 
-Progress: [██████████] 100% (v1.2 complete: all 12 plans done)
+Progress: [██████████] 100% (v1.2 shipped)
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [v1.2 research]: Canonical SIGNAL_ACTIONS defined once in signal_service.py (Python) and mirrored as JS const — consumed everywhere else
-- [v1.2 research]: PostgREST direct writes for signals and notes — no new Edge Function needed (same pattern as user_feedback)
-- [v1.2 research]: Cadence re-queuing via age-based eligibility (signal_assigned_at + cadence_days <= today) — not absolute timestamps
-- [v1.2 research]: Feedback processor safety guards: 25-action / 14-day minimum, ±40% cap, weight history logging
-- [Phase 07-signal-foundation]: SIGNAL_ACTIONS defined once in signal_service.py as canonical source; PWA mirrors as JS const
-- [Phase 07-signal-foundation]: No __table_args__ partial index in SQLModel — PostgreSQL-only UNIQUE partial index stays in migration SQL only to avoid breaking SQLite
-- [Phase 07-signal-foundation]: signal_service.py NOT wired into daily_pipeline.py — deferred to Phase 9 queue intelligence
-- [Phase 07-signal-foundation]: Use assigned_at (not created_at) as ContactSignal timestamp filter — signals timestamped by assignment
-- [Phase 08-03]: SIGNAL_ACTIONS guard: typeof SIGNAL_ACTIONS \!== 'undefined' — safe when 08-02 not yet executed
-- [Phase 08-03]: Note UI uses textarea + two-button split: Save Note (quick update) vs Add to History (timestamped insert)
-- [Phase 08-email-signal-ui-profile-content]: Gmail functions patched at source module (src.integrations.gmail.*) since imported inside send_digest_email() body, not at module level
-- [Phase 08-email-signal-ui-profile-content]: Email digest uses ?view=queue query param deep link (not /#/queue hash fragment) — query params survive Gmail redirect chain
-- [Phase 08-email-signal-ui-profile-content]: Client-side signal filter after fetch — PostgREST cannot filter on embedded resource fields (connections.latest_signal)
-- [Phase 08-email-signal-ui-profile-content]: Legacy queueAction() function preserved in queue.js for backward compatibility with signal picker replacing 3-button UI
-- [Phase 08-04]: ContactSignal pull is insert-only (immutable once assigned); ContactNote uses insert-or-update-if-newer via updated_at comparison
-- [Phase 09]: NULL user_priority: use or_(is_(None), \!= 'never') — SQL \!= excludes NULLs, contacts without priority set were incorrectly excluded from cadence re-queuing
-- [Phase 09]: Cadence re-queuing integrated into generate_daily_queue() not a separate pipeline step — cadence candidates injected between always and fresh-scored, capped at 50%
-- [Phase 09-01]: Goals text area writes to user_profile.current_projects via PostgREST direct write — same pattern as signals/notes
-- [Phase 09-01]: Pull sync does NOT update local.updated_at when pulling goals from cloud — avoids push sync loop (research pitfall 5)
-- [Phase 09-01]: Rescore trigger uses UserPreference pref_type='rescore_trigger' row written by PWA; pipeline batch-clears 10 contacts per run
-- [Phase 09-01]: goals_structured JSON column reserved for future lookouts feature — not exposed in UI
-- [Phase 09-03]: ARCHIVE signal excluded from weight adjustments — contact irrelevant signal, not scoring quality indicator (research pitfall 3)
-- [Phase 09-03]: Weight history is insert-only rows (pref_type='weight_history') — each adjustment creates a new row for full audit trail
-- [Phase 10-draft-tone-adaptation]: ARCHIVE contacts produce empty draftHtml — draft section hidden entirely, not disabled
-- [Phase 10-draft-tone-adaptation]: Badge injection uses typeof SIGNAL_ACTIONS guard (queue.js loaded separately) per Phase 08-03 pattern
-- [Phase 10-01]: SIGNAL_TONE_CONFIG as module-level const in draft Edge Function — readable, extensible, zero per-call allocation
-- [Phase 10-01]: ARCHIVE guard placed after queueItem fetch, before connection/profile fetches — avoids unnecessary DB reads for archived contacts
-- [Phase 10-01]: Null signal fallback preserves backward compat with generic "Be genuine, not salesy" directive
-- [Phase 10-01]: signal/signalContext passed as explicit buildDraftPrompt() parameters — pure function, easy to test
-- [Phase 11-signal-write-completion-draft-wiring]: cadence_due_at computed in JS client from SIGNAL_ACTIONS[signal].cadence × 86400000ms with explicit null guard
-- [Phase 11-signal-write-completion-draft-wiring]: outreach_queue signal UPDATE keyed on itemId (not connectionId) to avoid multi-row update bug
 
 ### Pending Todos
 
@@ -77,11 +42,12 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 9]: Feedback loop thresholds (25 actions / ±40%) need empirical validation after first 2 weeks of v1.2 use
-- [Phase 8+]: Migration SQL (supabase/migrations/20260311000000_signal_foundation.sql) must be applied to Supabase before PWA can read/write signals
+- Feedback loop thresholds (25 actions / ±40%) need empirical validation after first 2 weeks of v1.2 use
+- Migration SQL (supabase/migrations/20260311000000_signal_foundation.sql) must be applied to Supabase before PWA can read/write signals
+- outreach_queue.signal UPDATE permission unverified for anon role
 
 ## Session Continuity
 
-Last session: 2026-03-13T13:46:42.974Z
-Stopped at: Completed 11-01-PLAN.md (signal write completion: outreach_queue.signal + connections.cadence_due_at writes in assignSignalFromCard)
-Resume file: .planning/phases/11-signal-write-completion-draft-wiring/11-01-SUMMARY.md
+Last session: 2026-03-13
+Stopped at: Milestone v1.2 shipped and archived
+Resume file: N/A — start next milestone with /gsd:new-milestone

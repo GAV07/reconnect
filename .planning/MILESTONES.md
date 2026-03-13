@@ -1,5 +1,24 @@
 # Milestones
 
+## v1.2 Intent-Driven Triage (Shipped: 2026-03-13)
+
+**Phases completed:** 5 phases, 12 plans, 9 tasks
+
+**Timeline:** 3 days (2026-03-11 → 2026-03-13)
+**Code:** 78 files changed, +16,097 / -1,867 lines
+**Git range:** feat(07-01) → feat(11-01)
+
+**Key accomplishments:**
+- Signal foundation — 7 intent signals (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE) with schema, service, migration, and bidirectional sync
+- Email digest rebuilt — "Review in App" CTA, signal-aligned vocabulary, industry chips, deep link to PWA queue
+- Profile enrichment — key factors/conversation starters fallbacks from enrichment data, contact notes, signal history UI
+- User goals profile — current projects/interests inform LLM scoring prompt for better WARM_LEAD identification
+- Cadence re-queuing — automatic contact re-appearance based on signal cadence timing with age-based eligibility
+- Signal-informed rescoring — triage patterns adjust scoring weights with safety guards (25-action min, +/-40% cap, audit trail)
+- Draft tone adaptation — Edge Function produces signal-aware AI messages (7 tone branches + ARCHIVE guard)
+
+---
+
 ## v1.1 Network Intelligence (Shipped: 2026-03-10)
 
 **Phases completed:** 3 phases, 7 plans, 13 tasks

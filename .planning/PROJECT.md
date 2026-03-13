@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (CLI @ 8AM via LaunchAgent) that scores contacts, computes dashboard intelligence, generates an actionable email digest, and syncs data to a PWA where you can triage, review profiles, explore network demographics, and track your outreach pipeline.
+A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (CLI @ 8AM via LaunchAgent) that scores contacts, computes dashboard intelligence, generates an actionable email digest, and syncs data to a PWA where you can triage contacts with intent signals, review enriched profiles, explore network demographics, and track your outreach pipeline. Signal assignments drive messaging tone, schedule follow-ups via cadence, and improve future scoring through feedback loops.
 
 ## Core Value
 
@@ -47,21 +47,20 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - ✓ Dashboard score tier distribution — v1.1
 - ✓ `reconnect` CLI with Click (pipeline, queue, contacts, gmail, sync) — v1.1
 - ✓ Streamlit UI + plotly dependencies fully removed — v1.1
+- ✓ Email digest sends with "Review in App" CTA and signal-aligned vocabulary — v1.2
+- ✓ Profile key factors show meaningful content with enrichment fallbacks — v1.2
+- ✓ Conversation starters populated from enrichment data and scoring rationale — v1.2
+- ✓ 7 intent signals (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE) replace legacy triage — v1.2
+- ✓ Signal-driven cadence re-queuing with age-based eligibility — v1.2
+- ✓ User goals profile informing LLM scoring for WARM_LEAD identification — v1.2
+- ✓ Contact notes (free-form, visible on queue cards + profile) — v1.2
+- ✓ Signal-informed rescoring with safety guards (25-action min, ±40% cap, audit trail) — v1.2
+- ✓ Draft tone adaptation (signal drives AI message tone via Edge Function) — v1.2
+- ✓ Queue card enrichment (industry chip, key factor, last interaction, notes) — v1.2
 
 ### Active
 
-<!-- v1.2 Intent-Driven Triage — see REQUIREMENTS.md for full REQ-IDs -->
-
-- [ ] Email digest actually sends (fix config gap, keep Telegram as backup)
-- [ ] Profile key factors show meaningful content with fallbacks when enrichment is sparse
-- [ ] Conversation starters populated from alternative data sources (not just activity_log)
-- [ ] 7 interest signals (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE) replace Reach Out / Skip / Snooze
-- [ ] Signal-driven system actions: cadence re-queuing, resource prompts, tone matching, tagging, archive
-- [ ] User goals profile (current projects/interests inform WARM_LEAD identification)
-- [ ] Contact notes (free-form, visible on queue cards + profile)
-- [ ] Signal-informed rescoring (triage patterns improve future scoring)
-- [ ] Draft tone adaptation (signal drives AI message tone)
-- [ ] Queue card enrichment (mini key-factors, industry, last interaction for informed triage)
+(None — define next milestone requirements via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -74,42 +73,37 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - Calendar integration — daily email is the reminder mechanism
 - Social graph visualization — impressive to demo, not useful in daily workflow
 - Broader AI questions (life/personal) — start with professional enriched data only
+- Multi-signal assignment per contact — one signal at a time keeps mental model simple
+- Real-time signal processing — daily batch pipeline sufficient for single-user tool
+- Signal-based auto-outreach — always human-in-the-loop
 
 ## Context
 
-## Current Milestone: v1.2 Intent-Driven Triage
-
-**Goal:** Replace score-only queue decisions with a qualitative signal system that captures *why* you'd reach out, drives messaging tone, schedules follow-ups, and learns from your patterns — while fixing email delivery and enriching sparse profiles.
-
-**Target features:**
-- Email digest fix + Telegram backup
-- Profile enrichment (key factors fallbacks, conversation starters from alternative sources)
-- 7 interest signals replacing Reach Out / Skip / Snooze
-- Full signal system actions (cadence re-queuing, resource prompts, tone matching, archive, tags)
-- User goals profile (current projects/interests inform matching)
-- Contact notes (free-form, visible on queue + profile)
-- Signal-informed rescoring (learning from triage patterns)
-- Queue card enrichment (more context for informed signal choices)
-
-**Current State (post v1.1):**
-- ~12,800 LOC across Python (10,687 — pipeline, CLI, sync, services), JavaScript/CSS/HTML (2,131 — PWA)
+**Current State (post v1.2):**
+- ~36,800 LOC across Python (13,550), JavaScript (20,922), TypeScript (718), CSS (1,068), HTML (524)
 - Tech stack: Python + SQLModel + SQLite (local), Supabase PostgreSQL + PostgREST + Edge Functions (cloud), Vanilla JS PWA on Netlify, Click CLI
-- 35 v1.0+v1.1 requirements shipped and verified across 6 phases
+- 45 v1.0+v1.1+v1.2 requirements shipped and verified across 11 phases (3 milestones)
 - Pipeline runs daily via LaunchAgent → `reconnect pipeline run`, email digest via Gmail OAuth, PWA live on Netlify
-- Streamlit admin UI fully replaced by `reconnect` CLI (5 command groups, 9 commands)
+- Signal system: 7 intent signals with cadence re-queuing, draft tone adaptation, feedback-based rescoring
+- 169 tests passed, 9 skipped, 0 failures
 
 **Known Tech Debt:**
 - `datetime.utcnow()` deprecated in Python 3.12+ (pre-existing, several files)
 - Pydantic v2 `class Config` style deprecated in src/config.py
-- Stale fallback URL `http://localhost:8501` in email_digest.py line 289 (never reached in production)
+- `apply_signal()` and `backfill_skipped_signals()` orphaned in signal_service.py (PWA writes directly to PostgREST)
+- `_get_data_health_stats()` and `_get_skip_pattern_insight()` uncalled in email_digest.py post-rebuild
+- `tests/test_phase10_draft_tone.py` planned but never created (6 tests for PERS-05)
 - Gmail OAuth GCP consent screen must be published (or add test user) before tokens work beyond 7 days
-- Edge Function uses relative path `/functions/v1/action` (works but brittle)
+- outreach_queue.signal UPDATE permission unverified for anon role (table-level grant likely inherited)
 
-**Potential v1.2+ Features:**
+**Potential v1.3+ Features:**
+- Signal analytics on dashboard (distribution, trends over time)
+- VALUE_DROP resource/link attachment before outreach
+- Signal-driven email digest bucketing
+- Configurable cadence per signal via CLI
+- Per-contact cadence override
 - AI contact search ("Who in my network knows about X?")
 - Geographic distribution of contacts
-- Company size tier distribution
-- Pipeline controls in PWA admin panel
 
 ## Constraints
 
@@ -139,6 +133,14 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | OAuth-first with App Password fallback | is_oauth_configured() checked before is_gmail_configured() everywhere | ✓ Good — smooth migration path |
 | Click CLI replacing Streamlit | Streamlit was broken (import crashes), CLI is lighter and automatable via LaunchAgent | ✓ Good — 9 commands cover all operations |
 | Lazy imports in CLI commands | Heavy pipeline imports only loaded when command runs, keeps `reconnect --help` instant | ✓ Good — fast startup |
+| Canonical SIGNAL_ACTIONS in signal_service.py | Single source of truth for 7 signals; PWA mirrors as JS const | ✓ Good — consistent behavior across Python/JS |
+| PostgREST direct writes for signals/notes | No Edge Function needed — same pattern as user_feedback, anon grants sufficient | ✓ Good — simpler architecture |
+| Cadence re-queuing via age-based eligibility | signal_assigned_at + cadence_days <= today — prevents cohort saturation | ✓ Good — distributed re-appearance |
+| Feedback processor safety guards | 25-action min, ±40% cap, weight history logging — prevents runaway drift | ✓ Good — auditable, conservative |
+| SIGNAL_TONE_CONFIG in Edge Function | Module-level const map keyed by signal name — readable, extensible, zero per-call allocation | ✓ Good — clean tone branching |
+| ARCHIVE guard before DB reads | Early return avoids unnecessary profile/connection fetches for archived contacts | ✓ Good — efficient |
+| Client-side signal filter | PostgREST cannot filter on embedded resource fields (connections.latest_signal) | ✓ Good — works for current volume |
+| outreach_queue UPDATE keyed on itemId | Prevents multi-row update bug when connectionId matches multiple queue entries | ✓ Good — safe writes |
 
 ---
-*Last updated: 2026-03-11 after v1.2 milestone started*
+*Last updated: 2026-03-13 after v1.2 milestone*

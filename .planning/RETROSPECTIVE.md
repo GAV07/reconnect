@@ -93,6 +93,57 @@
 
 ---
 
+## Milestone: v1.2 — Intent-Driven Triage
+
+**Shipped:** 2026-03-13
+**Phases:** 5 | **Plans:** 12
+
+### What Was Built
+- Signal foundation — 7 intent signals with schema, canonical service, migration, and bidirectional sync
+- Email digest rebuilt — "Review in App" CTA with signal-aligned vocabulary and industry chips
+- Profile enrichment — key factors/conversation starters fallbacks, contact notes, signal history UI
+- User goals profile — current projects/interests inform LLM scoring for better WARM_LEAD identification
+- Cadence re-queuing — automatic contact re-appearance based on signal cadence with age-based eligibility
+- Signal-informed rescoring — triage patterns adjust scoring weights with safety guards (25-action min, ±40% cap, audit trail)
+- Draft tone adaptation — Edge Function produces signal-aware AI messages (7 tone branches + ARCHIVE guard)
+
+### What Worked
+- Gap closure phase (Phase 11) caught integration issues that audit identified — assignSignalFromCard() wasn't writing to outreach_queue.signal or connections.cadence_due_at
+- PostgREST direct writes pattern (no new Edge Functions) kept architecture simple — same pattern for signals, notes, goals, and feedback
+- Canonical SIGNAL_ACTIONS defined once in Python, mirrored in JS — consistent behavior across stack
+- TDD with in-memory SQLite databases (test_phase9_cadence.py, test_phase11_signal_write.py) provided fast, reliable verification
+- Audit → gap closure → completion flow proved effective: audit found real integration gaps, Phase 11 fixed them
+
+### What Was Inefficient
+- SUMMARY.md frontmatter `requirements_completed` missing from most plans — 13/24 requirements had gaps in SUMMARY.md tracking (all confirmed via VERIFICATION.md)
+- `one_liner` field still missing from all SUMMARYs — summary-extract returns empty, forcing manual accomplishment extraction
+- Nyquist validation (VALIDATION.md) created for all 5 phases but none reached compliant status — overhead without benefit
+- `apply_signal()` and `backfill_skipped_signals()` in signal_service.py are orphaned — PWA writes directly to PostgREST, bypassing Python service
+- `test_phase10_draft_tone.py` planned (6 tests) but never created — PERS-05 lacks automated regression coverage
+
+### Patterns Established
+- SIGNAL_ACTIONS as canonical const in both Python (signal_service.py) and JS (queue.js) — single source of truth
+- PostgREST direct writes for all PWA data mutations (signals, notes, goals, feedback, queue status)
+- typeof SIGNAL_ACTIONS !== 'undefined' guard for cross-module JS const access
+- Three-way signal gate: ARCHIVE=hidden, null=nudge, valid=generate (draft section)
+- Insert-only audit log pattern (weight_history) — never upsert, full audit trail
+- Cadence re-queuing as inline integration in generate_daily_queue() — not a separate pipeline step
+- SIGNAL_TONE_CONFIG map pattern for signal-to-behavior mapping in Edge Functions
+
+### Key Lessons
+1. Milestone audit before completion catches real integration gaps — Phase 11 exists because the audit found missing writes
+2. SUMMARY.md frontmatter needs enforcement — `requirements_completed` and `one_liner` missing from most plans across all 3 milestones
+3. Nyquist validation adds overhead without clear benefit for this project — consider removing or simplifying
+4. Orphaned code (apply_signal, backfill, data_health_stats) accumulates when Python service patterns are bypassed by PWA direct writes
+5. outreach_queue.signal UPDATE permission needs human verification — table-level grants may cover it but it's unconfirmed
+
+### Cost Observations
+- Sessions: ~8 (research + plan + execute × 5 phases, audit + gap closure + completion)
+- Notable: 5 phases in 3 days; largest milestone yet (12 plans vs 7 each for v1.0/v1.1)
+- Model mix: Balanced profile (sonnet for executors/verifier, opus for orchestration)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -101,11 +152,14 @@
 |-----------|--------|-------|------------|
 | v1.0 | 3 | 7 | Initial milestone — established planning/execution workflow |
 | v1.1 | 3 | 7 | TDD commits, 3-source requirement cross-reference, CLI replaces Streamlit |
+| v1.2 | 5 | 12 | Milestone audit → gap closure flow, PostgREST direct writes, signal system architecture |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. buildXxxSection() composable HTML pattern works well for both email (v1.0) and PWA dashboard (v1.1)
-2. get_settings() call-time pattern continues to enable clean testing — adopted in gmail.py (v1.1) too
+1. buildXxxSection() composable HTML pattern works well for email (v1.0), dashboard (v1.1), and profile (v1.2)
+2. get_settings() call-time pattern continues to enable clean testing — adopted across all modules
 3. raw_enrichment dual-key unwrap needed in every consumer — defensive pattern is essential
-4. SUMMARY.md frontmatter needs to be consistent from the start — backfilling is painful
-5. ~3 min/plan execution time is stable across both milestones — good velocity benchmark
+4. SUMMARY.md frontmatter needs to be consistent from the start — missing across all 3 milestones
+5. ~3 min/plan execution time is stable across all milestones — good velocity benchmark
+6. Milestone audit catches integration gaps that phase-level verification misses — verified in v1.2
+7. PostgREST direct writes from PWA are simpler than Edge Functions — use Edge Functions only when server-side secrets needed
