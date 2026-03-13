@@ -239,6 +239,25 @@ body {
   margin-top: 8px;
 }
 
+/* Draft Tone Badge */
+.draft-tone-badge {
+  margin-bottom: 10px;
+  padding: 4px 0;
+  cursor: help;
+}
+
+/* No-Signal Nudge */
+.draft-no-signal {
+  text-align: center;
+  padding: 20px 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.draft-no-signal p {
+  margin: 0;
+}
+
 /* Contact Detail */
 .contact-detail {
   background: var(--surface);
