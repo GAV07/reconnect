@@ -42,7 +42,7 @@ Requirements for Intent-Driven Triage milestone. Each maps to roadmap phases.
 - [x] **PERS-02**: User goals included in LLM scoring prompt for more relevant WARM_LEAD identification
 - [x] **PERS-03**: Signal triage patterns adjust scoring dimension weights over time
 - [x] **PERS-04**: Rescoring has safety guards (25-action minimum, ±40% multiplier cap, drift logging)
-- [ ] **PERS-05**: AI-generated draft messages adapt tone based on the assigned signal
+- [x] **PERS-05**: AI-generated draft messages adapt tone based on the assigned signal
 
 ### Queue UX
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERS-02 | Phase 9 | Complete |
 | PERS-03 | Phase 9 | Complete |
 | PERS-04 | Phase 9 | Complete |
-| PERS-05 | Phase 10 | Pending |
+| PERS-05 | Phase 10 | Complete |
 | QUX-01 | Phase 8 | Complete |
 | QUX-02 | Phase 8 | Complete |
 

@@ -37,7 +37,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details.
 - [x] **Phase 7: Signal Foundation** - Schema migration, canonical signal service, and cadence definitions (completed 2026-03-12)
 - [x] **Phase 8: Email + Signal UI + Profile Content** - Email digest fix, 7-signal queue triage, enriched cards, contact notes, profile fallbacks (completed 2026-03-12)
 - [x] **Phase 9: Goals, Sync, and Pipeline Intelligence** - User goals profile, bidirectional sync for new data, cadence re-queuing, signal-informed rescoring (completed 2026-03-12)
-- [ ] **Phase 10: Draft Tone Adaptation** - Signal-aware AI message generation via Edge Function
+- [x] **Phase 10: Draft Tone Adaptation** - Signal-aware AI message generation via Edge Function (completed 2026-03-13)
 
 ## Phase Details
 
@@ -115,4 +115,4 @@ Plans:
 | 7. Signal Foundation | v1.2 | 2/2 | Complete | 2026-03-12 |
 | 8. Email + Signal UI + Profile Content | v1.2 | 4/4 | Complete | 2026-03-12 |
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
-| 10. Draft Tone Adaptation | v1.2 | 0/2 | Not started | - |
+| 10. Draft Tone Adaptation | 2/2 | Complete   | 2026-03-13 | - |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Intent-Driven Triage
-status: completed
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-13T02:34:13.635Z"
-last_activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
+status: in_progress
+stopped_at: "Completed 10-01-PLAN.md (signal-aware tone branching in draft Edge Function)"
+last_updated: "2026-03-13T02:57:30Z"
+last_activity: 2026-03-13 — Plan 01 complete (signal-aware tone branching in draft Edge Function)
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_plans: 12
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State
@@ -62,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 09-01]: goals_structured JSON column reserved for future lookouts feature — not exposed in UI
 - [Phase 09-03]: ARCHIVE signal excluded from weight adjustments — contact irrelevant signal, not scoring quality indicator (research pitfall 3)
 - [Phase 09-03]: Weight history is insert-only rows (pref_type='weight_history') — each adjustment creates a new row for full audit trail
+- [Phase 10-draft-tone-adaptation]: ARCHIVE contacts produce empty draftHtml — draft section hidden entirely, not disabled
+- [Phase 10-draft-tone-adaptation]: Badge injection uses typeof SIGNAL_ACTIONS guard (queue.js loaded separately) per Phase 08-03 pattern
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T02:34:13.619Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-draft-tone-adaptation/10-CONTEXT.md
+Last session: 2026-03-13T02:56:19.783Z
+Stopped at: Completed 10-02-PLAN.md (signal gate + tone badge UI)
+Resume file: None
