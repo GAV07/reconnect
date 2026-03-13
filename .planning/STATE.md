@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** When I get my morning email, I can quickly decide who to reconnect with, take action right there, and dig deeper into anyone who interests me — all without friction.
-**Current focus:** Phase 8 — Email Signal UI Profile Content
+**Current focus:** Phase 10 — Draft Tone Adaptation
 
 ## Current Position
 
-Phase: 8 of 10 (Email Signal UI Profile Content)
-Plan: 4 of 4 complete in current phase
-Status: Phase Complete
-Last activity: 2026-03-12 — Plan 04 complete (pull sync for contact signals, notes, and connection signal fields)
+Phase: 10 of 10 (Draft Tone Adaptation)
+Plan: 1 of 3 complete in current phase
+Status: In Progress
+Last activity: 2026-03-13 — Plan 01 complete (signal-aware tone branching in draft Edge Function)
 
-Progress: [██████████] 100% (v1.2 phase 8 complete: 4/4 plans done)
+Progress: [████████--] 83% (v1.2 phase 10 in progress: 1/3 plans done)
 
 ## Accumulated Context
 
@@ -64,6 +64,10 @@ Recent decisions affecting current work:
 - [Phase 09-03]: Weight history is insert-only rows (pref_type='weight_history') — each adjustment creates a new row for full audit trail
 - [Phase 10-draft-tone-adaptation]: ARCHIVE contacts produce empty draftHtml — draft section hidden entirely, not disabled
 - [Phase 10-draft-tone-adaptation]: Badge injection uses typeof SIGNAL_ACTIONS guard (queue.js loaded separately) per Phase 08-03 pattern
+- [Phase 10-01]: SIGNAL_TONE_CONFIG as module-level const in draft Edge Function — readable, extensible, zero per-call allocation
+- [Phase 10-01]: ARCHIVE guard placed after queueItem fetch, before connection/profile fetches — avoids unnecessary DB reads for archived contacts
+- [Phase 10-01]: Null signal fallback preserves backward compat with generic "Be genuine, not salesy" directive
+- [Phase 10-01]: signal/signalContext passed as explicit buildDraftPrompt() parameters — pure function, easy to test
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T02:56:19.783Z
-Stopped at: Completed 10-02-PLAN.md (signal gate + tone badge UI)
-Resume file: None
+Last session: 2026-03-13T02:57:30Z
+Stopped at: Completed 10-01-PLAN.md (signal-aware tone branching in draft Edge Function)
+Resume file: .planning/phases/10-draft-tone-adaptation/10-01-SUMMARY.md
