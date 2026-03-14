@@ -60,7 +60,14 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 
 ### Active
 
-(None — define next milestone requirements via `/gsd:new-milestone`)
+#### Current Milestone: v1.3 Contact Discovery
+
+**Goal:** Enable finding specific people in your network by enriching contacts comprehensively and adding flexible search/browse capabilities to the PWA.
+
+**Target features:**
+- Enrichment completeness — verify and fill all categories that help segment and categorize contacts (education, role, industry, location, etc.)
+- Search/discovery in PWA — flexible search bar to find contacts by criteria ("Sales leader, University of Miami")
+- Better browsing — filters and browse views to explore network beyond the queue
 
 ### Out of Scope
 
@@ -143,4 +150,4 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | outreach_queue UPDATE keyed on itemId | Prevents multi-row update bug when connectionId matches multiple queue entries | ✓ Good — safe writes |
 
 ---
-*Last updated: 2026-03-13 after v1.2 milestone*
+*Last updated: 2026-03-14 after v1.3 milestone start*
