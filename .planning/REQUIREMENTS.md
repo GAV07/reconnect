@@ -70,23 +70,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENRICH-01 | — | Pending |
-| ENRICH-02 | — | Pending |
-| ENRICH-03 | — | Pending |
-| ENRICH-04 | — | Pending |
-| BROWSE-01 | — | Pending |
-| BROWSE-02 | — | Pending |
-| BROWSE-03 | — | Pending |
-| BROWSE-04 | — | Pending |
-| BROWSE-05 | — | Pending |
-| SEARCH-01 | — | Pending |
-| SEARCH-02 | — | Pending |
+| ENRICH-01 | Phase 12 | Pending |
+| ENRICH-02 | Phase 12 | Pending |
+| ENRICH-03 | Phase 12 | Pending |
+| ENRICH-04 | Phase 12 | Pending |
+| BROWSE-01 | Phase 13 | Pending |
+| BROWSE-02 | Phase 13 | Pending |
+| BROWSE-03 | Phase 13 | Pending |
+| BROWSE-04 | Phase 13 | Pending |
+| BROWSE-05 | Phase 13 | Pending |
+| SEARCH-01 | Phase 14 | Pending |
+| SEARCH-02 | Phase 14 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11 ⚠️
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after initial definition*
+*Last updated: 2026-03-14 — traceability updated after roadmap creation*
