@@ -1,8 +1,8 @@
-# Pitfalls Research
+# Domain Pitfalls: v1.3 Contact Discovery
 
-**Domain:** Adding intent-based triage signals, cadence scheduling, personalization, and contact notes to existing networking tool (v1.2 Intent-Driven Triage)
-**Researched:** 2026-03-11
-**Confidence:** HIGH for migration and sync patterns (code reviewed, official docs verified); MEDIUM for feedback loop dynamics (multiple research sources, no single authoritative reference for this exact use case); HIGH for PWA state management patterns (code reviewed, MDN + community patterns verified)
+**Domain:** Adding contact search/discovery, enrichment completeness, and browse/filter capabilities to existing personal CRM (Reconnect v1.3)
+**Researched:** 2026-03-14
+**Confidence:** HIGH for architecture-specific pitfalls (codebase reviewed, PostgREST/PostgreSQL docs verified); MEDIUM for enrichment API cost traps (pricing confirmed from multiple sources, specific free-tier limits for RapidAPI not published publicly); HIGH for migration patterns (official PostgreSQL generated column docs verified)
 
 ---
 
@@ -12,190 +12,262 @@ Mistakes that cause rewrites, silent data corruption, or hard-to-reverse behavio
 
 ---
 
-### Pitfall 1: Signal Migration Leaves Orphaned "Skipped" Items That Block Re-Queue Forever
+### Pitfall 1: Extracting JSON Fields Into Generated Columns Breaks SQLite Local DB
 
 **What goes wrong:**
-The existing system stores `status = "skipped"` for both "user consciously chose not to reach out" (old Skip) and "user wants to see this later" (old Snooze). The queue generator's exclusion logic in `queue_generator.py` blocks re-queuing of contacts whose most-recent queue item has `status = "skipped"` within the `skip_cooldown_days` window (default: 7 days).
-
-When 7 signals replace the three existing actions, every existing "skipped" item becomes ambiguous: was this a Skip (which might map to ARCHIVE or VALUE_DROP) or a Snooze (which maps to NURTURE or RECONNECT with cadence re-queue)? If migration simply leaves old `status = "skipped"` rows untouched, the cadence re-queue logic for NURTURE and RECONNECT contacts will skip them during the cooldown window — even though they were "snoozed" and should be re-queued.
-
-**Why it happens:**
-The migration adds new signal fields to the model but does not backfill the intent of old "skipped" items. The new queue generator checks for the latest skipped item's timestamp, not whether the skip was intent-driven. Old snooze entries (stored as `status = "skipped", skip_reason = "Snoozed via email (3 day cooldown)"`) fall into the same bucket as deliberate skips.
-
-**How to avoid:**
-Before adding signal logic to the queue generator, write a one-time migration that categorizes existing skipped items:
-
-```python
-# Pseudocode for migration
-for item in old_skipped_items:
-    if "snooze" in (item.skip_reason or "").lower():
-        item.triage_signal = "RECONNECT"   # re-queueable
-        item.skip_reason = "Migrated from snooze"
-    else:
-        item.triage_signal = "ARCHIVE"     # intentional skip, respect it
-```
-
-The new queue generator exclusion logic should check `triage_signal` rather than (or in addition to) `status`. A contact with `triage_signal = "RECONNECT"` and an elapsed cadence window is eligible to re-enter the queue regardless of `status`.
-
-**Warning signs:**
-- After migration, RECONNECT and NURTURE contacts never re-appear in the queue despite elapsed cadence windows
-- `is_contact_excluded()` returns `True` with reason "Skipped N days ago" for contacts that were snoozed under the old model
-- Queue `added` count in pipeline stats drops significantly compared to pre-migration runs
-
-**Phase to address:** Signal model + queue generator phase — migration script must run before the new exclusion logic is deployed.
-
----
-
-### Pitfall 2: Cadence Re-Queue Creates Duplicate Queue Items When Pipeline Runs Twice
-
-**What goes wrong:**
-The cadence re-queue logic adds a contact back to `outreach_queue` when their signal is NURTURE/RECONNECT and the configured cadence interval has elapsed since `reviewed_at`. The existing exclusion check in `is_contact_excluded()` only blocks contacts already in `outreach_queue` with `status IN ("pending_review", "approved")`.
-
-If the pipeline runs twice in a single day (manual run + scheduled run), or if the `reviewed_at` timestamp is interpreted slightly differently due to timezone handling (the existing code uses `datetime.utcnow()` which is deprecated in Python 3.12+ — a known tech debt item), the cadence check may pass on both runs, creating two pending queue items for the same contact.
-
-The existing `is_contact_excluded()` Rule 3 checks for `status IN ("pending_review", "approved")` — but only for items in the queue at the time of check. Two concurrent pipeline runs can both pass this check before either inserts the new row.
-
-**Why it happens:**
-The exclusion check and the insert are not atomic. There is a TOCTOU (time-of-check-to-time-of-use) race window. For a single-user daily batch tool this is low-risk — but manual pipeline runs (`reconnect pipeline run`) combined with the LaunchAgent's scheduled run can trigger it. The deprecated `datetime.utcnow()` compounding with timezone offset bugs in cadence calculations increases the chance of a false "cadence elapsed" check.
-
-**How to avoid:**
-Add a unique constraint or upsert guard at the database level:
+The v1.3 goal of making `raw_enrichment` searchable (education, industry, location, skills) naturally points toward PostgreSQL generated columns:
 
 ```sql
--- Migration: prevent duplicate pending items for same contact
-CREATE UNIQUE INDEX IF NOT EXISTS idx_queue_one_pending_per_contact
-ON outreach_queue(connection_id)
-WHERE status IN ('pending_review', 'approved');
+-- Supabase side — works fine
+ALTER TABLE connections ADD COLUMN industry_extracted TEXT
+  GENERATED ALWAYS AS (
+    COALESCE(raw_enrichment->>'company_industry', raw_enrichment->'data'->>'company_industry')
+  ) STORED;
 ```
 
-With this constraint, the second pipeline run's INSERT will fail gracefully with a unique violation, which the queue generator should catch and log as "already queued" rather than crashing. Also fix the deprecated `datetime.utcnow()` calls to `datetime.now(UTC)` (Python 3.11+) to eliminate timezone ambiguity in cadence comparisons.
+The problem: `SQLModel` definitions in `models.py` drive **both** the local SQLite schema and Supabase PostgreSQL. Generated column syntax is PostgreSQL-only — `GENERATED ALWAYS AS (...) STORED` is not valid SQLite DDL. If the generated column is added to `models.py`, the local database breaks on the next `init_db()` call.
 
-**Warning signs:**
-- Contact appears twice in the PWA queue (two cards for same person)
-- Pipeline `added` count in stats is 2 for a contact that was already in queue
-- Duplicate entries in `outreach_queue` with same `connection_id` and `status = "pending_review"`
-
-**Phase to address:** Cadence scheduling phase — database constraint must be added before cadence re-queue logic is written.
-
----
-
-### Pitfall 3: Signal-Informed Rescoring Creates a Confirmation Bias Feedback Loop
-
-**What goes wrong:**
-The existing feedback processor (`feedback_processor.py`) analyzes approve/skip patterns and adjusts scoring dimension weights (e.g., boost `goal_alignment` by 1.1 if approval rate is high). When signals replace skip/approve, the rescoring logic will read WARM_LEAD signals as "approved" and ARCHIVE/VALUE_DROP as "skipped." This is correct directionally.
-
-The problem emerges when the signal distribution becomes skewed: if the user frequently assigns WARM_LEAD to contacts in one specific industry (e.g., SaaS Product), the feedback processor will boost `goal_alignment` and `industry_overlap` weights for that pattern. The next day's scoring run produces higher scores for SaaS Product contacts. They populate the top of the queue. The user sees more SaaS Product contacts, assigns more WARM_LEAD signals, which further boosts those weights. Within 2-4 weeks, the queue becomes dominated by a single industry/role type — not because those contacts are objectively more valuable, but because the feedback loop has amplified an early preference.
+The v1.2 signal foundation already encountered this: `idx_outreach_queue_active_unique` is PostgreSQL-only and was explicitly kept out of `models.py` (see comment in `20260311000000_signal_foundation.sql` line 59). The same pattern must apply to any generated columns.
 
 **Why it happens:**
-The weight adjustment logic in `_derive_weight_adjustments()` reads 30-day windows and applies multipliers (0.9–1.1 range). Small changes compound when applied daily. The signal data for the new model will be sparse in early weeks (few signals, high variance), but the feedback processor applies adjustments even at low signal counts (threshold: 10 actions, line 179 in `feedback_processor.py`). A user who uses WARM_LEAD 8 times in the first week sends a strong signal with very low sample size.
+The SQLModel/SQLAlchemy ORM is used for both the local SQLite schema and the cloud PostgreSQL schema. Any column definition in `models.py` must be valid for both database engines. PostgreSQL features like generated columns and partial indexes do not exist in SQLite.
 
-**How to avoid:**
-1. **Raise the minimum sample threshold** for weight adjustments from 10 to at least 25 actions, and require at least 14 days of signal history before any weight adjustment fires.
-2. **Cap cumulative weight drift.** Multipliers should not compound beyond a max range (e.g., never below 0.7 or above 1.4). Implement this as a clamp in `_upsert_scoring_weight()`.
-3. **Log weight history**, not just current values. Store `(dimension, multiplier, updated_at, based_on_n_actions)` so drift is visible. Add a CLI command to show current weight multipliers and their history: `reconnect queue weights`.
-4. **Separate signal-driven rescoring from automated weight adjustment.** Signal-informed rescoring (contact-level: "you signaled WARM_LEAD for this contact, boost their score") should be independent from population-level weight adjustment. Conflating them amplifies the feedback loop.
+**Consequences:**
+- `init_db()` raises `OperationalError: near "GENERATED": syntax error` on first pipeline run after migration
+- SQLite local database is left in a half-migrated state
+- Rollback requires dropping the column from `models.py` and re-running migrations
 
-**Warning signs:**
-- Queue becomes homogeneous (same industry or role type dominates) after 2-3 weeks of signal use
-- `user_preferences` table shows multipliers for `goal_alignment` or `industry_overlap` > 1.3 or < 0.8
-- User starts seeing the same 20 contacts cycling back repeatedly
-- Pipeline stats show score distribution narrowing (fewer contacts below threshold vs. above)
+**Prevention:**
+Keep all generated columns and PostgreSQL-only indexes exclusively in Supabase migration SQL files — never in `models.py`. The generated column exists only in Supabase. Local filtering of `raw_enrichment` for search continues client-side in JavaScript or via Python SQLAlchemy JSON queries.
 
-**Phase to address:** Signal-informed rescoring phase — minimum sample and cap logic must be built before the feedback loop runs for the first time.
-
----
-
-### Pitfall 4: New Signal Fields Not Synced to Supabase — PWA Reads Stale Data
-
-**What goes wrong:**
-The existing push sync in `src/sync/push.py` explicitly lists which `Connection` fields and `OutreachQueueItem` fields to include in the upsert payload. When new fields are added for signals (e.g., `triage_signal`, `cadence_due_at`, `signal_context` on `OutreachQueueItem`, or `last_signal_at`, `current_signal` on `Connection`), they will be silently omitted from the push sync unless the push code is explicitly updated.
-
-The PWA reads directly from Supabase. If `triage_signal` is set locally in SQLite but not pushed, the queue card in the PWA will show no signal badge, and the Edge Function draft generator will not receive tone context. The user will see their signals not reflected after triage, which looks like a bug.
-
-**Why it happens:**
-The push sync (`src/sync/push.py`) likely uses explicit field mapping (common pattern to avoid pushing sensitive fields like `gmail_credentials`). New fields that do not exist in the mapping are silently dropped. SQLAlchemy/SQLModel schema migrations are local-only — the Supabase PostgreSQL schema must be updated separately, and if the column does not exist in Supabase, the upsert silently drops the field rather than failing.
-
-**How to avoid:**
-For every new field added to `OutreachQueueItem` or `Connection` in `models.py`:
-1. Write a Supabase migration SQL (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) before writing any Python code that sets the field.
-2. Add the field explicitly to the push sync payload mapping.
-3. Add the field to pull sync if it is a cloud-writable field (e.g., a signal set from the PWA action).
-
-Use a field coverage test: assert that all non-excluded `Connection` and `OutreachQueueItem` model fields are present in the push payload. This prevents silent field drift between local schema and push sync.
-
-**Warning signs:**
-- PWA shows queue cards without signal badges even after local triage was done
-- Supabase dashboard shows `triage_signal` column as NULL after pipeline runs
-- Push sync stats show "0 updated" for `connections` despite local changes
-- Draft Edge Function generates wrong-tone messages (because `triage_signal` was not pushed and it cannot read tone intent)
-
-**Phase to address:** Signal model phase (database and sync) — migrations and sync updates must ship together with model changes, not after.
-
----
-
-### Pitfall 5: Action Edge Function Token Model Cannot Express 7 Signals From Email
-
-**What goes wrong:**
-The existing `action` Edge Function handles three actions: `approve`, `skip`, `snooze`. Each is a separate token type. The email digest generates one token per contact per action.
-
-Extending this to 7 signals (WARM_LEAD, NURTURE, VALUE_DROP, SYNERGY, RECONNECT, FUTURE_PIVOT, ARCHIVE) would require generating 7 tokens per contact in the email — 7 action buttons per contact. With 5 contacts in the digest, that is 35 tokens and 35 buttons. This is not a usable email.
-
-The temptation is to pass the signal as a query parameter (`?token=...&signal=WARM_LEAD`) rather than baked into the token's `action` field. This is a security flaw: anyone with a valid unused token could append `?signal=ARCHIVE` and apply a different action than the one the token was created for.
-
-**Why it happens:**
-Tokens are currently validated by `action` field, not by `payload`. Putting signal choice in a query parameter outside the token breaks the tamper-resistance of the token model.
-
-**How to avoid:**
-The email digest should NOT try to represent all 7 signals as buttons. The correct architecture:
-
-1. **Email digest is a triage notification, not a signal picker.** The digest email shows 3-5 contacts and one primary action each: "Review in App" or (for clear cases) "Queue for Outreach." Full signal assignment happens in the PWA queue card.
-2. **If email triage is desired,** limit the email to 2 signal choices per contact (e.g., WARM_LEAD and ARCHIVE — the two highest-intent decisions). Store signal choice in `payload` within the token row at creation time, not as a URL parameter.
-3. **The `action` field in `action_tokens`** should remain `"signal"` or `"triage"` generically, with the specific signal stored in `payload.signal`. The Edge Function reads `tokenRow.payload.signal` to determine the action — never a query parameter.
-
-**Warning signs:**
-- Email digest HTML becomes unrenderable on mobile (too many action buttons per contact)
-- Users are confused about which button corresponds to which contact
-- Token table accumulates 7 rows per contact per digest (token exhaustion per email)
-- Query parameter `signal=` appears in Edge Function handling code (security smell)
-
-**Phase to address:** Email digest integration phase — redesign the email triage model before generating new token types.
-
----
-
-### Pitfall 6: User Goals Profile Not Propagated to Draft Edge Function — Personalization Is One-Sided
-
-**What goes wrong:**
-The `draft` Edge Function fetches `user_profile` from Supabase and includes `profile.goals` in the draft prompt (line 173 in `draft/index.ts`: `const senderGoals = profile?.goals || "Network expansion"`). When v1.2 adds a user goals profile with current projects and specific interests, this data needs to reach the Edge Function.
-
-If goals are updated in the `user_profile` table locally but not pushed to Supabase, the Edge Function will use stale goals ("Network expansion") for all drafts. The signal-driven tone adaptation will also fail: the draft prompt currently hard-codes tone by channel (`linkedin` = casual, `email` = professional). Signal tone intent (e.g., SYNERGY = collaborative framing, WARM_LEAD = direct value proposition) requires the signal to be in the prompt.
-
-**Why it happens:**
-`user_profile` sync is part of the push pipeline but the `goals` field may not be explicitly synced if it is a new column. The `draft` Edge Function also has no knowledge of `triage_signal` — it would need to receive it either via the request body from the PWA or by fetching the relevant `outreach_queue` row (which it does fetch, but currently reads only `channel`).
-
-**How to avoid:**
-1. Ensure `user_profile.goals`, `user_profile.interests`, and any new goal-profile fields are included in the push sync.
-2. Extend the draft Edge Function request body to include `signal` alongside `queue_item_id` and `channel`. The PWA sends it; the Edge Function uses it in the prompt.
-3. Add a signal-to-tone mapping in the Edge Function:
-
-```typescript
-const toneMappings: Record<string, string> = {
-  WARM_LEAD: "Direct and value-focused. Reference why this contact aligns with your current goals.",
-  NURTURE: "Warm and relationship-focused. No ask — just rekindling the connection.",
-  SYNERGY: "Collaborative. Frame around shared opportunity or mutual interest.",
-  RECONNECT: "Personal and nostalgic. Focus on the shared history.",
-  FUTURE_PIVOT: "Curious and exploratory. Mention their recent direction change.",
-  VALUE_DROP: "Brief and gracious. Acknowledge the connection without pressure.",
-  ARCHIVE: "Do not generate a draft for ARCHIVE signals.",
-};
+Maintain this pattern:
+```
+models.py        → both SQLite + PostgreSQL schema (portable columns only)
+supabase/migrations/*.sql → PostgreSQL-only features (generated columns, partial indexes, GIN indexes)
 ```
 
 **Warning signs:**
-- Draft messages sound generic despite the user assigning specific signals
-- "Network expansion" appears literally in generated drafts (stale goals fallback)
-- ARCHIVE signal still triggers draft generation (no guard)
-- Tone does not vary between a WARM_LEAD draft and a NURTURE draft for contacts with identical enrichment data
+- `OperationalError` or `DatabaseError` mentioning `GENERATED` or `STORED` keyword during pipeline startup
+- Local SQLite database missing expected columns after pipeline run
+- `models.py` diff contains `sa_column=Column(...)` with `server_default` pointing to a function expression
 
-**Phase to address:** Draft tone adaptation phase — requires both the push sync update (goals) and the Edge Function update (signal-to-tone mapping) to ship together.
+**Phase to address:** Data extraction / enrichment completeness phase — generated column migrations must be Supabase-only from the start.
+
+---
+
+### Pitfall 2: PostgREST Cannot Filter JSONB Fields Directly — Wrong Architecture for Server-Side Search
+
+**What goes wrong:**
+The current industry filter already works client-side because PostgREST cannot filter nested JSON without generated columns:
+
+```javascript
+// From queue.js line 86 — correct, but fragile pattern
+const industry = (enrichment.raw_enrichment?.data || enrichment.raw_enrichment || {}).company_industry;
+```
+
+For v1.3 search ("Sales leader, University of Miami"), the temptation is to send the query to PostgREST using ilike on the JSONB column:
+
+```javascript
+// WRONG — this will fail with "operator does not exist: jsonb ~~ unknown"
+db.from('connections').select('*').ilike('raw_enrichment->company_industry', '%SaaS%')
+```
+
+PostgREST's ilike filter maps to the SQL `~~` operator. The `~~` operator does not exist for `jsonb` type. The filter silently returns 0 rows or throws an error depending on PostgREST version, rather than returning an informative message.
+
+Even if PostgREST supported this, filtering on unindexed JSONB fields requires a full sequential scan of the `connections` table — at 5,000+ contacts with multi-KB `raw_enrichment` blobs, this will be slow.
+
+**Why it happens:**
+PostgREST translates HTTP query parameters directly to SQL operators. The `jsonb` type has its own operators (`@>`, `#>>`) that are not aliased to the standard text operators PostgREST uses for `ilike`/`like`/`eq`. The workaround (cast to text: `raw_enrichment::text ilike '%...'`) works in raw SQL but PostgREST does not accept inline casts in filter parameters.
+
+**Consequences:**
+- Search returns 0 results even when matching contacts exist
+- Developers add a workaround (cast to text) in raw SQL then discover PostgREST cannot express it
+- The fix requires adding a Supabase RPC (stored procedure) or generated columns, which adds migration complexity mid-phase
+
+**Prevention:**
+For v1.3, use one of these two architectures — not ad-hoc JSONB filtering:
+
+**Option A (recommended for v1.3): Client-side search on full fetch**
+Fetch all connections with `SELECT *` (within PostgREST 1000-row limit), filter client-side in JavaScript. Works for the current dataset size. Fast — no round-trip for each filter change. Requires pagination awareness.
+
+**Option B: PostgreSQL full-text search via tsvector generated column + GIN index (Supabase-only migration)**
+```sql
+-- In supabase migration only — NOT in models.py
+ALTER TABLE connections ADD COLUMN IF NOT EXISTS search_vector tsvector
+  GENERATED ALWAYS AS (
+    to_tsvector('english',
+      COALESCE(name, '') || ' ' ||
+      COALESCE(current_role, '') || ' ' ||
+      COALESCE(current_company, '') || ' ' ||
+      COALESCE(location, '') || ' ' ||
+      COALESCE(raw_enrichment->>'company_industry', '') || ' ' ||
+      COALESCE(raw_enrichment->'data'->>'company_industry', '') || ' ' ||
+      COALESCE(raw_enrichment->>'about', '') || ' ' ||
+      COALESCE(raw_enrichment->'data'->>'about', '')
+    )
+  ) STORED;
+CREATE INDEX IF NOT EXISTS idx_connections_search_vector ON connections USING GIN(search_vector);
+```
+
+PostgREST supports `.textSearch('search_vector', query)` which maps to the `@@` operator — this works correctly. The Supabase JS client exposes this as `.textSearch(column, query)`. Education data from `raw_enrichment->'data'->'educations'` must be pre-extracted into a separate denormalized text column or concatenated into the `search_vector` expression using a database trigger (not GENERATED ALWAYS, since the generated column expression cannot call functions that access aggregate JSON array data).
+
+**Warning signs:**
+- Search returns 0 results for queries that should match (test against known contacts)
+- PostgREST returns HTTP 400 with "operator does not exist: jsonb"
+- Developer shifts to `db.rpc('search_connections', {query})` without documenting the Supabase-only migration required
+
+**Phase to address:** Search implementation phase — architecture decision must be made before any PWA code is written.
+
+---
+
+### Pitfall 3: Fetching All Connections Hits PostgREST 1000-Row Hard Limit
+
+**What goes wrong:**
+Client-side search requires fetching all connections from PostgREST. The default Supabase project configuration sets `db-max-rows = 1000`. If the connections table exceeds 1000 rows (which it will as LinkedIn contacts accumulate), `GET /rest/v1/connections` silently returns only the first 1000 rows. A search for a contact in row 1001+ will appear to return no results, with no error message indicating truncation.
+
+The current queue fetch works fine because `outreach_queue` typically has 5-20 rows. But a "browse all contacts" view or global search must handle the full connections table.
+
+**Why it happens:**
+PostgREST adds a hard LIMIT equal to `db-max-rows` to every query. Unlike a SQL LIMIT clause, this does not produce an error when hit — the response simply stops at 1000 rows. The Supabase JS client does not raise an exception when the row limit is reached; it returns the partial dataset with a count hint in response headers.
+
+**Consequences:**
+- Search silently misses contacts beyond row 1000
+- A user searching for a specific person gets "no results" even though the contact exists
+- Problem only appears after sufficient LinkedIn imports — may not be caught in testing with small dataset
+
+**Prevention:**
+Use PostgREST pagination with explicit `range` headers or `select` with `limit`/`offset` for the browse view. For client-side search, fetch in pages of 500 and merge results before filtering:
+
+```javascript
+async function fetchAllConnections() {
+  const PAGE_SIZE = 500;
+  let allConnections = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await db
+      .from('connections')
+      .select('id, name, current_role, current_company, location, raw_enrichment, latest_signal, reconnect_score')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error || !data) break;
+    allConnections = allConnections.concat(data);
+    hasMore = data.length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
+  return allConnections;
+}
+```
+
+Only select the fields needed for search display (not `activity_log`, `score_reasoning`, or other large text columns) to keep payload size manageable.
+
+**Warning signs:**
+- Search returns results for contacts with names A-M but not N-Z (alphabetical truncation suggesting default ordering)
+- Total contact count in browse view does not match what's shown in dashboard stats
+- Adding the `Prefer: count=exact` header reveals `Content-Range: 0-999/1247` (1247 total, 1000 returned)
+
+**Phase to address:** Browse/search phase — pagination must be built before the first client-side search implementation ships.
+
+---
+
+### Pitfall 4: Re-Enriching Already-Enriched Contacts Burns API Budget Without New Data
+
+**What goes wrong:**
+The v1.3 enrichment completeness phase will identify contacts with incomplete `raw_enrichment` (missing education, skills, industry). The enrichment planner (`enrichment_planner.py`) currently runs Tier 4 re-enrichment for contacts where `enriched_at > 90 days`. But contacts enriched within 90 days may also have missing education/skills data — they were enriched but the RapidAPI response simply did not include those fields (the contact has no public LinkedIn education listed, or the API returned a partial profile).
+
+If the completeness analyzer marks these contacts as "missing education" and the enrichment planner adds them to the budget, the pipeline will call RapidAPI again for the same contact. The second API call returns the same partial data. The contact is charged against the daily budget (default: 30 contacts/day), the API cost is incurred, and the data completeness score does not change.
+
+The existing code in `update_connection_from_profile()` has no guard to detect "this API response is no better than what we already have" — it overwrites `raw_enrichment` unconditionally.
+
+**Why it happens:**
+The enrichment planner uses `enriched_at` as a proxy for data quality. An old `enriched_at` means "stale data, re-enrich." But "data the API cannot provide" (e.g., a contact who never filled in their education on LinkedIn) will never improve regardless of how many times it is fetched. The API cannot invent data that does not exist on the public LinkedIn profile.
+
+**Consequences:**
+- Daily API budget consumed by re-fetching contacts with permanently incomplete profiles
+- Higher-priority unenriched contacts are never reached because budget is exhausted by re-enrichment loops
+- At RapidAPI's metered overage rate (~$0.0065/request on the Ultra plan), 30 wasted calls/day = ~$0.20/day = ~$6/month in unnecessary API cost
+
+**Prevention:**
+Before adding a contact to the enrichment plan for completeness reasons, check whether their missing fields are "API-provided" or "LinkedIn-optional":
+
+```python
+# In enrichment_planner.py — add enrichment guard
+PERMANENTLY_OPTIONAL_FIELDS = {"educations", "school", "degree"}
+
+def _is_worth_re_enriching(connection: Connection, missing_fields: list[str]) -> bool:
+    """Return False if all missing fields are ones the API cannot reliably provide."""
+    api_improvable = set(missing_fields) - PERMANENTLY_OPTIONAL_FIELDS
+    if not api_improvable:
+        return False
+    # Also skip if re-enriched in last 30 days with same missing fields
+    if connection.enriched_at and (datetime.utcnow() - connection.enriched_at).days < 30:
+        return False
+    return True
+```
+
+Track "enrichment attempt count" on contacts where re-enrichment did not improve completeness. After 2 failed attempts, mark those specific fields as "unfetchable" in `missing_data_fields` with a flag like `{"field": "education", "unfetchable": true}` to prevent future scheduling.
+
+**Warning signs:**
+- Pipeline logs show the same contact IDs being enriched on consecutive days
+- `data_completeness_score` for re-enriched contacts does not increase after pipeline run
+- Daily budget exhausted by `re_enrichment` tier contacts while `priority_contacts` still show 0
+
+**Phase to address:** Enrichment completeness phase — guard logic must be added before any re-enrichment budget is allocated based on completeness scores.
+
+---
+
+### Pitfall 5: Education Search Requires Array Traversal That Neither PostgREST Nor Client-Side JSON Handles Well
+
+**What goes wrong:**
+Education data from RapidAPI is stored as an array of objects in `raw_enrichment`:
+
+```json
+{
+  "educations": [
+    { "school": "University of Miami", "degree": "MBA", "field_of_study": "Marketing", "end_year": 2018 },
+    { "school": "Florida State University", "degree": "B.S.", "field_of_study": "Business", "end_year": 2015 }
+  ]
+}
+```
+
+A search for "University of Miami" must find this contact. But the education data is a nested array — not a flat field. Three failure modes emerge:
+
+1. **PostgREST filter**: `raw_enrichment @> '{"educations": [{"school": "University of Miami"}]}'` — the JSONB containment operator works in raw SQL but requires an exact subset match. If the stored school name is "Univ. of Miami" or "UM Business School", the match fails. Fuzzy matching on nested JSONB arrays via PostgREST is not supported.
+
+2. **Client-side filter**: `JSON.stringify(raw_enrichment).includes('University of Miami')` — works, but catches partial matches inside unrelated field values (e.g., a contact whose `about` mentions "I studied in Miami").
+
+3. **Generated column approach**: You cannot use `GENERATED ALWAYS AS` to aggregate values from a JSONB array into a text column because the generated column expression cannot call functions that involve set-returning functions or aggregates over array elements. A trigger or a denormalized `education_text` column (written by the enrichment pipeline) is required instead.
+
+**Why it happens:**
+The RapidAPI response design stores multi-valued attributes (education, experience) as arrays. This is the correct data model for the source data, but it creates an impedance mismatch for search — search needs flat text, the storage model is hierarchical.
+
+**Consequences:**
+- Education-based search silently returns 0 results even for exact matches
+- Workarounds (stringify + includes) produce false positives and cannot rank by relevance
+- Adding a trigger later to maintain a denormalized column is a non-trivial Supabase migration that requires re-running the enrichment pipeline to backfill existing rows
+
+**Prevention:**
+In the enrichment pipeline (`update_connection_from_profile()`), extract education data into a flat denormalized column at write time:
+
+```python
+# In rapidapi_linkedin.py — add extraction after line 163
+education_parts = []
+for edu in (data.get("educations") or data.get("education") or []):
+    parts = [edu.get("school"), edu.get("degree"), edu.get("field_of_study")]
+    education_parts.append(" ".join(p for p in parts if p))
+if education_parts:
+    connection.education_text = " | ".join(education_parts)
+```
+
+Add `education_text TEXT` as a regular nullable column to `models.py` (works in both SQLite and PostgreSQL). This column is included in the Supabase `search_vector` generated column and can be indexed independently. Backfill existing contacts by re-running the extraction over their existing `raw_enrichment` data without calling the API.
+
+**Warning signs:**
+- Education-based search returns 0 results for contacts that have education in their raw_enrichment
+- Search for "MBA" finds 0 contacts even though many contacts have MBA entries in their educations array
+- SQL query `SELECT raw_enrichment->'educations'->0->>'school' FROM connections` returns data but search finds nothing
+
+**Phase to address:** Data extraction phase — denormalized columns must be extracted before search UI is built. Backfill is a one-time pipeline step over existing raw_enrichment data.
 
 ---
 
@@ -203,184 +275,298 @@ const toneMappings: Record<string, string> = {
 
 ---
 
-### Pitfall 7: Contact Notes Stored Locally Never Reach the PWA (Sync Gap)
+### Pitfall 6: Client-Side Fuzzy Search Must Avoid Per-Keystroke Re-Renders on Mobile
 
 **What goes wrong:**
-The `Connection` model already has a `notes` field (`Optional[str]`, `Column(Text)`). If v1.2 adds free-form contact notes via the PWA (user types a note on the queue card or contact profile), those notes are written directly to Supabase via the PWA's PostgREST calls. They must also flow back to local SQLite via pull sync, or the pipeline's next run (which reads the local DB for scoring and queue generation) will not see them.
+A search input that fires a filter on every `keyup` event works fine in testing on desktop with 50 contacts. With 1,000+ contacts fetched and held in memory, filtering on every keystroke triggers expensive DOM operations. Each filter pass iterates the full contacts array, rebuilds the result list, and repaints the DOM. On a mid-range Android phone, this produces visible input lag — the typing experience feels broken.
 
-The current pull sync in `pull.py` fetches `Connection.last_contacted_at` and `Connection.user_priority` from cloud (lines 103-117) — but not `Connection.notes`. If a user adds a note in the PWA, it never reaches local SQLite, and signal-informed rescoring cannot use the note as context.
+The existing queue.js `renderQueue()` function already has the "full re-render resets scroll position" problem identified in v1.2 PITFALLS.md (Pitfall 9). The browse/search view will be a new view with the same problem at larger scale.
 
 **Why it happens:**
-The pull sync explicitly whitelists fields to copy from cloud to local. `notes` was not a user-editable field before v1.2 — it was pipeline-written. Now it is user-writable from the PWA, but pull sync does not know that.
+Client-side JavaScript filtering is synchronous and blocks the main thread during DOM operations. For arrays of 1,000+ objects each with multi-KB JSON enrichment data, the filter loop itself is fast, but the DOM reconstruction for even 50 result cards at once causes paint jank.
 
-**How to avoid:**
-Add `Connection.notes` to the pull sync's contact update logic alongside `last_contacted_at` and `user_priority`. Use last-write-wins: if the cloud timestamp is newer than local, overwrite. Also add `Connection.notes` to the push sync to ensure pipeline-written notes (if any) reach Supabase.
-
-Consider whether notes should ever be written by the pipeline. If notes are purely user-authored, mark them as "pull-only from cloud" in comments to prevent accidental pipeline overwrite.
+**Prevention:**
+1. **Debounce search input**: 200ms debounce on the search handler — fire filter only after typing stops.
+2. **Limit rendered results**: Show top 50 results with "Load more" pagination — do not render all matches at once.
+3. **Keep enrichment JSON out of the DOM**: For the search results view, only render the extracted flat fields (`name`, `current_role`, `current_company`, `location`, `education_text`, `latest_signal`, `reconnect_score`). Do not serialize `raw_enrichment` into data attributes on card elements.
+4. **Use document fragments**: Build the result list in a `DocumentFragment` before inserting into the DOM — single reflow instead of N reflows for N cards.
 
 **Warning signs:**
-- User writes a note in PWA, sees it on profile, returns next day and note is gone (pipeline overwrite)
-- Signal-informed rescoring prompt includes "user notes: None" even after user added notes
-- Pull sync stats show `0 contacts_updated` even when notes were written from PWA
+- Typing in the search box produces visible lag (>100ms between keypress and visible result change)
+- Profiler shows layout thrashing during search input events
+- Memory usage spikes when opening the browse view (all raw_enrichment JSON loaded into JS heap)
 
-**Phase to address:** Contact notes phase — sync coverage check must happen when notes feature is designed.
+**Phase to address:** Search UI phase — debounce and result limiting must be in the initial implementation, not added as a fix after.
 
 ---
 
-### Pitfall 8: Cadence Due Date Calculated at Signal-Assignment Time Drifts When Pipeline Skips Days
+### Pitfall 7: Enrichment Completeness Score Counts "API Can't Provide" Fields as Gaps, Skewing Prioritization
 
 **What goes wrong:**
-If `cadence_due_at` is computed as `reviewed_at + cadence_days` at signal assignment time, a contact assigned NURTURE (14-day cadence) on Day 1 will have `cadence_due_at = Day 15`. If the pipeline does not run on Day 15 (machine off, error), the contact will not be re-queued until Day 16 — fine. But if the pipeline skips multiple days (e.g., days 15-19) and runs again on Day 20, the contact will be re-queued 5 days late.
+The current `data_completeness_score` in `data_analyzer.py` awards points for `education`, `about_summary`, and `skills`. Some contacts have no LinkedIn education listed (they never filled it in), no about section, and no skills — the API returns empty arrays for all three. These contacts score 0/25 for those fields permanently.
 
-More critically: if the user assigns NURTURE to 20 contacts on the same day, all 20 will have `cadence_due_at` on the same future date. The pipeline on that date will try to add all 20 to the queue at once, saturating the `daily_queue_size` limit (probably 5-10) and leaving 10-15 contacts whose cadence is "due" but who are pushed out by the daily limit. Their `cadence_due_at` is now in the past — future runs will see them as "overdue" and try to re-queue them again until the limit is not saturated.
+The completeness score is intended to prioritize which contacts to re-enrich. But permanently-empty contacts will always appear at the top of the "needs enrichment" list, consuming budget that should go to contacts where enrichment would actually improve the data.
+
+At v1.3's focus on enrichment completeness for search, this creates a search problem: the browse view may offer a "completeness" sort that surfaces the wrong contacts. A user expects "low completeness" to mean "needs more data" — but many low-completeness contacts are already at their maximum achievable data level.
 
 **Why it happens:**
-Calculating cadence due dates as fixed points in time assumes the pipeline is reliable and the queue is never saturated. Neither is guaranteed.
+The completeness analyzer has no concept of "field attempted but unavailable" vs "field not yet attempted." It measures presence/absence, not potential. The distinction requires tracking enrichment attempt outcomes, not just field values.
 
-**How to avoid:**
-Instead of `cadence_due_at`, track `signal_assigned_at` and `cadence_days` separately. On each pipeline run, compute `signal_assigned_at + cadence_days <= today AND not already in queue` to find re-queue candidates. This way, cadence eligibility is evaluated fresh each run and does not go "stale in the past."
+**Prevention:**
+Add an `enrichment_ceiling` concept — track which fields have been attempted and returned empty vs. never attempted:
 
-For the queue saturation problem: when more cadence-eligible contacts exist than the daily limit, use a priority ordering (WARM_LEAD before NURTURE, then sort by `reconnect_score` descending). Do not skip over cadence-eligible contacts once they are overdue — just queue the highest-priority ones each day until the backlog is cleared.
+```python
+# In missing_data_fields (JSON column on Connection), distinguish states:
+# {"field": "education_text", "status": "missing"}    — not yet enriched
+# {"field": "education_text", "status": "unfetchable"} — enriched, API returned nothing
+# {"field": "education_text", "status": "present"}     — has data
+```
+
+Completeness score should penalize `"missing"` fields (fixable) but not `"unfetchable"` fields (permanent). The enrichment planner should skip contacts where all missing fields are marked `"unfetchable"`.
 
 **Warning signs:**
-- Multiple contacts with the same `cadence_due_at` date all appear in queue on the same day, saturating the limit
-- After a pipeline outage, cadence-eligible contacts show `cadence_due_at` in the past but never re-appear in queue (exclusion logic checked `due > today` instead of `due <= today`)
-- `due_today` count in pipeline stats spikes on first run after a pipeline gap
+- Completeness sort shows same 50 contacts at the bottom every day despite repeated enrichment runs
+- `plan_enrichment()` repeatedly selects the same contacts for `re_enrichment` tier
+- After enrichment run, `data_completeness_score` for re-enriched contacts is unchanged
 
-**Phase to address:** Cadence scheduling phase — use age-based eligibility, not absolute timestamps, for cadence re-queue logic.
+**Phase to address:** Enrichment completeness phase — the completeness model must distinguish "missing" from "unfetchable" before completeness-based sorting is exposed in the browse UI.
 
 ---
 
-### Pitfall 9: Vanilla JS Queue Card State Becomes Inconsistent After Partial Signal Actions
+### Pitfall 8: Search That Mixes Structured Filters and Free-Text Needs a Clear Precedence Model
 
 **What goes wrong:**
-The current `queueAction()` in `queue.js` does optimistic UI: it fades out the card immediately, then removes it from the DOM after 300ms regardless of whether the Supabase write succeeded. For three binary actions (approve/skip/snooze), this is acceptable — the card should leave the queue regardless.
+The query "Sales leader, University of Miami" could be interpreted as:
+- Free-text search across all fields for "Sales leader" AND "University of Miami"
+- A structured filter: role contains "Sales" AND education contains "University of Miami"
+- A boolean AND of two separate name searches
 
-For 7 signals with richer interactions (e.g., signal picker dropdown, optional note input, tone preview before confirming), the optimistic-removal model breaks down. If the user opens a signal picker, selects NURTURE, types a note, and then the Supabase write fails (network flicker), the card is removed but the signal was never stored. The contact disappears from today's queue and does not re-appear until the next pipeline run — with no record of the intended signal.
+If the search interprets this as a single free-text query using `String.prototype.includes()` or tsvector FTS, and the contact's `current_role` is "VP of Sales" (not "Sales leader"), the match fails even though the contact is clearly a "sales leader."
 
-More subtly: if the PWA renders a "signal already assigned" badge on a queue card (showing the current signal), and the user changes the signal, the badge must update immediately. If the card is re-rendered from scratch (full `renderQueue()` call), the filter state, sort order, and scroll position are all reset — disorienting on mobile.
+The v1.3 feature description mentions: "flexible search bar to find contacts by criteria ('Sales leader, University of Miami')". This implies natural-language query parsing — which is either an LLM call (expensive) or a client-side heuristic parser (cheap but requires explicit design).
 
 **Why it happens:**
-The current `queueAction()` removes the card on success or failure. For simple approve/skip this is fine because both outcomes result in the card leaving the queue. For signal assignment, failure should leave the card in place with an error state, and partial success (signal saved but note not saved) needs to be shown.
+"Flexible search" without a defined query model produces inconsistent results that users cannot predict. When search fails to find an expected contact, users lose trust in the feature entirely — a worse outcome than a more limited but predictable search.
 
-**How to avoid:**
-1. **Separate "signal assignment" from "card dismissal."** Assigning a signal should update the card's visual state (show a signal badge) without removing the card. Card removal should only happen when the user confirms they are done with the contact for today (a separate "Done" action or when the card is navigated past).
-2. **Use targeted DOM updates instead of full `renderQueue()` re-renders.** When a signal is assigned, update only that card's badge: `card.querySelector('.signal-badge').textContent = signalLabel`. This preserves scroll position and filter state.
-3. **On write failure, restore the card to its pre-action state** and show an inline error: `card.classList.remove('loading'); card.classList.add('error')`.
+**Prevention:**
+Define a simple, explicit query model before implementing search:
+
+| Input pattern | Interpretation | Example |
+|--------------|----------------|---------|
+| `"John Smith"` | Name exact/fuzzy match | Searches `name` field |
+| `"@Google"` | Company filter | Prefix `@` means company |
+| `"#Sales"` | Role/industry filter | Prefix `#` means role or industry |
+| `"Miami"` | Location filter | Single word, no prefix: location or name |
+| `"Sales leader, University of Miami"` | Comma-split AND: each term searched in role AND education_text | Comma = multi-field AND |
+
+Document this model in the search placeholder text. Users who understand the model trust the results. Use a pure client-side tokenizer (split on commas, match each token across relevant fields) — no LLM call needed.
 
 **Warning signs:**
-- Signal assignment appears to work but contact does not show the assigned signal on profile page the next day
-- Filter state and scroll position reset every time the user assigns a signal (full re-render happening)
-- Queue card disappears after a network error, contact does not re-appear until next pipeline run
+- Search for a known contact by role returns "no results" even though the contact exists
+- Users report search "works sometimes" — indicating undefined behavior in query parsing
+- Attempts to add LLM-based query parsing creep into the codebase to "fix" search quality
 
-**Phase to address:** PWA queue card enrichment phase — new interaction model must be designed before adding signal picker UI.
+**Phase to address:** Search design phase — query model must be documented and approved before UI implementation begins.
 
 ---
 
-### Pitfall 10: User Preferences Pulled from Cloud Overwrite Local Pipeline-Set Weights
+### Pitfall 9: RapidAPI Daily Budget Consumed by Enrichment-for-Search Before Queue Enrichment Gets Its Share
 
 **What goes wrong:**
-The pull sync in `pull.py` copies `UserPreference` rows from Supabase to local SQLite using "insert if not exists" (lines 206-212). The feedback processor in `feedback_processor.py` also writes `UserPreference` rows for scoring weights. If the user edits a preference from the PWA (e.g., setting a custom `scoring_weight` for `goal_alignment`), and the pull sync runs after the pipeline's feedback processor has written a new weight for the same dimension — the pull sync will not overwrite the local value (because the row already exists in local SQLite). The user's PWA preference effectively loses to the pipeline-computed weight.
+The enrichment planner allocates a `daily_enrich_budget` (config default: 30 contacts/day) across four tiers. The v1.3 enrichment completeness phase will add a fifth concern: contacts that have `raw_enrichment` but are missing education/skills needed for search. These contacts compete with the existing four tiers for the same 30-call budget.
 
-Conversely, if "insert if not exists" is changed to "upsert/overwrite" for preferences, the pipeline's computed weights will be silently overwritten by anything the user set from the PWA.
+If enrichment completeness is prioritized over Tier 1 (user-priority contacts missing all data) or Tier 2 (high-score contacts needing email), the queue quality degrades. High-score contacts that could be reached out to via email are not enriched; contacts with partial data get a second enrichment pass for search purposes.
+
+At the RapidAPI Ultra plan rate ($200/month for 100,000 requests, ~$0.002/call), 30 calls/day = ~$1.80/month in API cost. The free tier has a hard request cap that is not published publicly — research found only that a "Basic plan for testing" exists with an unspecified limit. Running out of free-tier requests mid-day causes `fetch_linkedin_profile()` to return `None` for all subsequent contacts that day.
 
 **Why it happens:**
-`UserPreference` rows have no `updated_at` field — there is no way to determine which is newer. The current pull sync uses "insert if not exists" which effectively makes local the winner. This was fine when preferences were only set by the pipeline, but breaks when the PWA is also a preference-writing path.
+The enrichment planner was designed for a single concern: filling in missing core data (company, role, email). The v1.3 completeness-for-search goal introduces a competing concern that uses the same budget. Without explicit budget allocation between concerns, the planner will fill whichever tier has the most candidates — which may be completeness, not queue quality.
 
-**How to avoid:**
-Add `updated_at` to `UserPreference` (both model and migration). Use last-write-wins in pull sync: if the cloud `updated_at > local updated_at`, overwrite. Also distinguish preference sources in `pref_type`: pipeline-computed weights use `pref_type = "scoring_weight_auto"`, user-explicit preferences use `pref_type = "scoring_weight_user"`. User-explicit preferences always win over auto-computed ones regardless of timestamp.
+**Prevention:**
+Make budget allocation explicit in the enrichment plan:
+
+```python
+# Proposed budget allocation for v1.3
+BUDGET_ALLOCATION = {
+    "priority_contacts": 0.30,       # 30% — user-priority, no enrichment
+    "email_finding": 0.25,            # 25% — high score, no email
+    "activity_refresh": 0.20,         # 20% — missing activity hooks
+    "completeness_for_search": 0.15,  # 15% — NEW: has enrichment, missing search fields
+    "re_enrichment": 0.10,            # 10% — stale data (>90 days)
+}
+```
+
+Add a daily budget cap check at the start of each pipeline run:
+
+```python
+# Early warning before enrichment step runs
+if plan["allocated"] >= settings.daily_enrich_budget:
+    logger.warning("Enrichment budget fully allocated — completeness tier may get 0 calls today")
+```
+
+Monitor RapidAPI quota usage by checking the response headers (`X-RateLimit-Requests-Remaining`) on each call. Log remaining quota. Alert (via pipeline stats) when remaining quota drops below 20% of daily budget.
 
 **Warning signs:**
-- User sets a preference in PWA, pipeline runs, preference reverts
-- `user_preferences` table has duplicate rows for the same `pref_key` with different values
-- Pull sync stats show 0 for `preferences_pulled` even when new preferences exist in cloud
+- Pipeline logs show `re_enrichment` tier consuming 25+ of 30 daily budget slots while `priority_contacts` tier gets 0
+- `fetch_linkedin_profile()` returns `None` after the 10th contact in a single pipeline run (free tier exhausted)
+- Queue quality metrics (% of queue items with email available) stops improving despite daily enrichment runs
 
-**Phase to address:** User goals profile phase (or any phase that adds user-editable preferences from PWA).
+**Phase to address:** Enrichment completeness phase — budget allocation must be refactored before adding the new completeness tier to the planner.
+
+---
+
+### Pitfall 10: Browse View Fetch Includes `raw_enrichment` JSON Blob — Payload Too Large for Free Tier
+
+**What goes wrong:**
+The current `CONNECTION_SYNC_FIELDS` in `push.py` includes `raw_enrichment`. The RapidAPI response for a single contact can be 15-30 KB of JSON (experiences, skills, posts, followers, company details). For 500 contacts, this is 7.5-15 MB of JSON fetched from Supabase PostgREST on every browse view load.
+
+On the Supabase free tier with 500 MB storage, 500 contacts × 20 KB average = 10 MB just for `raw_enrichment` data. This is within storage limits, but the network payload for a full browse fetch is problematic:
+- Mobile connections: 15 MB fetch = 3-8 seconds on LTE, unacceptable for a browsing experience
+- Supabase free tier egress: 5 GB/month included. A user opening the browse view 10 times/day × 15 MB × 30 days = 4.5 GB — nearly the entire monthly egress allowance for one feature
+
+**Why it happens:**
+The current `select('*')` pattern in the PWA fetches all columns. This was fine for the queue (5-20 rows) and the contact profile (1 row, detail view). A browse-all-contacts view is structurally different — it fetches hundreds of rows but does not need the full data for each row.
+
+**Prevention:**
+Never use `select('*')` for the browse/search view. Define explicit field lists for each view type:
+
+```javascript
+// Browse view — display fields only (no raw blobs)
+const BROWSE_SELECT = 'id, name, current_role, current_company, location, reconnect_score, latest_signal, data_completeness_score, enriched_at, education_text';
+
+// Search view — same as browse plus computed text for client-side matching
+const SEARCH_SELECT = BROWSE_SELECT + ', education_text, tags, notes';
+
+// Contact profile — full detail (1 row only)
+const PROFILE_SELECT = '*, contact_signals(*), contact_notes(*)';
+```
+
+Add the `education_text` denormalized column (Pitfall 5) to the browse select list — this removes the need to fetch `raw_enrichment` just to display education data.
+
+**Warning signs:**
+- Browse view takes >2 seconds to load on a mobile connection
+- Supabase dashboard shows unusually high "Database Egress" in the metrics panel
+- Chrome DevTools network panel shows the connections fetch response is >1 MB
+
+**Phase to address:** Browse UI phase — field selection must be scoped before the fetch is implemented, not added as optimization after launch.
+
+---
+
+## Minor Pitfalls
+
+---
+
+### Pitfall 11: Search Index (tsvector) Not Updated When Pipeline Re-Enriches Contacts
+
+**What goes wrong:**
+If Option B (tsvector generated column) is used for search, the generated column automatically updates when `raw_enrichment` is updated via a direct SQL UPDATE. However, the pipeline's `update_connection_from_profile()` writes to the local SQLite database, not directly to Supabase PostgreSQL. The sync push (`push.py`) then upserts the row to Supabase.
+
+The upsert via `psycopg2` updates `raw_enrichment` — which triggers the generated column recomputation in PostgreSQL. This is correct. However, if `education_text` is a regular column written by the pipeline (Pitfall 5 prevention), and the upsert does not include `education_text` in `CONNECTION_SYNC_FIELDS`, the search index will be stale.
+
+**Prevention:**
+Add `education_text` (and any other search-relevant denormalized columns) to `CONNECTION_SYNC_FIELDS` in `push.py` before the v1.3 milestone ships. Use the existing field coverage pattern — the push sync explicitly lists every field it syncs.
+
+**Warning signs:**
+- Re-enriched contacts do not appear in education-based search even after pipeline run and sync
+- Supabase `connections` table shows NULL for `education_text` on recently enriched contacts
+
+---
+
+### Pitfall 12: Enrichment API Key Rotation Leaves Old Enrichment Data with No Version Tag
+
+**What goes wrong:**
+If the RapidAPI key is rotated (e.g., billing failure, plan downgrade, key compromise), previously enriched contacts have no record of which API key or plan was used to fetch their data. If a new plan returns different data shapes (e.g., field name changes from `company_industry` to `industry`), the existing `raw_enrichment` blobs have a different schema than new enrichments. The `get_enrichment_data()` helper handles `data` envelope vs flat format, but cannot handle field name changes without updates to every consumer.
+
+**Prevention:**
+The existing `_source: "rapidapi"` and `_fetched_at` fields in `raw_enrichment` (added by `fetch_linkedin_profile()`) already provide basic provenance. Add `_api_version` or `_schema_version` to help detect schema drift in future:
+
+```python
+profile_data["_schema_version"] = "rapidapi-v2"  # increment when field names change
+```
+
+---
+
+### Pitfall 13: "Browse All Contacts" View Has No Empty State for Unenriched Contacts
+
+**What goes wrong:**
+Contacts imported from LinkedIn CSV but not yet enriched have no `current_role`, no `location`, no `reconnect_score`, no `education_text`. A browse view that expects these fields will show blank cards — which looks like a bug, not expected behavior. Users may think the import failed.
+
+**Prevention:**
+Treat unenriched contacts as first-class browse objects. Show a "Needs enrichment" badge with `data_completeness_score` and the count of missing fields. Never show a blank card — always show name + `connection_source` + `connected_on` as a minimum.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems in the context of v1.2.
+Shortcuts that seem reasonable but create long-term problems in the context of v1.3.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Store signal as `skip_reason` text instead of a dedicated `triage_signal` column | No migration needed | Cannot query by signal type; cadence logic requires string parsing; reporting is impossible | Never for v1.2 — dedicated column is required |
-| Compute `cadence_due_at` as a fixed timestamp at signal time | Simple: `reviewed_at + N days` | Contacts go "overdue" silently if pipeline gaps; saturation on cohort due dates | Never — use `signal_assigned_at + cadence_days <= today` at query time instead |
-| Apply feedback loop weight adjustments with < 25 actions | Faster "learning" | Feedback loop amplifies noise; queue homogenizes toward early preferences | Only during testing with synthetic data; never in production |
-| Pass `triage_signal` as a URL query parameter to Edge Functions | Avoids token payload changes | Breaks token tamper-resistance; any valid token + `?signal=ARCHIVE` can archive any contact | Never — signal must be in the token's `payload` field |
-| Re-render full `renderQueue()` on every signal assignment | Simpler code | Resets scroll position and filter state; disorienting on mobile during batch triage | Acceptable only for initial prototype; must use targeted DOM updates before shipping |
-| Skip `user_profile.goals` sync update when adding new goal fields | Saves migration work | Edge Function draft tone uses stale goals; signal-driven personalization fails silently | Never — schema and sync must be updated together |
+| Add generated column to `models.py` instead of a migration-only SQL file | Single-source schema definition | SQLite compatibility breaks on next init_db() | Never — generated columns must stay in Supabase migration SQL |
+| Filter `raw_enrichment` with `ilike` via PostgREST | No migration needed | Returns 0 results or error; no semantic filtering possible | Never — use client-side filter or tsvector |
+| `select('*')` for browse view | Simple code | 15 MB+ payload on mobile; approaches Supabase free tier egress limit | Acceptable only for contact profile (single row) |
+| Re-enrich contacts with low completeness without checking "unfetchable" status | Simpler enrichment planner | Wastes daily API budget; same contacts enriched repeatedly; higher-priority contacts never reached | Never — add unfetchable guard before v1.3 enrichment completeness ships |
+| Per-keystroke filter without debounce | Simple event handler | Input lag on mobile with 1000+ contacts; perceived as broken | Acceptable in initial prototype; must add debounce before user testing |
+| Fetch educations from raw_enrichment array client-side at render time | No migration needed | Cannot include in tsvector; education search requires stringify + includes (false positives) | Acceptable as interim for Phase 1 of v1.3; replace with denormalized column in Phase 2 |
+| Use LLM to parse search queries | "Smart" search | ~$0.01/search query × daily usage = significant monthly cost; adds latency; breaks offline mode | Never for simple field matching; acceptable only if semantic search is an explicit feature |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when wiring the new signal system into the existing stack.
+Common mistakes when wiring the new search/discovery features into the existing stack.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Pull sync + UserPreference | "Insert if not exists" makes local always win when both pipeline and PWA write preferences | Add `updated_at` to `UserPreference`; use last-write-wins in pull sync |
-| Push sync + new signal fields | New `triage_signal`, `cadence_days` fields silently dropped from push payload | Explicitly add every new model field to the push payload dict; assert field coverage |
-| Draft Edge Function + signal | Tone is hard-coded by channel, not by signal | Pass `signal` in request body from PWA; use signal-to-tone mapping in prompt builder |
-| Action Edge Function + 7 signals | Bake signal into URL query param to avoid regenerating tokens | Always store signal in `payload` field of `action_tokens` row; never as a URL param |
-| Feedback processor + signal data | Treat all non-WARM_LEAD signals as "skip" for weight analysis | Map signals to intent tiers: WARM_LEAD/SYNERGY = approve-equivalent; ARCHIVE/VALUE_DROP = skip-equivalent; NURTURE/RECONNECT/FUTURE_PIVOT = neutral (do not influence weight calculation) |
-| Cadence re-queue + exclusion rules | Old skip cooldown blocks cadence-eligible contacts | New exclusion logic must check `triage_signal` — NURTURE/RECONNECT bypass skip cooldown |
-| Supabase migration + local SQLite | Add column to Supabase migration SQL but forget to add to `models.py` (or vice versa) | Run both the Supabase migration and local `alembic upgrade` (or SQLite DDL) in same PR/step |
+| Generated columns in Supabase migration | Adding generated column definition to SQLModel model class in models.py | Keep all generated columns and GIN indexes in supabase/migrations/ SQL files only; models.py stays portable |
+| PostgREST + JSONB filtering | Using `.ilike('raw_enrichment->company_industry', '%SaaS%')` | Use `.textSearch('search_vector', query)` against a tsvector generated column, or filter client-side |
+| Browse view data fetch | `select('*')` to fetch all contacts | Explicit field list: `id, name, current_role, current_company, location, reconnect_score, latest_signal, education_text` |
+| PostgREST row limit | Assuming single fetch returns all contacts | Paginate at 500 rows, merge arrays before client-side filtering |
+| Enrichment planner + completeness | Adding completeness tier without budget allocation | Define explicit percentage budget per tier; monitor remaining API quota in pipeline logs |
+| Education search | Filtering on `raw_enrichment.educations` array via JS | Extract to flat `education_text` column at enrichment write time; search the flat column |
+| Sync + new denormalized columns | Adding `education_text` to models.py but not to CONNECTION_SYNC_FIELDS | Every new searchable column must be added to `CONNECTION_SYNC_FIELDS` in push.py |
 
 ---
 
 ## Performance Traps
 
-Patterns that work fine at current scale but break with v1.2 changes.
+Patterns that work at current scale but break as contacts accumulate.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Pull sync fetches all `UserPreference` rows (no delta) | Grows proportionally as more preferences are added over time | Add `updated_at` and filter by `last_pull_at` in preference query (same pattern as `UserFeedback`) | When preference count exceeds ~200 rows — currently fine but scales poorly |
-| Scoring weight multipliers applied every queue generation run without checking if they have changed | Unnecessary DB reads on every run; weight drift not logged | Cache weights with a `loaded_at` timestamp; only reload when a new preference row is newer than the cache | Not a problem at current scale, but `_load_weight_overrides()` is called per `score_connection()` call |
-| Queue card full re-render on signal assignment (client-side) | Scroll reset, filter state lost; jank on mobile during batch triage of 10+ cards | Targeted DOM mutations for signal badge updates | Immediately visible when user triages more than 3 contacts in a session |
-| Signal history stored in `UserFeedback` with no index on `signal` type | Signal pattern analysis (for feedback processor) requires full table scan | Add index on `(feedback_type, connection_id)` — already exists as `idx_feedback_type` and `idx_feedback_connection`; ensure signal records use a consistent `feedback_type` value like `"triage_signal"` | Not until `user_feedback` grows past ~5,000 rows |
+| `select('*')` on all connections | Browse view load time >2s on mobile; high Supabase egress | Explicit column selection for browse/search views | At ~200 contacts with multi-KB raw_enrichment blobs |
+| No PostgREST pagination for browse fetch | Contacts beyond row 1000 silently missing from search results | Explicit range-based pagination: `.range(from, from + 499)` | Exactly when connections table exceeds 1000 rows |
+| Full array scan on raw_enrichment for education search | Education search produces false positives; `JSON.stringify(blob).includes()` is O(n×m) | Denormalized `education_text` column extracted at enrichment time | Immediately visible with >100 contacts and multi-KB enrichment blobs |
+| Per-keystroke DOM rebuild of search results | Input lag on mid-range Android; >100ms between keypress and visual update | 200ms debounce + DocumentFragment bulk insert + 50-result display limit | At 500+ result cards rendered to DOM |
+| Re-enrichment loop for permanently-missing fields | API budget depleted daily; higher-priority contacts never enriched | `unfetchable` status in `missing_data_fields`; budget allocation percentages | As soon as completeness-based re-enrichment is enabled |
 
 ---
 
-## Security Mistakes
+## Cost Traps
 
-Domain-specific security issues introduced by the v1.2 signal model.
+Specific to enrichment APIs and AI-powered search for this budget-constrained setup.
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Signal passed as URL query parameter to Edge Function action handler | Any valid unused token can have `?signal=ARCHIVE` appended to archive any contact it references | Store signal in `payload` field within `action_tokens` row; Edge Function reads only `tokenRow.payload.signal` |
-| Contact notes stored in Supabase with no content length limit | A very long note (e.g., pasted document) causes oversized JSONB payloads and slow queries | Add `maxlength` attribute on PWA note input (e.g., 1000 chars); enforce at PostgREST level with a check constraint: `CHECK (char_length(notes) <= 2000)` |
-| User goals profile pushed to Supabase (includes sensitive personal strategy info) | Goals/interests data is readable by anyone with the anon key (no RLS) | For a single-user tool with anon key access, this is acceptable but should be noted; if anon key is ever shared or rotated, user_profile contents are exposed |
-| Feedback processor writing scoring weight adjustments without audit log | Weight drift is invisible; it is unclear why the queue changed composition | Log every weight adjustment as a `UserFeedback` row with `feedback_type = "auto_weight_adjustment"` so the audit trail exists |
-
----
-
-## UX Pitfalls
-
-User experience mistakes specific to the signal and cadence model.
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| 7 signal choices presented as a flat list without grouping | Decision fatigue; user defaults to the first option or skips triage entirely | Group signals into 2-3 tiers: "Act Now" (WARM_LEAD, SYNERGY), "Later" (NURTURE, RECONNECT, FUTURE_PIVOT), "Not Now" (VALUE_DROP, ARCHIVE) |
-| Signal assignment has no confirmation or undo for ARCHIVE | User accidentally archives a high-value contact; no way to recover without raw SQL | Show a brief "Archived — Undo" toast for 5 seconds after ARCHIVE signal; undo sets signal back to previous value |
-| Queue card shows signal badge but no explanation of what the signal means | New users do not know what FUTURE_PIVOT means | Show signal label + one-line description on hover/tap: "FUTURE_PIVOT — Interesting career direction, revisit in 90 days" |
-| Cadence re-queue surfaces a contact the user has already reached out to (failed sync) | User drafts a message for someone they messaged yesterday; embarrassing | Check `last_contacted_at` in cadence eligibility even if signal is NURTURE; block re-queue if contacted within 30 days |
-| Email digest still shows 3 action buttons (Reach Out / Skip / Snooze) after signal model ships | Signal model exists in PWA but email is inconsistent; user is confused which model to use | Update email digest to show 2 simplified buttons ("Review in App" and "Archive") in the same phase that ships signal model in PWA |
+| Trap | Monthly Cost Estimate | Trigger | Prevention |
+|------|-----------------------|---------|------------|
+| LLM-based search query parsing (per-query OpenAI call) | ~$2-15/month at 200 searches/month @ $0.01-$0.07/call (GPT-4o-mini) | Adding "smart search" with LLM query interpretation | Client-side tokenizer with comma-split AND logic; no LLM call for search |
+| Re-enriching unfetchable contacts daily | ~$6/month in RapidAPI overage at $0.0065/call × 30 calls/day | Completeness-based re-enrichment without "unfetchable" guard | Track enrichment attempt outcomes; mark permanently-empty fields as unfetchable |
+| `select('*')` browse fetch consumed by egress | Approaches 5 GB free tier egress limit with 10+ daily browse sessions | Browse view fetching all columns for all contacts | Explicit narrow field selection for browse/search; never fetch `raw_enrichment` or `activity_log` in list views |
+| Vector embeddings for semantic contact search | $0.10-1.00/month for pgvector on Supabase free tier (pgvector extension available) | Choosing vector search over client-side fuzzy for "AI contact search" | Reserve vector search for explicit phase; client-side fuzzy search sufficient for v1.3 |
+| RapidAPI free tier exhaustion mid-day | Pipeline halts enrichment silently | Daily budget not tracking remaining API quota | Log `X-RateLimit-Requests-Remaining` from response headers; alert when <20% of plan limit remains |
 
 ---
 
-## "Looks Done But Isn't" Checklist
+## Phase-Specific Warnings
 
-Things that appear complete but are missing critical pieces for v1.2.
-
-- [ ] **Signal model migration:** Signal field added to `outreach_queue`. Missing: have existing `status = "skipped"` rows been backfilled with intent categories? Does `is_contact_excluded()` check signal type, not just timestamp?
-- [ ] **Cadence re-queue logic:** Pipeline adds contacts with elapsed cadence back to queue. Missing: does it deduplicate correctly (unique constraint on `(connection_id, status IN pending/approved)`)? Does it handle cohort saturation (many contacts due on same day)?
-- [ ] **Draft tone adaptation:** Edge Function generates different-tone messages for different signals. Missing: has `signal` been added to the request body schema? Does it handle `ARCHIVE` signal gracefully (no draft generated)?
-- [ ] **Push sync coverage:** New model fields sync to Supabase. Missing: is every new field in the push payload dict? Has the Supabase migration run on the production project? Have you verified the field appears in Supabase dashboard after a push?
-- [ ] **Pull sync coverage:** User-written notes and preferences sync back to local SQLite. Missing: is `Connection.notes` in the pull sync contact update block? Is `UserPreference.updated_at` used for conflict resolution?
-- [ ] **Feedback loop guards:** Signal-informed rescoring adjusts weights. Missing: is there a minimum sample threshold (>= 25 actions)? Is there a multiplier cap (never < 0.7 or > 1.4)? Is there a weight history log?
-- [ ] **Email digest updated:** Email reflects signal model. Missing: has the email been updated to remove Snooze button and align with new signal vocabulary? Are new token types (if any) generated with signal in `payload`, not URL params?
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Enrichment completeness audit | Marking "unfetchable" fields as completeness gaps, triggering wasted re-enrichment | Distinguish "missing" vs "unfetchable" in missing_data_fields before completeness score drives enrichment prioritization |
+| Data extraction (JSON → columns) | Adding generated column to models.py (breaks SQLite) | All generated columns and GIN indexes go in supabase/migrations/ only |
+| Data extraction (education) | Expecting PostgREST to handle JSONB array filtering | Extract to flat `education_text` column in Python enrichment code; write at enrichment time |
+| Search implementation | Fetching `select('*')` to enable client-side search | Define explicit field list; paginate at 500 rows |
+| Browse UI | PostgREST 1000-row hard limit silently truncates results | Paginate with `.range()` and merge; test with >1000 contact dataset |
+| Search UX | Per-keystroke DOM rebuild producing mobile input lag | 200ms debounce + 50-result limit + DocumentFragment pattern |
+| Budget allocation | Completeness tier consuming entire enrichment budget | Explicit percentage allocation in enrichment_planner.py before completeness tier ships |
 
 ---
 
@@ -390,49 +576,29 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Old skipped items blocking cadence re-queue | MEDIUM | Run one-time migration to backfill `triage_signal` on old skipped rows; update exclusion logic to check signal; no data loss |
-| Duplicate queue items from double pipeline run | LOW | Add `DELETE FROM outreach_queue WHERE id NOT IN (SELECT MIN(id) FROM outreach_queue GROUP BY connection_id, status)` one-time cleanup; add unique constraint to prevent recurrence |
-| Feedback loop homogenized queue | MEDIUM | Reset scoring weights: `DELETE FROM user_preferences WHERE pref_type = 'scoring_weight_auto'`; run pipeline rescore on all contacts; weights restart from baseline; 2-3 days to see results |
-| Signal not showing in PWA (push sync gap) | LOW | Add missing field to push payload; run manual `reconnect sync push`; field appears in Supabase within minutes |
-| ARCHIVE signal triggered by accident | LOW (if undo exists) / MEDIUM (if not) | Build undo toast in same phase; recovery without undo requires direct Supabase update: `UPDATE outreach_queue SET triage_signal = NULL WHERE ...` |
-| Draft tone wrong because signal not passed | LOW | Add `signal` to PWA draft request body; deploy updated Edge Function; no data migration needed |
-| Contact notes lost (pull sync gap) | LOW | Add `notes` to pull sync contact update block; run `reconnect sync pull`; notes appear locally; no data loss (notes are in Supabase, just not in local SQLite) |
-
----
-
-## Pitfall-to-Phase Mapping
-
-How roadmap phases should address these pitfalls.
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Orphaned skipped items blocking cadence re-queue | Signal model + database migration phase | Run migration; verify old snooze items have `triage_signal = "RECONNECT"`; run pipeline and confirm they re-enter queue |
-| Duplicate queue items from TOCTOU race | Signal model + database migration phase | Add unique constraint; run pipeline twice in same day; confirm second run logs "already queued" instead of inserting duplicate |
-| Feedback loop confirmation bias | Signal-informed rescoring phase | After 25+ signals, inspect `user_preferences` for `scoring_weight_auto`; confirm multipliers stay within 0.7–1.4 range |
-| New signal fields not pushed to Supabase | Signal model + sync phase | After pipeline push, query Supabase `outreach_queue` — `triage_signal` column must be non-null for processed contacts |
-| Email action token security (signal as URL param) | Email digest integration phase | Inspect generated token rows — signal value must be in `payload` column, not constructible from URL manipulation |
-| User goals stale in Edge Function draft | Draft tone adaptation phase | Assign WARM_LEAD and NURTURE to same contact; request drafts; verify tone differs |
-| Contact notes not pulled to local SQLite | Contact notes phase | Write a note in PWA; run `reconnect sync pull`; query local SQLite for the note |
-| Cadence cohort saturation | Cadence scheduling phase | Assign NURTURE to 20 contacts on the same day; advance date to cadence due date; run pipeline; verify only `daily_queue_size` contacts are added, rest queued next run |
-| Signal picker UX triggering full re-render | PWA queue card phase | Assign 5 signals in sequence; confirm scroll position does not reset and filter state is preserved |
-| Pull sync overwriting user preferences | User goals profile phase | Set a preference in PWA; run full pipeline; re-check preference in PWA — value must not have changed |
+| Generated column in models.py breaks SQLite | MEDIUM | Remove column from models.py; keep only in Supabase migration SQL; re-run local SQLite init; no data loss (column was new) |
+| PostgREST JSONB filter returning 0 results | LOW | Switch to client-side filter or add tsvector column via Supabase-only migration; no data migration needed |
+| Browse view missing contacts beyond row 1000 | LOW | Add pagination loop to fetch; no data loss (data always existed in Supabase) |
+| Enrichment budget consumed by re-enrichment loops | MEDIUM | Identify contacts being re-enriched repeatedly; mark missing fields as "unfetchable" in missing_data_fields; reset enrichment planner priority |
+| Search producing false positives from stringify approach | LOW | Add `education_text` extracted column; backfill from existing raw_enrichment via one-time Python script; no API calls needed for backfill |
+| Supabase egress approaching 5 GB limit | LOW | Scope select fields immediately; egress drops on next deploy; no data loss |
+| LLM search query parsing added mid-phase | LOW | Revert to client-side tokenizer; LLM integration is additive, removal is a one-file change |
 
 ---
 
 ## Sources
 
-- Existing codebase (reviewed): `src/pipeline/queue_generator.py`, `src/pipeline/feedback_processor.py`, `src/llm/scoring.py`, `src/sync/pull.py`, `src/database/models.py`, `supabase/functions/draft/index.ts`, `supabase/functions/action/index.ts`, `pwa/js/queue.js`
-- Feedback loop bias in ML systems: https://arxiv.org/pdf/2305.06055 (Classification of Feedback Loops and Their Relation to Biases in Automated Decision-Making Systems)
-- Hidden feedback loops in continuous ML: https://arxiv.org/pdf/2101.05673
-- Microsoft Research: When bias begets bias in AI feedback loops: https://www.microsoft.com/en-us/research/blog/when-bias-begets-bias-a-source-of-negative-feedback-loops-in-ai-systems/
-- Supabase bidirectional sync conflict resolution patterns: https://www.stacksync.com/blog/supabase-postgresql-integration-real-time-bi-directional-sync
-- Zero-downtime migration: add-before-remove column strategy: https://dev.to/ari-ghosh/zero-downtime-database-migration-the-definitive-guide-5672
-- Vanilla JS PWA optimistic UI and offline sync: https://medium.com/illumination/modern-pwa-magic-how-i-built-a-resilient-progressive-web-app-with-vanilla-javascript-d2684f1c38f2
-- PWA Background Sync browser support gaps (Firefox, Safari): https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Offline_and_background_operation
-- State management in Vanilla JS 2026 patterns: https://medium.com/@chirag.dave/state-management-in-vanilla-js-2026-trends-f9baed7599de
-- LLM personalization sycophancy with user profiles: https://news.mit.edu/2026/personalization-features-can-make-llms-more-agreeable-0218
-- Project context and known tech debt: `.planning/PROJECT.md`
+- Existing codebase (reviewed): `src/database/models.py`, `src/ingestion/rapidapi_linkedin.py`, `src/llm/data_analyzer.py`, `src/pipeline/enrichment_planner.py`, `src/sync/push.py`, `pwa/js/queue.js`, `supabase/migrations/20260311000000_signal_foundation.sql`
+- PostgREST JSONB filtering limitation (confirmed): https://github.com/PostgREST/postgrest/issues/240
+- Supabase full text search with tsvector generated columns: https://supabase.com/docs/guides/database/full-text-search
+- PostgreSQL generated columns (STORED syntax, SQLite incompatibility): https://www.postgresql.org/docs/current/ddl-generated-columns.html
+- PostgREST pagination and max-rows limit: https://docs.postgrest.org/en/v12/references/api/pagination_count.html
+- Supabase free tier limits (500 MB storage, 5 GB egress): https://uibakery.io/blog/supabase-pricing
+- RapidAPI fresh-linkedin-profile-data pricing ($0.0065/call overage on Ultra plan): https://rapidapi.com/freshdata-freshdata-default/api/fresh-linkedin-profile-data/pricing
+- API rate limiting and deduplication best practices: https://derrick-app.com/en/rate-limits-quotas-api-2/
+- JSONB search in Supabase (community discussion): https://github.com/orgs/supabase/discussions/12677
+- Previous v1.2 pitfalls (signal model migration, sync patterns): `.planning/research/PITFALLS.md` (v1.2 version)
 
 ---
-*Pitfalls research for: Reconnect v1.2 Intent-Driven Triage milestone*
-*Researched: 2026-03-11*
+*Pitfalls research for: Reconnect v1.3 Contact Discovery milestone*
+*Researched: 2026-03-14*
