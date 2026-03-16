@@ -63,7 +63,10 @@ See: `.planning/milestones/v1.2-ROADMAP.md` for full details.
   2. After the Supabase migration runs, `connections` has columns for `enriched_industry`, `enriched_headline`, `enriched_city`, `enriched_country`, `enriched_school`, `enriched_seniority`, and `education_text` — all queryable via PostgREST without touching `raw_enrichment`
   3. Every existing contact whose `raw_enrichment` contains education, industry, or location data has those fields populated in the new columns without any new API calls
   4. A contact enriched after this phase completes has all 7 new columns written at enrichment time alongside the existing `current_role` and `current_company` fields
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Schema + extraction core module + Supabase migration
+- [ ] 12-02-PLAN.md — Pipeline wiring + CLI commands + tests
 
 ### Phase 13: Contacts Browse Page
 **Goal**: Users can navigate to a Contacts page in the PWA and browse all non-archived contacts with role, industry, and location filters — returned via server-side pagination with no `raw_enrichment` in the payload
@@ -102,6 +105,6 @@ See: `.planning/milestones/v1.2-ROADMAP.md` for full details.
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
 | 10. Draft Tone Adaptation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 11. Signal Write Completion + Draft Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 12. Enrichment Audit and Schema Extraction | v1.3 | 0/? | Not started | - |
+| 12. Enrichment Audit and Schema Extraction | v1.3 | 0/2 | Planning complete | - |
 | 13. Contacts Browse Page | v1.3 | 0/? | Not started | - |
 | 14. Search Bar | v1.3 | 0/? | Not started | - |
