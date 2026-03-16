@@ -10,8 +10,8 @@ Requirements for v1.3 Contact Discovery. Each maps to roadmap phases.
 ### Enrichment
 
 - [ ] **ENRICH-01**: User can run a CLI command to see enrichment coverage statistics across key fields (education, industry, skills, location)
-- [ ] **ENRICH-02**: Pipeline extracts education text from raw_enrichment educations array into a searchable flat column
-- [ ] **ENRICH-03**: Pipeline extracts industry, headline, city, country, school, seniority from raw_enrichment into dedicated columns at enrichment time
+- [x] **ENRICH-02**: Pipeline extracts education text from raw_enrichment educations array into a searchable flat column
+- [x] **ENRICH-03**: Pipeline extracts industry, headline, city, country, school, seniority from raw_enrichment into dedicated columns at enrichment time
 - [ ] **ENRICH-04**: Existing contacts are backfilled with extracted fields from their current raw_enrichment data without API calls
 
 ### Browse
@@ -71,8 +71,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ENRICH-01 | Phase 12 | Pending |
-| ENRICH-02 | Phase 12 | Pending |
-| ENRICH-03 | Phase 12 | Pending |
+| ENRICH-02 | Phase 12 | Complete |
+| ENRICH-03 | Phase 12 | Complete |
 | ENRICH-04 | Phase 12 | Pending |
 | BROWSE-01 | Phase 13 | Pending |
 | BROWSE-02 | Phase 13 | Pending |
