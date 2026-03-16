@@ -48,7 +48,7 @@ See: `.planning/milestones/v1.2-ROADMAP.md` for full details.
 
 **Milestone Goal:** Enable finding specific people in your network by enriching contacts comprehensively and adding flexible search/browse capabilities to the PWA.
 
-- [ ] **Phase 12: Enrichment Audit and Schema Extraction** — Diagnose coverage gaps, extract 7 enrichment fields to queryable columns, backfill all existing contacts
+- [x] **Phase 12: Enrichment Audit and Schema Extraction** — Diagnose coverage gaps, extract 7 enrichment fields to queryable columns, backfill all existing contacts (completed 2026-03-16)
 - [ ] **Phase 13: Contacts Browse Page** — Paginated contacts list with role, industry, and location filters; explicit field selection; server-side pagination
 - [ ] **Phase 14: Search Bar** — Full-text search across name, role, company, location, and school with debounce and result count
 
@@ -63,7 +63,7 @@ See: `.planning/milestones/v1.2-ROADMAP.md` for full details.
   2. After the Supabase migration runs, `connections` has columns for `enriched_industry`, `enriched_headline`, `enriched_city`, `enriched_country`, `enriched_school`, `enriched_seniority`, and `education_text` — all queryable via PostgREST without touching `raw_enrichment`
   3. Every existing contact whose `raw_enrichment` contains education, industry, or location data has those fields populated in the new columns without any new API calls
   4. A contact enriched after this phase completes has all 7 new columns written at enrichment time alongside the existing `current_role` and `current_company` fields
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 12-01-PLAN.md — Schema + extraction core module + Supabase migration
 - [ ] 12-02-PLAN.md — Pipeline wiring + CLI commands + tests
@@ -105,6 +105,6 @@ Plans:
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
 | 10. Draft Tone Adaptation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 11. Signal Write Completion + Draft Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 12. Enrichment Audit and Schema Extraction | 1/2 | In Progress|  | - |
+| 12. Enrichment Audit and Schema Extraction | 2/2 | Complete   | 2026-03-16 | - |
 | 13. Contacts Browse Page | v1.3 | 0/? | Not started | - |
 | 14. Search Bar | v1.3 | 0/? | Not started | - |
