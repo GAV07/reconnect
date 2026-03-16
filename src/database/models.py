@@ -147,6 +147,15 @@ class Connection(SQLModel, table=True):
     latest_signal: Optional[str] = None  # Last applied signal name
     cadence_due_at: Optional[datetime] = Field(default=None)  # Next re-queue date
 
+    # Enrichment extracted columns (v1.3 Phase 12)
+    enriched_industry: Optional[str] = Field(default=None, index=True)
+    enriched_headline: Optional[str] = Field(default=None, sa_column=Column(Text))
+    enriched_city: Optional[str] = Field(default=None, index=True)
+    enriched_country: Optional[str] = Field(default=None, index=True)
+    enriched_school: Optional[str] = Field(default=None, sa_column=Column(Text))
+    enriched_seniority: Optional[str] = Field(default=None, index=True)
+    education_text: Optional[str] = Field(default=None, sa_column=Column(Text))
+
 
 # Composite indexes for common query patterns
 Connection.__table_args__ = (

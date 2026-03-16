@@ -52,6 +52,42 @@ def get_engine(mode: Optional[str] = None) -> Engine:
 engine = get_engine()
 
 
+def apply_sqlite_column_migrations(target_engine: Optional[Engine] = None):
+    """Add new columns to existing SQLite tables if missing.
+
+    SQLModel.metadata.create_all() only creates tables, not columns.
+    This function issues ALTER TABLE ADD COLUMN statements for columns
+    added after initial table creation. Safe to call repeatedly —
+    duplicate ADD COLUMN is caught and ignored.
+    """
+    from sqlalchemy import text
+
+    eng = target_engine or engine
+    # Only apply to SQLite databases
+    if "sqlite" not in str(eng.url):
+        return
+
+    migrations = [
+        # Phase 12: enrichment extracted columns
+        "ALTER TABLE connections ADD COLUMN enriched_industry TEXT",
+        "ALTER TABLE connections ADD COLUMN enriched_headline TEXT",
+        "ALTER TABLE connections ADD COLUMN enriched_city TEXT",
+        "ALTER TABLE connections ADD COLUMN enriched_country TEXT",
+        "ALTER TABLE connections ADD COLUMN enriched_school TEXT",
+        "ALTER TABLE connections ADD COLUMN enriched_seniority TEXT",
+        "ALTER TABLE connections ADD COLUMN education_text TEXT",
+    ]
+
+    with eng.connect() as conn:
+        for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                # Column already exists — safe to ignore
+                conn.rollback()
+
+
 def init_db(target_engine: Optional[Engine] = None):
     """Create all tables.
 
@@ -62,6 +98,7 @@ def init_db(target_engine: Optional[Engine] = None):
     from src.database import models  # noqa: F401
 
     SQLModel.metadata.create_all(target_engine or engine)
+    apply_sqlite_column_migrations(target_engine)
 
 
 @contextmanager

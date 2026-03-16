@@ -46,6 +46,10 @@ CONNECTION_SYNC_FIELDS = [
     "user_priority", "data_completeness_score", "missing_data_fields",
     # Signal foundation fields (Phase 7)
     "latest_signal", "cadence_due_at",
+    # Enrichment extracted columns (Phase 12)
+    "enriched_industry", "enriched_headline", "enriched_city",
+    "enriched_country", "enriched_school", "enriched_seniority",
+    "education_text",
 ]
 
 
