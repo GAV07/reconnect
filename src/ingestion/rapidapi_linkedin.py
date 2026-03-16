@@ -8,6 +8,7 @@ import requests
 from src.config import settings
 from src.database.engine import get_session
 from src.database.models import Connection
+from src.pipeline.enrichment_extractor import extract_enrichment_fields
 
 
 RAPIDAPI_HOST = "fresh-linkedin-profile-data.p.rapidapi.com"
@@ -160,6 +161,9 @@ def update_connection_from_profile(connection_id: str) -> bool:
             elif data.get("city"):
                 location_parts = [data.get("city"), data.get("state"), data.get("country")]
                 connection.location = ", ".join(p for p in location_parts if p)
+
+            # Extract enrichment fields into dedicated columns (Phase 12)
+            extract_enrichment_fields(connection, data, overwrite=True)
 
             connection.enriched_at = datetime.utcnow()
             connection.updated_at = datetime.utcnow()

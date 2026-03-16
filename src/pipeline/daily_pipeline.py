@@ -276,6 +276,22 @@ def run_daily_pipeline(
             results["queue"] = queue_result
             steps_completed.append("queue")
 
+        # Step 6b: Gap-fill enrichment extracted columns
+        # Fills NULL enrichment columns for contacts enriched in prior runs
+        # (before Phase 12 extraction was added). Idempotent, non-fatal.
+        try:
+            from src.pipeline.enrichment_extractor import backfill_enrichment_fields
+
+            gap_fill_result = backfill_enrichment_fields()
+            results["enrichment_gap_fill"] = gap_fill_result
+            steps_completed.append("enrichment_gap_fill")
+        except Exception as gf_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Enrichment gap-fill failed (non-fatal): %s", gf_error
+            )
+            results["enrichment_gap_fill"] = {"error": str(gf_error)}
+
         # Mark run as completed
         with get_session() as session:
             run = session.get(PipelineRun, run_id)

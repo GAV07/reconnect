@@ -172,6 +172,80 @@ def contacts_score():
     print(f"  Failed: {result.get('failed', 0)}")
 
 
+@contacts.command("stats")
+@click.option("--enrichment", "show_enrichment", is_flag=True, help="Show enrichment field coverage")
+def contacts_stats(show_enrichment):
+    """Show contact statistics."""
+    from src.database.engine import init_db
+
+    init_db()
+
+    if show_enrichment:
+        from src.pipeline.enrichment_extractor import get_enrichment_coverage
+
+        stats = get_enrichment_coverage()
+        total = stats["total_enriched"]
+        if total == 0:
+            print("\n[Enrichment Coverage] No enriched contacts found.")
+            return
+
+        print(f"\n[Enrichment Coverage] ({total} enriched contacts)")
+        print(f"  Industry:   {stats['industry_pct']:5.1f}%  ({stats['industry_count']}/{total})")
+        print(f"  Headline:   {stats['headline_pct']:5.1f}%  ({stats['headline_count']}/{total})")
+        print(f"  City:       {stats['city_pct']:5.1f}%  ({stats['city_count']}/{total})")
+        print(f"  Country:    {stats['country_pct']:5.1f}%  ({stats['country_count']}/{total})")
+        print(f"  School:     {stats['school_pct']:5.1f}%  ({stats['school_count']}/{total})")
+        print(f"  Education:  {stats['education_pct']:5.1f}%  ({stats['education_count']}/{total})")
+        print(f"  Seniority:  {stats['seniority_pct']:5.1f}%  ({stats['seniority_count']}/{total})")
+    else:
+        # Basic contact count
+        from sqlmodel import func, select
+
+        from src.database.engine import get_session
+        from src.database.models import Connection
+
+        with get_session() as session:
+            total = session.exec(select(func.count(Connection.id))).one()
+            enriched = session.exec(
+                select(func.count(Connection.id))
+                .where(Connection.enriched_at.isnot(None))
+            ).one()
+            scored = session.exec(
+                select(func.count(Connection.id))
+                .where(Connection.reconnect_score.isnot(None))
+            ).one()
+
+        print(f"\n[Contact Stats]")
+        print(f"  Total:    {total}")
+        print(f"  Enriched: {enriched}")
+        print(f"  Scored:   {scored}")
+
+
+@contacts.command("backfill")
+def contacts_backfill():
+    """Backfill enrichment extracted fields from existing raw_enrichment data."""
+    from src.database.engine import init_db
+    from src.pipeline.enrichment_extractor import backfill_enrichment_fields
+
+    init_db()
+    print("[Backfill] Extracting enrichment fields from existing data...")
+    result = backfill_enrichment_fields()
+
+    processed = result["processed"]
+    if processed == 0:
+        print("[Backfill] No contacts need backfilling. All fields already populated.")
+        return
+
+    print(f"\n[Backfill] Processed {processed} contacts:")
+    print(f"  Industry:   {result['industry']}")
+    print(f"  Headline:   {result['headline']}")
+    print(f"  City:       {result['city']}")
+    print(f"  Country:    {result['country']}")
+    print(f"  School:     {result['school']}")
+    print(f"  Seniority:  {result['seniority']}")
+    print(f"  Education:  {result['education']}")
+
+
 # ── gmail ─────────────────────────────────────────────────────────────────────
 
 
