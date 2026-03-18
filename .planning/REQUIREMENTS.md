@@ -16,11 +16,11 @@ Requirements for v1.3 Contact Discovery. Each maps to roadmap phases.
 
 ### Browse
 
-- [ ] **BROWSE-01**: User can view a paginated list of all non-archived contacts in the PWA via a Contacts page
+- [x] **BROWSE-01**: User can view a paginated list of all non-archived contacts in the PWA via a Contacts page
 - [ ] **BROWSE-02**: User can filter contacts by role/title
 - [ ] **BROWSE-03**: User can filter contacts by industry
 - [ ] **BROWSE-04**: User can filter contacts by location
-- [ ] **BROWSE-05**: Contacts page uses server-side pagination and explicit field selection (no raw_enrichment in payload)
+- [x] **BROWSE-05**: Contacts page uses server-side pagination and explicit field selection (no raw_enrichment in payload)
 
 ### Search
 
@@ -74,11 +74,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENRICH-02 | Phase 12 | Complete |
 | ENRICH-03 | Phase 12 | Complete |
 | ENRICH-04 | Phase 12 | Complete |
-| BROWSE-01 | Phase 13 | Pending |
+| BROWSE-01 | Phase 13 | Complete |
 | BROWSE-02 | Phase 13 | Pending |
 | BROWSE-03 | Phase 13 | Pending |
 | BROWSE-04 | Phase 13 | Pending |
-| BROWSE-05 | Phase 13 | Pending |
+| BROWSE-05 | Phase 13 | Complete |
 | SEARCH-01 | Phase 14 | Pending |
 | SEARCH-02 | Phase 14 | Pending |
 
