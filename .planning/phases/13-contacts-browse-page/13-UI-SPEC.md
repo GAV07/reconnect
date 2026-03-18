@@ -36,18 +36,19 @@ Declared values (must be multiples of 4):
 | xs | 4px | Icon gaps, badge padding, inline gaps |
 | sm | 8px | Row padding, gap between filter groups, card inner margins |
 | md | 16px | Default element spacing, content padding, card padding |
-| lg | 20px | Section padding (contact-detail) |
-| xl | 24px | Major section breaks (header sub) |
-| 2xl | 40px | Empty-state vertical padding |
-| 3xl | 48px | Loading-state padding |
+| lg | 24px | Major section breaks (header sub) |
+| xl | 32px | Layout gaps |
+| 2xl | 48px | Loading-state padding, empty-state vertical padding |
+| 3xl | 64px | Page-level spacing (reserved) |
 
 Exceptions:
 - Bottom nav item padding: 8px 4px (established pattern — do not change)
 - Filter bar padding: 12px 0 top/bottom (matches `.queue-filters` established pattern)
 - Industry chip padding: 2px 8px (established `.industry-chip` pattern — reuse as-is)
 - Touch targets for nav icons: 24px × 24px SVG with 8px surrounding padding = 40px tap area (acceptable for bottom nav; icons are fixed pattern)
+- `.contact-detail` section padding: 20px (existing page pattern — do not change; not used on the browse page itself)
 
-Source: Measured from `pwa/css/app.css` existing patterns. No exceptions added for this phase beyond what already exists.
+Source: Measured from `pwa/css/app.css` existing patterns.
 
 ---
 
@@ -57,7 +58,7 @@ Source: Measured from `pwa/css/app.css` existing patterns. No exceptions added f
 |------|------|--------|-------------|-------|
 | Body | 14px | 400 | 1.5 | `.contact-row-role`, filter labels, meta text |
 | Label | 13px | 400 | 1.4 | City text, secondary meta, filter dropdown options, count banner |
-| Heading | 15px–17px | 700 | 1.3 | `.contact-row-name` (use 15px) |
+| Heading | 15px | 700 | 1.3 | `.contact-row-name` |
 | Subhead | 11px | 400 | 1.2 | Bottom nav labels (established pattern — do not change) |
 
 Additional sizing notes:
@@ -140,13 +141,13 @@ color: var(--text);
 ```css
 font-size: 14px;
 color: var(--text-secondary);
-margin-top: 2px;
+margin-top: 4px;
 ```
 
 ### `.contact-row-meta`
 ```css
 display: flex;
-gap: 6px;
+gap: 8px;
 align-items: center;
 flex-wrap: wrap;
 margin-top: 4px;
@@ -218,7 +219,7 @@ padding: 4px 0 8px;
 
 ### `.btn-sm`
 ```css
-padding: 6px 12px;
+padding: 8px 12px;
 font-size: 13px;
 /* inherits .btn base styles */
 ```
