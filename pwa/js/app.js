@@ -17,6 +17,7 @@ function initSupabase() {
 // Simple hash-based router
 const routes = {
   '/queue': { module: 'queue', title: 'Queue' },
+  '/contacts': { module: 'contacts', title: 'Contacts' },
   '/contact': { module: 'contact', title: 'Contact' },
   '/dashboard': { module: 'dashboard', title: 'Dashboard' },
   '/preferences': { module: 'preferences', title: 'Preferences' },
@@ -62,7 +63,7 @@ async function render() {
   document.querySelectorAll('.bottom-nav a').forEach(a => {
     const href = a.getAttribute('href');
     const currentPath = (window.location.hash || '#/queue').split('?')[0];
-    a.classList.toggle('active', href === currentPath || (currentPath.startsWith('#/contact') && href === '#/queue'));
+    a.classList.toggle('active', href === currentPath || (currentPath.startsWith('#/contact/') && href === '#/queue'));
   });
 
   // Show loading
@@ -73,6 +74,9 @@ async function render() {
     switch (route.module) {
       case 'queue':
         await renderQueue(content);
+        break;
+      case 'contacts':
+        await renderContacts(content);
         break;
       case 'contact':
         await renderContact(content, route.params?.id);
