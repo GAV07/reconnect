@@ -667,6 +667,97 @@ body {
   border-left: 2px solid var(--border);
 }
 
+/* Contacts Browse Page */
+.contact-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.contact-row:active {
+  background: #f8f9fa;
+}
+.contact-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+.contact-row-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.contact-row-role {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.contact-row-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.contact-row-city {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.contacts-filter-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.contacts-filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 8px;
+}
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.filter-group-full {
+  width: 100%;
+}
+.filter-input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+.filter-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.contacts-count-banner {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 4px 0 8px;
+}
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.load-more-container {
+  text-align: center;
+  padding: 16px 0 8px;
+}
+
 /* Responsive — larger screens get some padding */
 @media (min-width: 481px) {
   .app-shell {
