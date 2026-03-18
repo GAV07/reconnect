@@ -78,7 +78,10 @@ Plans:
   3. Selecting an industry filter narrows the contact list to contacts in that industry using the `enriched_industry` column
   4. Selecting a location filter narrows the contact list to contacts in that city or country
   5. Loading more contacts uses server-side `.range()` pagination — no single request fetches more than the page size, and `raw_enrichment` is never included in the payload
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 13-01-PLAN.md — Nav tab, route wiring, CSS classes, validation tests
+- [ ] 13-02-PLAN.md — contacts.js browse module (filter, paginate, render) + visual checkpoint
 
 ### Phase 14: Search Bar
 **Goal**: Users can type a query into a search bar on the Contacts page and see matching contacts across name, role, company, location, and school simultaneously, with results updating as they type and a result count displayed
@@ -105,6 +108,6 @@ Plans:
 | 9. Goals, Sync, and Pipeline Intelligence | v1.2 | 3/3 | Complete | 2026-03-12 |
 | 10. Draft Tone Adaptation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 11. Signal Write Completion + Draft Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 12. Enrichment Audit and Schema Extraction | 2/2 | Complete    | 2026-03-16 | - |
-| 13. Contacts Browse Page | v1.3 | 0/? | Not started | - |
+| 12. Enrichment Audit and Schema Extraction | v1.3 | 2/2 | Complete | 2026-03-16 |
+| 13. Contacts Browse Page | v1.3 | 0/2 | Not started | - |
 | 14. Search Bar | v1.3 | 0/? | Not started | - |
