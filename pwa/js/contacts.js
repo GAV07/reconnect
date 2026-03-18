@@ -23,8 +23,8 @@ let _unfilteredTotal = 0;
 
 async function fetchFilterOptions() {
   const [indResult, cityResult] = await Promise.all([
-    db.from('connections').select('enriched_industry').neq('user_priority', 'never').not('enriched_industry', 'is', null),
-    db.from('connections').select('enriched_city').neq('user_priority', 'never').not('enriched_city', 'is', null),
+    db.from('connections').select('enriched_industry').or('user_priority.neq.never,user_priority.is.null').not('enriched_industry', 'is', null),
+    db.from('connections').select('enriched_city').or('user_priority.neq.never,user_priority.is.null').not('enriched_city', 'is', null),
   ]);
 
   const industries = [...new Set(
@@ -57,14 +57,14 @@ async function renderContacts(container) {
     var unfilteredResult = await db
       .from('connections')
       .select('id', { count: 'exact', head: true })
-      .neq('user_priority', 'never');
+      .or('user_priority.neq.never,user_priority.is.null');
     _unfilteredTotal = unfilteredResult.count || 0;
   }
 
   var query = db
     .from('connections')
     .select(BROWSE_SELECT, { count: 'exact' })
-    .neq('user_priority', 'never')
+    .or('user_priority.neq.never,user_priority.is.null')
     .order('reconnect_score', { ascending: false })
     .range(contactFilters.offset, contactFilters.offset + 49);
 
@@ -298,7 +298,7 @@ async function loadMoreContacts(btn) {
   var query = db
     .from('connections')
     .select(BROWSE_SELECT)
-    .neq('user_priority', 'never')
+    .or('user_priority.neq.never,user_priority.is.null')
     .order('reconnect_score', { ascending: false })
     .range(contactFilters.offset, contactFilters.offset + 49);
 
