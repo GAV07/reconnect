@@ -44,9 +44,10 @@ Declared values (must be multiples of 4):
 Exceptions:
 - Bottom nav item padding: 8px 4px (established pattern — do not change)
 - Filter bar padding: 12px 0 top/bottom (matches `.queue-filters` established pattern)
-- Industry chip padding: 2px 8px (established `.industry-chip` pattern — reuse as-is)
 - Touch targets for nav icons: 24px × 24px SVG with 8px surrounding padding = 40px tap area (acceptable for bottom nav; icons are fixed pattern)
 - `.contact-detail` section padding: 20px (existing page pattern — do not change; not used on the browse page itself)
+
+Note: `.industry-chip` is a reused existing class applied unchanged — its internal padding is not declared as a contract value for this phase.
 
 Source: Measured from `pwa/css/app.css` existing patterns.
 
@@ -61,11 +62,11 @@ Source: Measured from `pwa/css/app.css` existing patterns.
 | Heading | 15px | 700 | 1.3 | `.contact-row-name` |
 | Subhead | 11px | 400 | 1.2 | Bottom nav labels (established pattern — do not change) |
 
+Note: `.signal-badge` and `.industry-chip` classes are reused verbatim from existing CSS — no new type tokens declared.
+
 Additional sizing notes:
 - Score badge: 14px weight 700 (reuse existing `.score-badge` exactly)
-- Signal badge: 12px weight 600 (reuse existing `.signal-badge` exactly)
-- Industry chip: 12px weight 400 (reuse existing `.industry-chip` exactly)
-- Filter label text: 0.7rem (~11px) uppercase, letter-spacing 0.05em, weight 600 (reuse `.queue-filters label` pattern exactly)
+- Filter label text: 0.7rem (~11px) uppercase, letter-spacing 0.05em (reuse `.queue-filters label` pattern exactly)
 - Count banner: 13px weight 400 color `var(--text-secondary)`
 
 Source: Extracted from `pwa/css/app.css` — `.queue-card .name` (17px/700), `.queue-card .role` (14px), `.signal-badge` (12px/600), `.score-badge` (14px/700), `.industry-chip` (12px), `.bottom-nav a` (11px).
