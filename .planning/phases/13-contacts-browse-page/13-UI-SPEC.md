@@ -199,7 +199,7 @@ padding: 0.4rem 0.6rem;
 border: 1px solid var(--border);
 border-radius: 6px;
 background: var(--surface);
-font-size: 0.85rem;
+font-size: 14px;
 font-family: inherit;
 width: 100%;
 ```
