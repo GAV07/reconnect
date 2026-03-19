@@ -24,8 +24,8 @@ Requirements for v1.3 Contact Discovery. Each maps to roadmap phases.
 
 ### Search
 
-- [ ] **SEARCH-01**: User can search contacts via a search bar that matches across name, role, company, location, and school simultaneously
-- [ ] **SEARCH-02**: Search results update with debounced input and display a result count
+- [x] **SEARCH-01**: User can search contacts via a search bar that matches across name, role, company, location, and school simultaneously
+- [x] **SEARCH-02**: Search results update with debounced input and display a result count
 
 ## Future Requirements
 
@@ -79,8 +79,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BROWSE-03 | Phase 13 | Complete |
 | BROWSE-04 | Phase 13 | Complete |
 | BROWSE-05 | Phase 13 | Complete |
-| SEARCH-01 | Phase 14 | Pending |
-| SEARCH-02 | Phase 14 | Pending |
+| SEARCH-01 | Phase 14 | Complete |
+| SEARCH-02 | Phase 14 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 11 total
