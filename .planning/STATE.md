@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Contact Discovery
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-03-19T02:11:48.321Z"
+stopped_at: Completed 14-search-bar-01-PLAN.md
+last_updated: "2026-03-19T03:06:52.696Z"
 last_activity: 2026-03-18 — Phase 13 Plan 02 complete (contacts.js browse module, human-verified)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
   percent: 30
 ---
 
@@ -51,6 +51,7 @@ Progress: [███░░░░░░░] 30%
 
 *Updated after each plan completion*
 | Phase 12 P02 | 3min | 2 tasks | 4 files |
+| Phase 14-search-bar P01 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - 13-02: loadMoreContacts() omits count:exact on pagination — total already known from initial render
 - 13-02: Role filter uses ilike on enriched_headline (not current_role) — enriched data more complete
 - 13-02: Filter options (industries/cities) cached in _filterOptions — re-fetched only when empty on page load
+- [Phase 14-search-bar]: education_text excluded from fts tsvector — enriched_school (short name) is correct for search
+- [Phase 14-search-bar]: Phase 13 tests use either/or assertions (roleQuery or searchQuery) for progressive rename compatibility
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T02:11:48.305Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-search-bar/14-CONTEXT.md
+Last session: 2026-03-19T03:06:52.692Z
+Stopped at: Completed 14-search-bar-01-PLAN.md
+Resume file: None

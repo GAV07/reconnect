@@ -91,7 +91,7 @@ Plans:
   1. Typing "University of Miami" in the search bar returns contacts who attended that school, even when no filter is active
   2. Typing a combined query (e.g., "Sales Miami") returns contacts matching all terms across name, role, company, location, and school simultaneously
   3. Search results update automatically after the user pauses typing (debounced input — not on every keystroke), and a result count ("12 contacts") is displayed below the search bar
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 14-01-PLAN.md — Test scaffolding + tsvector migration + Phase 13 test updates
 - [ ] 14-02-PLAN.md — Search bar implementation (contacts.js + CSS) + visual checkpoint
@@ -113,4 +113,4 @@ Plans:
 | 11. Signal Write Completion + Draft Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 12. Enrichment Audit and Schema Extraction | v1.3 | 2/2 | Complete | 2026-03-16 |
 | 13. Contacts Browse Page | v1.3 | 2/2 | Complete | 2026-03-18 |
-| 14. Search Bar | v1.3 | 0/2 | Not started | - |
+| 14. Search Bar | 1/2 | In Progress|  | - |
