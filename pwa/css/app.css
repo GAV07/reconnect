@@ -758,6 +758,28 @@ body {
   padding: 16px 0 8px;
 }
 
+/* Search bar icon wrapper */
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Inline SVG icon inside search input */
+.search-icon-svg {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Search input with left padding for icon */
+.search-input {
+  padding-left: 28px;
+}
+
 /* Responsive — larger screens get some padding */
 @media (min-width: 481px) {
   .app-shell {

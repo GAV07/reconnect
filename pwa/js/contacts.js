@@ -7,7 +7,7 @@ const BROWSE_SELECT = [
 ].join(',');
 
 const contactFilters = {
-  roleQuery: '',
+  searchQuery: '',
   industryFilter: null,
   cityFilter: null,
   offset: 0,
@@ -16,7 +16,7 @@ const contactFilters = {
 
 let _contactRows = [];
 let _filterOptions = { industries: [], cities: [] };
-let _roleDebounceTimer = null;
+let _searchDebounceTimer = null;
 let _unfilteredTotal = 0;
 
 /* --- Filter Options --- */
@@ -68,8 +68,11 @@ async function renderContacts(container) {
     .order('reconnect_score', { ascending: false })
     .range(contactFilters.offset, contactFilters.offset + 49);
 
-  if (contactFilters.roleQuery) {
-    query = query.ilike('enriched_headline', '%' + contactFilters.roleQuery + '%');
+  if (contactFilters.searchQuery) {
+    query = query.textSearch('fts', contactFilters.searchQuery, {
+      type: 'plain',
+      config: 'english'
+    });
   }
   if (contactFilters.industryFilter) {
     query = query.eq('enriched_industry', contactFilters.industryFilter);
@@ -84,9 +87,42 @@ async function renderContacts(container) {
   var error = result.error;
 
   if (error) {
-    console.error('Contacts fetch error:', error);
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Failed to load contacts. Check your connection and try again.</p></div>';
-    return;
+    // If textSearch failed (fts column missing), retry with ilike fallback
+    if (contactFilters.searchQuery && error.message && error.message.includes('fts')) {
+      console.warn('textSearch failed, falling back to ilike:', error.message);
+      var fallbackQuery = db
+        .from('connections')
+        .select(BROWSE_SELECT, { count: 'exact' })
+        .or('user_priority.neq.never,user_priority.is.null')
+        .order('reconnect_score', { ascending: false })
+        .range(contactFilters.offset, contactFilters.offset + 49);
+      var terms = contactFilters.searchQuery.trim().split(/\s+/);
+      terms.forEach(function(term) {
+        var p = '%' + term + '%';
+        fallbackQuery = fallbackQuery.or(
+          'name.ilike.' + p + ',' +
+          'current_role.ilike.' + p + ',' +
+          'current_company.ilike.' + p + ',' +
+          'enriched_city.ilike.' + p + ',' +
+          'enriched_school.ilike.' + p
+        );
+      });
+      if (contactFilters.industryFilter) {
+        fallbackQuery = fallbackQuery.eq('enriched_industry', contactFilters.industryFilter);
+      }
+      if (contactFilters.cityFilter) {
+        fallbackQuery = fallbackQuery.eq('enriched_city', contactFilters.cityFilter);
+      }
+      var fallbackResult = await fallbackQuery;
+      data = fallbackResult.data;
+      count = fallbackResult.count;
+      error = fallbackResult.error;
+    }
+    if (error) {
+      console.error('Contacts fetch error:', error);
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Failed to load contacts. Check your connection and try again.</p></div>';
+      return;
+    }
   }
 
   contactFilters.totalCount = count || 0;
@@ -113,9 +149,13 @@ function renderContactsPage(container) {
 
   var listHtml = '';
   if (_contactRows.length === 0 && contactFilters.totalCount === 0) {
-    var hasActiveFilter = contactFilters.roleQuery || contactFilters.industryFilter || contactFilters.cityFilter;
+    var hasActiveFilter = contactFilters.searchQuery || contactFilters.industryFilter || contactFilters.cityFilter;
     if (hasActiveFilter) {
-      listHtml = '<div class="empty-state"><div class="icon">&#128269;</div><p>No contacts match these filters. Try adjusting or clearing your filters.</p></div>';
+      if (contactFilters.searchQuery) {
+        listHtml = '<div class="empty-state"><div class="icon">&#128269;</div><p>No contacts match "' + escapeHtml(contactFilters.searchQuery) + '". Try different keywords or clear your search.</p></div>';
+      } else {
+        listHtml = '<div class="empty-state"><div class="icon">&#128269;</div><p>No contacts match these filters. Try adjusting or clearing your filters.</p></div>';
+      }
     } else {
       listHtml = '<div class="empty-state"><div class="icon">&#128101;</div><p>No contacts yet. Import your LinkedIn connections to get started.</p></div>';
     }
@@ -171,7 +211,7 @@ function renderContactRow(conn) {
 /* --- Filter Bar HTML --- */
 
 function buildFilterBarHtml() {
-  var hasActiveFilter = contactFilters.roleQuery || contactFilters.industryFilter || contactFilters.cityFilter;
+  var hasActiveFilter = contactFilters.searchQuery || contactFilters.industryFilter || contactFilters.cityFilter;
 
   var industryOptions = _filterOptions.industries.map(function(ind) {
     var selected = contactFilters.industryFilter === ind ? ' selected' : '';
@@ -189,14 +229,18 @@ function buildFilterBarHtml() {
 
   return '<div class="contacts-filter-bar">' +
     '<div class="filter-group filter-group-full">' +
-      '<label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);font-weight:600;">ROLE / TITLE</label>' +
-      '<input type="text" class="filter-input"' +
-        ' placeholder="e.g. Product Manager"' +
-        ' value="' + escapeHtml(contactFilters.roleQuery) + '"' +
-        ' oninput="onContactRoleInput(this.value)"' +
-        ' list="role-suggestions"' +
-      '/>' +
-      '<datalist id="role-suggestions"></datalist>' +
+      '<label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);font-weight:600;">SEARCH</label>' +
+      '<div class="search-input-wrap">' +
+        '<svg class="search-icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+          '<circle cx="8.5" cy="8.5" r="5.5"/>' +
+          '<line x1="13" y1="13" x2="18" y2="18"/>' +
+        '</svg>' +
+        '<input type="search" class="filter-input search-input"' +
+          ' placeholder="Search contacts..."' +
+          ' value="' + escapeHtml(contactFilters.searchQuery) + '"' +
+          ' oninput="onContactSearchInput(this.value)"' +
+        '/>' +
+      '</div>' +
     '</div>' +
     '<div class="contacts-filter-row">' +
       '<div class="filter-group">' +
@@ -222,6 +266,9 @@ function buildFilterBarHtml() {
 
 function buildCountBanner(showing, total) {
   if (total === 0) return '';
+  if (contactFilters.searchQuery) {
+    return '<div class="contacts-count-banner">' + total + ' contacts match "' + escapeHtml(contactFilters.searchQuery) + '"</div>';
+  }
   return '<div class="contacts-count-banner">Showing ' + showing + ' of ' + total + ' contacts</div>';
 }
 
@@ -242,7 +289,7 @@ function setContactCityFilter(value) {
 }
 
 function clearContactFilters() {
-  contactFilters.roleQuery = '';
+  contactFilters.searchQuery = '';
   contactFilters.industryFilter = null;
   contactFilters.cityFilter = null;
   contactFilters.offset = 0;
@@ -250,36 +297,21 @@ function clearContactFilters() {
   if (content) renderContacts(content);
 }
 
-/* --- Role Autocomplete with Debounce --- */
+/* --- Search Input with Debounce --- */
 
-function onContactRoleInput(value) {
-  clearTimeout(_roleDebounceTimer);
-  if (value.length < 2) {
-    var dl = document.getElementById('role-suggestions');
-    if (dl) dl.innerHTML = '';
+function onContactSearchInput(value) {
+  clearTimeout(_searchDebounceTimer);
+  if (!value || value.length < 2) {
     if (!value) {
-      contactFilters.roleQuery = '';
+      contactFilters.searchQuery = '';
       contactFilters.offset = 0;
       var content = document.getElementById('app-content');
       if (content) renderContacts(content);
     }
     return;
   }
-  _roleDebounceTimer = setTimeout(async function() {
-    if (db) {
-      var result = await db
-        .from('connections')
-        .select('enriched_headline')
-        .not('enriched_headline', 'is', null)
-        .ilike('enriched_headline', '%' + value + '%')
-        .limit(10);
-      var suggestions = [...new Set((result.data || []).map(function(r) { return r.enriched_headline; }).filter(Boolean))];
-      var dl = document.getElementById('role-suggestions');
-      if (dl) {
-        dl.innerHTML = suggestions.map(function(s) { return '<option value="' + escapeHtml(s) + '">'; }).join('');
-      }
-    }
-    contactFilters.roleQuery = value;
+  _searchDebounceTimer = setTimeout(function() {
+    contactFilters.searchQuery = value;
     contactFilters.offset = 0;
     var content = document.getElementById('app-content');
     if (content) renderContacts(content);
@@ -302,8 +334,11 @@ async function loadMoreContacts(btn) {
     .order('reconnect_score', { ascending: false })
     .range(contactFilters.offset, contactFilters.offset + 49);
 
-  if (contactFilters.roleQuery) {
-    query = query.ilike('enriched_headline', '%' + contactFilters.roleQuery + '%');
+  if (contactFilters.searchQuery) {
+    query = query.textSearch('fts', contactFilters.searchQuery, {
+      type: 'plain',
+      config: 'english'
+    });
   }
   if (contactFilters.industryFilter) {
     query = query.eq('enriched_industry', contactFilters.industryFilter);
