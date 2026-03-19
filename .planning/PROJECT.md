@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (CLI @ 8AM via LaunchAgent) that scores contacts, computes dashboard intelligence, generates an actionable email digest, and syncs data to a PWA where you can triage contacts with intent signals, review enriched profiles, explore network demographics, and track your outreach pipeline. Signal assignments drive messaging tone, schedule follow-ups via cadence, and improve future scoring through feedback loops.
+A personal networking tool that imports, enriches, and scores professional contacts, then surfaces the best reconnection opportunities via a daily email digest and a web app. The system runs a daily pipeline (CLI @ 8AM via LaunchAgent) that scores contacts, computes dashboard intelligence, generates an actionable email digest, and syncs data to a PWA where you can triage contacts with intent signals, review enriched profiles, explore network demographics, search and browse your full contact list, and track your outreach pipeline. Signal assignments drive messaging tone, schedule follow-ups via cadence, and improve future scoring through feedback loops.
 
 ## Core Value
 
@@ -57,17 +57,16 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - ✓ Signal-informed rescoring with safety guards (25-action min, ±40% cap, audit trail) — v1.2
 - ✓ Draft tone adaptation (signal drives AI message tone via Edge Function) — v1.2
 - ✓ Queue card enrichment (industry chip, key factor, last interaction, notes) — v1.2
+- ✓ CLI enrichment coverage statistics (`reconnect contacts stats --enrichment`) — v1.3
+- ✓ Education text extraction from raw_enrichment into searchable column — v1.3
+- ✓ 7 enrichment fields (industry, headline, city, country, school, seniority, education_text) extracted at enrichment time — v1.3
+- ✓ Existing contacts backfilled from raw_enrichment without API calls — v1.3
+- ✓ Contacts browse page with paginated list, industry/location/role filters, server-side pagination — v1.3
+- ✓ Full-text search bar across name, role, company, location, school with debounced input and result count — v1.3
 
 ### Active
 
-#### Current Milestone: v1.3 Contact Discovery
-
-**Goal:** Enable finding specific people in your network by enriching contacts comprehensively and adding flexible search/browse capabilities to the PWA.
-
-**Target features:**
-- Enrichment completeness — verify and fill all categories that help segment and categorize contacts (education, role, industry, location, etc.)
-- Search/discovery in PWA — flexible search bar to find contacts by criteria ("Sales leader, University of Miami")
-- Better browsing — filters and browse views to explore network beyond the queue
+(No active requirements — define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -86,13 +85,15 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 
 ## Context
 
-**Current State (post v1.2):**
-- ~36,800 LOC across Python (13,550), JavaScript (20,922), TypeScript (718), CSS (1,068), HTML (524)
+**Current State (post v1.3):**
+- ~43,600 LOC across Python (14,400+), JavaScript (21,900+), TypeScript (718), CSS (1,150+), HTML (524)
 - Tech stack: Python + SQLModel + SQLite (local), Supabase PostgreSQL + PostgREST + Edge Functions (cloud), Vanilla JS PWA on Netlify, Click CLI
-- 45 v1.0+v1.1+v1.2 requirements shipped and verified across 11 phases (3 milestones)
+- 56 v1.0–v1.3 requirements shipped and verified across 14 phases (4 milestones)
 - Pipeline runs daily via LaunchAgent → `reconnect pipeline run`, email digest via Gmail OAuth, PWA live on Netlify
 - Signal system: 7 intent signals with cadence re-queuing, draft tone adaptation, feedback-based rescoring
-- 169 tests passed, 9 skipped, 0 failures
+- Enrichment: 7 queryable columns extracted from raw_enrichment, backfill on every pipeline run
+- Contacts: browse page with industry/location filters, full-text search (tsvector + GIN), 50-item server-side pagination
+- 212 tests passed (43 new in v1.3), 9 skipped, 0 failures
 
 **Known Tech Debt:**
 - `datetime.utcnow()` deprecated in Python 3.12+ (pre-existing, several files)
@@ -102,8 +103,13 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - `tests/test_phase10_draft_tone.py` planned but never created (6 tests for PERS-05)
 - Gmail OAuth GCP consent screen must be published (or add test user) before tokens work beyond 7 days
 - outreach_queue.signal UPDATE permission unverified for anon role (table-level grant likely inherited)
+- Private symbol import: enrichment_extractor.py imports `_classify_seniority` from dashboard_service (fragile coupling)
+- Industry display inconsistency: browse page uses normalized enriched_industry, detail page reads raw company_industry
+- Implicit script load order: contacts.js depends on escapeHtml() from queue.js via global scope
+- Pre-existing test failure: test_gmail_not_configured_without_password (is_gmail_configured() bug)
+- FTS migration 20260318000000 may not be applied to Supabase (search falls back to ilike)
 
-**Potential v1.3+ Features:**
+**Potential v1.4+ Features:**
 - Signal analytics on dashboard (distribution, trends over time)
 - VALUE_DROP resource/link attachment before outreach
 - Signal-driven email digest bucketing
@@ -111,6 +117,9 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 - Per-contact cadence override
 - AI contact search ("Who in my network knows about X?")
 - Geographic distribution of contacts
+- Seniority/signal/completeness filters on contacts page
+- Saved searches / smart lists
+- Skills filter (contingent on enrichment coverage)
 
 ## Constraints
 
@@ -148,6 +157,13 @@ When I get my morning email, I can quickly decide who to reconnect with, take ac
 | ARCHIVE guard before DB reads | Early return avoids unnecessary profile/connection fetches for archived contacts | ✓ Good — efficient |
 | Client-side signal filter | PostgREST cannot filter on embedded resource fields (connections.latest_signal) | ✓ Good — works for current volume |
 | outreach_queue UPDATE keyed on itemId | Prevents multi-row update bug when connectionId matches multiple queue entries | ✓ Good — safe writes |
+| 7 enrichment columns with SQLite migration helper | Enrichment fields as first-class columns enables PostgREST filtering; SQLite ALTER TABLE helper handles existing DBs | ✓ Good — filters work, backward-compatible |
+| INDUSTRY_MAP normalization (44 → 11 labels) | LinkedIn industry strings too verbose for filters; canonical labels enable clean dropdowns | ✓ Good — consistent industry display |
+| BROWSE_SELECT explicit field whitelist | Prevents raw_enrichment (15MB+ payloads) from being fetched; explicit is safer than exclusion | ✓ Good — performant, secure |
+| tsvector generated column for FTS | PostgreSQL native FTS via PostgREST textSearch — no external search service needed | ✓ Good — zero-cost, server-side |
+| ilike fallback on fts-column-missing | Graceful degradation if FTS migration not applied — search still works via per-column ilike | ✓ Good — resilient |
+| searchQuery replacing roleQuery | Multi-field search subsumes role filter — single control is simpler UX | ✓ Good — cleaner UI |
+| education_text excluded from tsvector | Too noisy (full degree descriptions); enriched_school (short name) sufficient for search | ✓ Good — relevant results |
 
 ---
-*Last updated: 2026-03-14 after v1.3 milestone start*
+*Last updated: 2026-03-19 after v1.3 milestone completion*

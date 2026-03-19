@@ -144,6 +144,53 @@
 
 ---
 
+## Milestone: v1.3 — Contact Discovery
+
+**Shipped:** 2026-03-19
+**Phases:** 3 | **Plans:** 6
+
+### What Was Built
+- Enrichment schema extraction — 7 queryable columns (industry, headline, city, country, school, seniority, education_text) with dual-key extraction, INDUSTRY_MAP normalization, and idempotent backfill
+- Pipeline wiring — extraction at enrichment time, gap-fill step in daily pipeline, CLI stats/backfill commands
+- Contacts browse page — 4-tab bottom nav, server-side PostgREST filtering (role/industry/city), 50-item pagination, contact cards with score/signal badges
+- Full-text search — tsvector generated column + GIN index on Supabase, multi-field search bar with textSearch primary path, multi-column ilike fallback, 300ms debounce, search-aware count banner and empty state
+
+### What Worked
+- BROWSE_SELECT explicit field whitelist prevented raw_enrichment from ever entering browse payloads — clean performance boundary
+- ilike fallback on fts-column-missing provided graceful degradation — search works even without the FTS migration applied
+- searchQuery replacing roleQuery was a clean consolidation — one control instead of separate role filter + search bar
+- Static analysis tests (12 for Phase 13, 12 for Phase 14) verified JS implementation without requiring a live browser or Supabase connection
+- fetchFilterOptions() parallel Promise.all for distinct industry/city values — efficient initial page load
+
+### What Was Inefficient
+- SUMMARY.md frontmatter `one_liner` still missing — summary-extract returns null for all plans (now 4 milestones without fix)
+- Nyquist VALIDATION.md created for all 3 phases but none completed — draft status carried forward as tech debt
+- Industry display inconsistency (normalized on browse page, raw on detail page) should have been caught during Phase 13 planning
+- Implicit script load order dependency (contacts.js → queue.js escapeHtml) is fragile — no import system in vanilla JS
+
+### Patterns Established
+- BROWSE_SELECT explicit field whitelist for PostgREST queries — prevents payload bloat and raw_enrichment leaks
+- contactFilters state object centralizing all filter/offset/count state for contacts page
+- textSearch('fts', query, {type:'plain', config:'english'}) for PostgreSQL FTS via PostgREST
+- ilike fallback pattern — catch FTS column-missing error, retry with per-column ilike chaining
+- SQLite column migration helper (apply_sqlite_column_migrations) for backward-compatible schema evolution
+- INDUSTRY_MAP normalization (44 verbose LinkedIn strings → 11 canonical labels) for clean filter dropdowns
+- Either/or test compatibility assertions (has_role or has_search) for progressive renames across phases
+
+### Key Lessons
+1. Server-side FTS (tsvector + GIN) via PostgREST is zero-cost and high-quality — no external search service needed
+2. Explicit SELECT field lists are essential for performance — raw_enrichment payloads can be 15MB+ on mobile
+3. Generated columns (tsvector) only work in PostgreSQL, not SQLite — migration SQL must stay separate from models.py
+4. ilike fallback makes the system resilient to incomplete migrations — degraded but functional is better than broken
+5. Static analysis tests (file content assertions) provide surprisingly strong coverage for PWA code without a browser
+
+### Cost Observations
+- Sessions: ~5 (research + plan + execute × 3 phases, audit + completion)
+- Notable: Smallest milestone yet (3 phases, 6 plans) but high impact — contacts page is the most-used PWA feature
+- Model mix: Sonnet for executors/verifier/integration-checker, opus for orchestration
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -153,13 +200,15 @@
 | v1.0 | 3 | 7 | Initial milestone — established planning/execution workflow |
 | v1.1 | 3 | 7 | TDD commits, 3-source requirement cross-reference, CLI replaces Streamlit |
 | v1.2 | 5 | 12 | Milestone audit → gap closure flow, PostgREST direct writes, signal system architecture |
+| v1.3 | 3 | 6 | Explicit field whitelists, server-side FTS, ilike fallback pattern, static analysis tests |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. buildXxxSection() composable HTML pattern works well for email (v1.0), dashboard (v1.1), and profile (v1.2)
+1. buildXxxSection() composable HTML pattern works well for email (v1.0), dashboard (v1.1), profile (v1.2), and contacts (v1.3)
 2. get_settings() call-time pattern continues to enable clean testing — adopted across all modules
 3. raw_enrichment dual-key unwrap needed in every consumer — defensive pattern is essential
-4. SUMMARY.md frontmatter needs to be consistent from the start — missing across all 3 milestones
+4. SUMMARY.md frontmatter needs to be consistent from the start — missing across all 4 milestones
 5. ~3 min/plan execution time is stable across all milestones — good velocity benchmark
-6. Milestone audit catches integration gaps that phase-level verification misses — verified in v1.2
+6. Milestone audit catches integration gaps that phase-level verification misses — verified in v1.2 and v1.3
 7. PostgREST direct writes from PWA are simpler than Edge Functions — use Edge Functions only when server-side secrets needed
+8. Explicit field selection (BROWSE_SELECT) prevents payload bloat — validated in v1.3 contacts page

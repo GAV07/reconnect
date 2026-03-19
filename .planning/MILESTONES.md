@@ -1,5 +1,20 @@
 # Milestones
 
+## v1.3 Contact Discovery (Shipped: 2026-03-19)
+
+**Phases completed:** 3 phases, 6 plans, 12 tasks
+**Timeline:** 4 days (2026-03-16 → 2026-03-19)
+**Code:** 40 files changed, +6,845 / -54 lines
+**Git range:** feat(12-01) → feat(14-02)
+
+**Key accomplishments:**
+- Enrichment schema extraction — 7 queryable columns (industry, headline, city, country, school, seniority, education_text) with SQLite migration helper, extraction/backfill module, and Supabase migration
+- Pipeline wiring — enrichment extraction at enrichment time, gap-fill step in daily pipeline, CLI stats and backfill commands, 19 tests
+- Contacts browse page — 4-tab bottom nav, server-side PostgREST filtering (role/industry/city), 50-item pagination, contact cards with score/signal badges
+- Full-text search — tsvector + GIN migration, multi-field search bar with textSearch primary path, ilike fallback, 300ms debounce, search-aware count banner and empty state
+
+---
+
 ## v1.2 Intent-Driven Triage (Shipped: 2026-03-13)
 
 **Phases completed:** 5 phases, 12 plans, 9 tasks
