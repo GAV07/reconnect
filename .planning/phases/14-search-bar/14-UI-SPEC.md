@@ -42,7 +42,7 @@ Declared values (multiples of 4):
 | 3xl | 64px | Page-level spacing (not used in this phase) |
 
 Exceptions:
-- Search input left padding: 30px (sm + icon-width: 8 + 16 + 6 clearance) — not on 8-point scale, required to clear the 16px icon. Use `padding-left: 30px` on `.search-input`.
+- Search input left padding: 28px (sm + icon-width: 8 + 16 + 4 clearance) — clears the 16px icon. Use `padding-left: 28px` on `.search-input`.
 - Touch targets for clear button (X): minimum 32px hit area (fits within sm/md bounds).
 
 Source: default scale with search-icon-clearance exception from RESEARCH.md `CSS for Search Input with Icon`.
@@ -55,12 +55,13 @@ Source: default scale with search-icon-clearance exception from RESEARCH.md `CSS
 |------|------|--------|-------------|
 | Body | 14px | 400 | 1.5 |
 | Label | 11px (0.7rem) | 600 | 1.2 |
-| Name (contact row) | 15px | 700 | 1.3 |
+| Name (contact row) | 15px | 600 | 1.3 |
 | Count banner | 13px | 400 | 1.5 |
 
 Notes:
 - Search input text: 14px weight 400 — matches existing `.filter-input` (`font-size: 14px`).
 - Filter labels (SEARCH, INDUSTRY, LOCATION): 11px (0.7rem), uppercase, `letter-spacing: 0.05em`, weight 600 — matches existing label pattern in `buildFilterBarHtml()`.
+- Contact row names: 15px weight 600 — visually prominent without introducing a third weight.
 - Count banner copy: 13px weight 400 color `var(--text-secondary)` — matches existing `.contacts-count-banner`.
 - No new type sizes or weights introduced in this phase.
 
@@ -117,7 +118,7 @@ The label changes from `ROLE / TITLE` to `SEARCH`. The input type changes from `
     pointer-events: none
 
   input.filter-input.search-input
-    padding-left: 30px        ← clears the 16px icon + margins
+    padding-left: 28px        ← clears the 16px icon + margins
     type="search"
     placeholder="Search contacts..."
 ```
@@ -261,7 +262,7 @@ New rules to add to `pwa/css/app.css` (append to Contacts Browse Page section):
 
 /* Search input with left padding for icon */
 .search-input {
-  padding-left: 30px;
+  padding-left: 28px;
 }
 ```
 
