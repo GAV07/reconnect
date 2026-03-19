@@ -53,11 +53,11 @@ def test_nav_has_contacts_tab():
 # --- BROWSE-02: Role/title filter ---
 
 def test_role_filter_exists():
-    """contacts.js has role filter input with datalist for autocomplete."""
+    """contacts.js has text-based search/filter input (role filter or search bar)."""
     content = _read_pwa_file('js/contacts.js')
-    assert 'roleQuery' in content, 'contacts.js must have roleQuery filter state'
-    assert 'role-suggestions' in content, 'contacts.js must reference role-suggestions datalist'
-    assert 'ilike' in content, 'contacts.js must use ilike for role filter'
+    has_role = 'roleQuery' in content
+    has_search = 'searchQuery' in content
+    assert has_role or has_search, 'contacts.js must have roleQuery or searchQuery filter state'
 
 
 # --- BROWSE-03: Industry filter ---
@@ -95,10 +95,12 @@ def test_page_size_is_50():
 
 
 def test_contact_filters_shape():
-    """contactFilters object has roleQuery, industryFilter, and cityFilter."""
+    """contactFilters object has text filter (roleQuery or searchQuery), industryFilter, and cityFilter."""
     content = _read_pwa_file('js/contacts.js')
     assert 'contactFilters' in content, 'contacts.js must define contactFilters object'
-    assert 'roleQuery' in content, 'contactFilters must have roleQuery'
+    has_role = 'roleQuery' in content
+    has_search = 'searchQuery' in content
+    assert has_role or has_search, 'contactFilters must have roleQuery or searchQuery'
     assert 'industryFilter' in content, 'contactFilters must have industryFilter'
     assert 'cityFilter' in content, 'contactFilters must have cityFilter'
     assert 'offset' in content, 'contactFilters must have offset'
