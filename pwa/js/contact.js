@@ -232,6 +232,105 @@ async function addTimestampedNote(connectionId) {
   }
 }
 
+function buildPipelineSection(conn) {
+  const roleOptions = Object.entries(ACQUISITION_ROLES).map(([key, info]) => {
+    const sel = conn.acquisition_role === key ? ' selected' : '';
+    return `<option value="${key}"${sel}>${info.label}</option>`;
+  }).join('');
+
+  const stageOptions = Object.entries(PIPELINE_STAGES).map(([key, info]) => {
+    const sel = conn.pipeline_stage === key ? ' selected' : '';
+    return `<option value="${key}"${sel}>${info.label}</option>`;
+  }).join('');
+
+  const notes = conn.pipeline_notes || '';
+  const inPipeline = conn.pipeline_stage || conn.acquisition_role;
+
+  return `
+    <div class="detail-section">
+      <h3>Pipeline</h3>
+      <div style="display:flex;gap:12px;margin-bottom:10px;">
+        <div class="filter-group" style="flex:1;">
+          <label style="font-size:12px;color:var(--text-secondary);font-weight:600;">Role</label>
+          <select id="pipeline-role" class="filter-input">
+            <option value="">-- None --</option>
+            ${roleOptions}
+          </select>
+        </div>
+        <div class="filter-group" style="flex:1;">
+          <label style="font-size:12px;color:var(--text-secondary);font-weight:600;">Stage</label>
+          <select id="pipeline-stage" class="filter-input">
+            <option value="">-- None --</option>
+            ${stageOptions}
+          </select>
+        </div>
+      </div>
+      <textarea id="pipeline-notes"
+        placeholder="Pipeline notes (e.g. next steps, context)..."
+        style="width:100%;min-height:60px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font:inherit;font-size:14px;resize:vertical;"
+      >${escapeHtml(notes)}</textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary" style="flex:0;padding:8px 16px;font-size:13px;"
+          onclick="savePipelineData('${conn.id}')">Save Pipeline</button>
+        ${inPipeline ? `<button class="btn btn-outline" style="flex:0;padding:8px 16px;font-size:13px;color:var(--danger);border-color:var(--danger);"
+          onclick="removeFromPipeline('${conn.id}')">Remove from Pipeline</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function savePipelineData(connectionId) {
+  if (!db) return;
+  const role = document.getElementById('pipeline-role')?.value || null;
+  const stage = document.getElementById('pipeline-stage')?.value || null;
+  const notes = document.getElementById('pipeline-notes')?.value?.trim() || null;
+
+  try {
+    const { error } = await db
+      .from('connections')
+      .update({
+        acquisition_role: role,
+        pipeline_stage: stage,
+        pipeline_notes: notes,
+        pipeline_updated_at: new Date().toISOString(),
+      })
+      .eq('id', connectionId);
+    if (error) throw error;
+    // Visual feedback
+    const btn = event?.target;
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = 'Saved!';
+      btn.style.background = 'var(--success)';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+    }
+  } catch (err) {
+    console.error('Pipeline save error:', err);
+    alert('Failed to save pipeline data.');
+  }
+}
+
+async function removeFromPipeline(connectionId) {
+  if (!db) return;
+  try {
+    const { error } = await db
+      .from('connections')
+      .update({
+        acquisition_role: null,
+        pipeline_stage: null,
+        pipeline_notes: null,
+        pipeline_updated_at: null,
+      })
+      .eq('id', connectionId);
+    if (error) throw error;
+    // Re-render contact to reflect removal
+    const content = document.getElementById('app-content');
+    if (content) renderContact(content, connectionId);
+  } catch (err) {
+    console.error('Pipeline remove error:', err);
+    alert('Failed to remove from pipeline.');
+  }
+}
+
 async function renderContact(container, connectionId) {
   if (!db || !connectionId) {
     container.innerHTML = '<div class="empty-state"><p>Contact not found.</p></div>';
@@ -457,6 +556,7 @@ async function renderContact(container, connectionId) {
       ${buildEnrichmentSection(conn)}
       ${signalHistoryHtml}
       ${notesHtml}
+      ${buildPipelineSection(conn)}
       ${draftHtml}
       ${linksHtml}
 

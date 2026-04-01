@@ -20,6 +20,7 @@ const routes = {
   '/contacts': { module: 'contacts', title: 'Contacts' },
   '/contact': { module: 'contact', title: 'Contact' },
   '/dashboard': { module: 'dashboard', title: 'Dashboard' },
+  '/pipeline': { module: 'pipeline', title: 'Pipeline' },
   '/preferences': { module: 'preferences', title: 'Preferences' },
 };
 
@@ -83,6 +84,9 @@ async function render() {
         break;
       case 'dashboard':
         await renderDashboard(content);
+        break;
+      case 'pipeline':
+        await renderPipeline(content);
         break;
       case 'preferences':
         await renderPreferences(content);

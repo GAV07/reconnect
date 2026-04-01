@@ -50,6 +50,9 @@ CONNECTION_SYNC_FIELDS = [
     "enriched_industry", "enriched_headline", "enriched_city",
     "enriched_country", "enriched_school", "enriched_seniority",
     "education_text",
+    # Acquisition pipeline fields (v1.4)
+    "acquisition_role", "pipeline_stage",
+    "pipeline_notes", "pipeline_updated_at",
 ]
 
 

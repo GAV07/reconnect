@@ -156,6 +156,12 @@ class Connection(SQLModel, table=True):
     enriched_seniority: Optional[str] = Field(default=None, index=True)
     education_text: Optional[str] = Field(default=None, sa_column=Column(Text))
 
+    # Acquisition pipeline (v1.4)
+    acquisition_role: Optional[str] = Field(default=None, index=True)  # "buyer" | "activator"
+    pipeline_stage: Optional[str] = Field(default=None, index=True)    # "target" | "contacted" | "responded" | "meeting" | "proposal" | "won" | "lost"
+    pipeline_notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    pipeline_updated_at: Optional[datetime] = Field(default=None)
+
 
 # Composite indexes for common query patterns
 Connection.__table_args__ = (
