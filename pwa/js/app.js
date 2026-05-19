@@ -16,6 +16,7 @@ function initSupabase() {
 
 // Simple hash-based router
 const routes = {
+  '/search': { module: 'search', title: 'Search' },
   '/queue': { module: 'queue', title: 'Queue' },
   '/contacts': { module: 'contacts', title: 'Contacts' },
   '/contact': { module: 'contact', title: 'Contact' },
@@ -29,7 +30,7 @@ function navigate(hash) {
 }
 
 function getRoute() {
-  const hash = window.location.hash || '#/queue';
+  const hash = window.location.hash || '#/search';
   const path = hash.replace('#', '').split('?')[0];
 
   // Check for parameterized routes
@@ -37,7 +38,7 @@ function getRoute() {
     return { ...routes['/contact'], params: { id: path.split('/contact/')[1] } };
   }
 
-  return routes[path] || routes['/queue'];
+  return routes[path] || routes['/search'];
 }
 
 function getQueryParams() {
@@ -63,8 +64,8 @@ async function render() {
   // Update nav active state
   document.querySelectorAll('.bottom-nav a').forEach(a => {
     const href = a.getAttribute('href');
-    const currentPath = (window.location.hash || '#/queue').split('?')[0];
-    a.classList.toggle('active', href === currentPath || (currentPath.startsWith('#/contact/') && href === '#/queue'));
+    const currentPath = (window.location.hash || '#/search').split('?')[0];
+    a.classList.toggle('active', href === currentPath || (currentPath.startsWith('#/contact/') && href === '#/search'));
   });
 
   // Show loading
@@ -73,6 +74,9 @@ async function render() {
   // Route to module
   try {
     switch (route.module) {
+      case 'search':
+        await renderSearch(content);
+        break;
       case 'queue':
         await renderQueue(content);
         break;
@@ -92,7 +96,7 @@ async function render() {
         await renderPreferences(content);
         break;
       default:
-        await renderQueue(content);
+        await renderSearch(content);
     }
   } catch (err) {
     console.error('Render error:', err);
@@ -130,6 +134,11 @@ function checkDeepLinkQueryParams() {
   if (view === 'queue') {
     history.replaceState(null, '', window.location.pathname);
     window.location.hash = '/queue';
+    return true;
+  }
+  if (view === 'search') {
+    history.replaceState(null, '', window.location.pathname);
+    window.location.hash = '/search';
     return true;
   }
   return false;

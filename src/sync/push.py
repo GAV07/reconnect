@@ -53,6 +53,8 @@ CONNECTION_SYNC_FIELDS = [
     # Acquisition pipeline fields (v1.4)
     "acquisition_role", "pipeline_stage",
     "pipeline_notes", "pipeline_updated_at",
+    # Semantic search (v2.0)
+    "profile_text", "profile_embedding",
 ]
 
 

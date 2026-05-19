@@ -162,6 +162,10 @@ class Connection(SQLModel, table=True):
     pipeline_notes: Optional[str] = Field(default=None, sa_column=Column(Text))
     pipeline_updated_at: Optional[datetime] = Field(default=None)
 
+    # Semantic search (v2.0)
+    profile_text: Optional[str] = Field(default=None, sa_column=Column(Text))
+    profile_embedding: Optional[str] = Field(default=None, sa_column=Column(Text))  # JSON vector, pgvector in cloud
+
 
 # Composite indexes for common query patterns
 Connection.__table_args__ = (

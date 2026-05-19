@@ -292,6 +292,20 @@ def run_daily_pipeline(
             )
             results["enrichment_gap_fill"] = {"error": str(gf_error)}
 
+        # Step 6c: Generate profile text and embeddings for semantic search
+        try:
+            from src.pipeline.embeddings import generate_embeddings
+
+            embedding_result = generate_embeddings()
+            results["embeddings"] = embedding_result
+            steps_completed.append("embeddings")
+        except Exception as emb_error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Embedding generation failed (non-fatal): %s", emb_error
+            )
+            results["embeddings"] = {"error": str(emb_error)}
+
         # Mark run as completed
         with get_session() as session:
             run = session.get(PipelineRun, run_id)

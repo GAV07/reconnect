@@ -37,7 +37,8 @@ def pipeline():
 @click.option("--dump", "-d", type=click.Path(exists=True), help="Path to LinkedIn export ZIP")
 @click.option("--skip-enrich", is_flag=True, help="Skip enrichment step")
 @click.option("--skip-queue", is_flag=True, help="Skip queue generation step")
-def pipeline_run(dump, skip_enrich, skip_queue):
+@click.option("--enrich-budget", type=int, default=None, help="Max contacts to enrich (default: 30)")
+def pipeline_run(dump, skip_enrich, skip_queue, enrich_budget):
     """Run the daily Reconnect pipeline."""
     from pathlib import Path
 
@@ -46,6 +47,8 @@ def pipeline_run(dump, skip_enrich, skip_queue):
 
     print("----------------------------------------")
     print("[Pipeline] Starting Reconnect pipeline...")
+    if enrich_budget:
+        print(f"[Pipeline] Enrich budget: {enrich_budget}")
     print("----------------------------------------")
 
     try:
@@ -58,6 +61,7 @@ def pipeline_run(dump, skip_enrich, skip_queue):
         linkedin_dump_path=Path(dump) if dump else None,
         skip_enrichment=skip_enrich,
         skip_queue_generation=skip_queue,
+        enrich_budget=enrich_budget,
     )
 
     _print_pipeline_results(results)
@@ -244,6 +248,35 @@ def contacts_backfill():
     print(f"  School:     {result['school']}")
     print(f"  Seniority:  {result['seniority']}")
     print(f"  Education:  {result['education']}")
+
+
+# ── search ───────────────────────────────────────────────────────────────────
+
+
+@main.group()
+def search():
+    """Semantic search operations."""
+    pass
+
+
+@search.command("embed")
+@click.option("--force", is_flag=True, help="Regenerate all embeddings")
+def search_embed(force):
+    """Generate profile text and embeddings for semantic search."""
+    from src.database.engine import init_db
+    from src.pipeline.embeddings import generate_embeddings
+
+    init_db()
+    print("[Search] Generating profile text and embeddings...")
+    result = generate_embeddings(force=force)
+
+    print(f"\n[Search] Results:")
+    print(f"  Profile texts generated: {result['profile_texts_generated']}")
+    print(f"  Embeddings generated:    {result['embeddings_generated']}")
+    print(f"  Errors:                  {result['errors']}")
+
+    if result['embeddings_generated'] > 0:
+        print("\n[Search] Run 'reconnect sync push' to sync embeddings to cloud.")
 
 
 # ── gmail ─────────────────────────────────────────────────────────────────────

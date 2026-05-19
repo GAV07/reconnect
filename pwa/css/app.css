@@ -780,6 +780,216 @@ body {
   padding-left: 28px;
 }
 
+/* ========================================
+   Semantic Search — Hero Experience
+   ======================================== */
+
+.search-hero {
+  padding: 8px 0 16px;
+}
+
+.search-hero-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-hero-icon {
+  position: absolute;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-hero-input {
+  width: 100%;
+  padding: 14px 40px 14px 44px;
+  font-size: 16px;
+  font-family: inherit;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+}
+
+.search-hero-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(10, 102, 194, 0.15);
+}
+
+.search-hero-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--border);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Search Results */
+.search-results-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 4px 0 8px;
+  font-weight: 600;
+}
+
+.search-result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.search-result-card:active {
+  background: #f8f9fa;
+}
+
+.search-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.search-result-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.search-result-role {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.search-result-headline {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 6px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-match-badge {
+  background: #e8f4fd;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.search-result-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.search-result-city {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.search-result-school {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Suggestions */
+.search-suggestions {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.search-suggestions-title {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.search-suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.search-suggestion-chip {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.search-suggestion-chip:hover,
+.search-suggestion-chip:active {
+  background: #e8f4fd;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Search error */
+.search-error {
+  text-align: center;
+  padding: 12px;
+  margin: 8px 0;
+  background: #fef2f2;
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.search-empty-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* Responsive — larger screens get some padding */
 @media (min-width: 481px) {
   .app-shell {
